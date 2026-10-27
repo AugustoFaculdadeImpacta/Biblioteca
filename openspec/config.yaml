@@ -1,0 +1,8 @@
+schema: spec-driven
+context: |
+  Biblioteca escolar reconstruída do zero nesta pasta. Idioma: português do Brasil.
+  Backend: Xano; frontend: Reflex candidato, sujeito a avaliação antes de implementação.
+  Estudantes fazem autocadastro com acesso imediato; perfis: estudante e bibliotecário.
+  Catálogo público; operações autenticadas e autorizadas no backend.
+  Títulos podem ter várias categorias e vários exemplares físicos. Empréstimo: um exemplar por estudante, 14 dias corridos desde retirada física registrada. Atraso bloqueia empréstimos e reservas. Reservas por título, FIFO, uma ativa por estudante/título, retirada em 2 dias após disponibilização. Dano/perda torna exemplar indisponível com observação.
+  Desenvolver verticalmente: evoluir dados/API com cada capability; não criar o banco isoladamente. Revisar OpenSpec antes de Apply, verificar antes de Archive. Usuário autorizou reconstruir as tabelas antigas no workspace Xano correto após Change aprovada; confirmar destino antes de operação remota.
