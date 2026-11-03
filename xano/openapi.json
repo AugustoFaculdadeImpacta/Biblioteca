@@ -1,0 +1,1019 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Biblioteca escolar - API Xano",
+    "version": "0.1.0",
+    "description": "Contrato candidato local. A integracao ainda depende de validacao Xano das garantias concorrentes, da geracao do codigo de tombo e do processamento automatico de expiracoes."
+  },
+  "servers": [
+    {
+      "url": "https://{host}",
+      "variables": {
+        "host": {
+          "default": "workspace-confirmado-no-apply"
+        }
+      }
+    }
+  ],
+  "security": [],
+  "paths": {
+    "/auth/signup": {
+      "post": {
+        "operationId": "cadastrarEstudante",
+        "summary": "Cadastrar estudante e iniciar sessao",
+        "description": "Publico. Exige nome, email e senha. Normaliza apenas o email (trim e lowercase), rejeita espaco interno, salva email normalizado e sempre define perfil estudante. Senha nao e normalizada. Unicidade deve ser imposta pelo indice.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Cadastro"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Conta de estudante criada e autenticada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sessao"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/EntradaInvalida"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflito"
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "login",
+        "summary": "Autenticar por email e senha",
+        "description": "Publico. Aplica trim e lowercase ao email e rejeita espaco interno. Mantem a senha exatamente como recebida. Mensagem de falha nao revela qual credencial divergiu.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Login"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sessao autenticada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sessao"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/EntradaInvalida"
+          },
+          "401": {
+            "description": "Credenciais invalidas"
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "operationId": "minhaIdentidade",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Perfil confiavel da conta autenticada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioPublico"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NaoAutenticado"
+          }
+        }
+      }
+    },
+    "/catalogo/titulos": {
+      "get": {
+        "operationId": "listarTitulos",
+        "summary": "Listar catalogo publico",
+        "description": "Publico. Retorna metadados do titulo, categorias e disponibilidade derivada de exemplares elegiveis; nunca expoe dados pessoais.",
+        "responses": {
+          "200": {
+            "description": "Titulos publicados"
+          }
+        }
+      },
+      "post": {
+        "operationId": "criarTitulo",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Somente bibliotecario. titulo e autores obrigatorios; ISBN, editora, edicao, ano e descricao opcionais.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TituloEntrada"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Titulo criado"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          }
+        }
+      }
+    },
+    "/catalogo/titulos/{tituloId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TituloId"
+        }
+      ],
+      "get": {
+        "operationId": "consultarTitulo",
+        "description": "Publico; inclui categorias e disponibilidade agregada derivada.",
+        "responses": {
+          "200": {
+            "description": "Titulo e exemplares agregados sem dados pessoais"
+          },
+          "404": {
+            "$ref": "#/components/responses/NaoEncontrado"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "atualizarTitulo",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Somente bibliotecario. Nao oferece exclusao ou arquivamento.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TituloEntrada"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Titulo atualizado"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          }
+        }
+      }
+    },
+    "/catalogo/categorias": {
+      "get": {
+        "operationId": "listarCategorias",
+        "responses": {
+          "200": {
+            "description": "Categorias publicas"
+          }
+        }
+      },
+      "post": {
+        "operationId": "criarCategoria",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Somente bibliotecario.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "nome"
+                ],
+                "properties": {
+                  "nome": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Categoria criada"
+          }
+        }
+      }
+    },
+    "/catalogo/categorias/{categoriaId}": {
+      "parameters": [
+        {
+          "name": "categoriaId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "get": {
+        "operationId": "consultarCategoria",
+        "responses": {
+          "200": {
+            "description": "Categoria e titulos publicados relacionados"
+          },
+          "404": {
+            "$ref": "#/components/responses/NaoEncontrado"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "atualizarCategoria",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Somente bibliotecario. Nao oferece exclusao ou arquivamento.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "nome"
+                ],
+                "properties": {
+                  "nome": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Categoria atualizada"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          }
+        }
+      }
+    },
+    "/catalogo/categorias/{categoriaId}/titulos": {
+      "parameters": [
+        {
+          "name": "categoriaId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listarTitulosDaCategoria",
+        "responses": {
+          "200": {
+            "description": "Titulos publicos relacionados a categoria"
+          }
+        }
+      }
+    },
+    "/admin/titulos/{tituloId}/categorias": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TituloId"
+        }
+      ],
+      "post": {
+        "operationId": "associarCategoria",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Somente bibliotecario. Valida ambas as referencias. Repetir a mesma associacao nao cria duplicata.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "categoria_id"
+                ],
+                "properties": {
+                  "categoria_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Associacao criada"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          },
+          "404": {
+            "$ref": "#/components/responses/NaoEncontrado"
+          }
+        }
+      }
+    },
+    "/admin/exemplares": {
+      "post": {
+        "operationId": "criarExemplar",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Somente bibliotecario. Servidor gera codigo de tombo EX-000001, unico e imutavel; cliente nao envia o codigo.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "titulo_id"
+                ],
+                "properties": {
+                  "titulo_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Exemplar criado com codigo gerado pelo servidor"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflito"
+          }
+        }
+      }
+    },
+    "/solicitacoes-emprestimo": {
+      "post": {
+        "operationId": "solicitarEmprestimo",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Somente estudante. Verifica atraso e limite de emprestimo. Se nao ha exemplar disponivel, registra a solicitacao na fila FIFO de reservas do titulo, sem fila paralela de pedidos. Se ha exemplar, registra pedido pendente de retirada fisica.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "titulo_id"
+                ],
+                "properties": {
+                  "titulo_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Pedido pendente ou vinculado a reserva FIFO"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflito"
+          }
+        }
+      }
+    },
+    "/minhas/solicitacoes": {
+      "get": {
+        "operationId": "listarMinhasSolicitacoes",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Somente pedidos da conta autenticada"
+          }
+        }
+      }
+    },
+    "/admin/solicitacoes": {
+      "get": {
+        "operationId": "listarSolicitacoesParaBibliotecario",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fila administrativa; campos pessoais minimizados ao necessario"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          }
+        }
+      }
+    },
+    "/admin/solicitacoes/{solicitacaoId}/retirada": {
+      "parameters": [
+        {
+          "name": "solicitacaoId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "post": {
+        "operationId": "registrarRetirada",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Somente bibliotecario. Revalida elegibilidade e disponibilidade; registra retirada fisica e vencimento 14 dias corridos depois. Deve impedir dois emprestimos ativos por estudante e exemplar.",
+        "responses": {
+          "201": {
+            "description": "Emprestimo ativo criado"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflito"
+          }
+        }
+      }
+    },
+    "/admin/reservas/{reservaId}/retirada": {
+      "parameters": [
+        {
+          "name": "reservaId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "post": {
+        "operationId": "registrarRetiradaReserva",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Somente bibliotecario. Confirma a retirada fisica de exemplar associado a oferta vigente, revalida elegibilidade e encerra a reserva como retirada. Registra vencimento 14 dias corridos depois.",
+        "responses": {
+          "201": {
+            "description": "Emprestimo criado a partir de reserva ofertada"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflito"
+          }
+        }
+      }
+    },
+    "/admin/emprestimos/{emprestimoId}/devolucao": {
+      "parameters": [
+        {
+          "name": "emprestimoId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "post": {
+        "operationId": "registrarDevolucao",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Somente bibliotecario; encerra emprestimo ativo, preserva historico e, se existir reserva elegivel, oferece o exemplar ao proximo da fila FIFO por 48 horas.",
+        "responses": {
+          "200": {
+            "description": "Devolucao registrada"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflito"
+          }
+        }
+      }
+    },
+    "/minhas/emprestimos": {
+      "get": {
+        "operationId": "listarMeusEmprestimos",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Historico do estudante autenticado"
+          }
+        }
+      }
+    },
+    "/reservas": {
+      "post": {
+        "operationId": "criarReserva",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Somente estudante. FIFO por titulo, uma reserva ativa por estudante/titulo; recusa atraso e titulo ja emprestado ativamente ao estudante.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "titulo_id"
+                ],
+                "properties": {
+                  "titulo_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Reserva aguardando na fila"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflito"
+          }
+        }
+      }
+    },
+    "/minhas/reservas": {
+      "get": {
+        "operationId": "listarMinhasReservas",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reservas e ofertas da conta autenticada; timestamps apresentados em America/Sao_Paulo"
+          }
+        }
+      }
+    },
+    "/admin/titulos/{tituloId}/fila-reservas": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TituloId"
+        }
+      ],
+      "get": {
+        "operationId": "consultarFilaReservas",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fila FIFO e estado operacional para bibliotecario"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          }
+        }
+      }
+    },
+    "/admin/reservas/ofertar-proxima": {
+      "post": {
+        "operationId": "ofertarExemplarAProximaReserva",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Somente bibliotecario. Escolhe a primeira reserva elegivel e exemplar livre; associa ambos e registra oferta UTC com expira_em = ofertada_em + 48 horas.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "titulo_id",
+                  "exemplar_id"
+                ],
+                "properties": {
+                  "titulo_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "exemplar_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Oferta criada"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflito"
+          }
+        }
+      }
+    },
+    "/admin/reservas/processar-expiradas": {
+      "post": {
+        "operationId": "processarReservasExpiradas",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Somente bibliotecario. Marca ofertas vencidas como expiradas, libera exemplares e tenta ofertar cada exemplar ao proximo estudante elegivel da fila. O disparo automatico periodico precisa de mecanismo Xano fora do escopo de tabelas/endpoints e permanece bloqueado ate verificacao tecnica.",
+        "responses": {
+          "200": {
+            "description": "Expiracoes processadas"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          }
+        }
+      }
+    },
+    "/admin/exemplares/{exemplarId}/condicoes": {
+      "parameters": [
+        {
+          "name": "exemplarId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "post": {
+        "operationId": "registrarCondicao",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Somente bibliotecario. Registra dano ou perda com observacao; exemplar fica indisponivel. Nao existe reativacao nesta Change.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tipo",
+                  "observacao"
+                ],
+                "properties": {
+                  "tipo": {
+                    "type": "string",
+                    "enum": [
+                      "danificado",
+                      "perdido"
+                    ]
+                  },
+                  "observacao": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Evento de condicao registrado"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          }
+        }
+      },
+      "get": {
+        "operationId": "consultarCondicoes",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Historico visivel somente a bibliotecario"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "parameters": {
+      "TituloId": {
+        "name": "tituloId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "schemas": {
+      "Cadastro": {
+        "type": "object",
+        "required": [
+          "nome",
+          "email",
+          "senha"
+        ],
+        "properties": {
+          "nome": {
+            "type": "string",
+            "minLength": 1
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "senha": {
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Login": {
+        "type": "object",
+        "required": [
+          "email",
+          "senha"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "senha": {
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Sessao": {
+        "type": "object",
+        "required": [
+          "authToken",
+          "usuario"
+        ],
+        "properties": {
+          "authToken": {
+            "type": "string"
+          },
+          "usuario": {
+            "$ref": "#/components/schemas/UsuarioPublico"
+          }
+        }
+      },
+      "UsuarioPublico": {
+        "type": "object",
+        "required": [
+          "id",
+          "nome",
+          "email",
+          "perfil"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "nome": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "perfil": {
+            "type": "string",
+            "enum": [
+              "estudante",
+              "bibliotecario"
+            ]
+          }
+        }
+      },
+      "TituloEntrada": {
+        "type": "object",
+        "required": [
+          "titulo",
+          "autores"
+        ],
+        "properties": {
+          "titulo": {
+            "type": "string",
+            "minLength": 1
+          },
+          "autores": {
+            "type": "string",
+            "minLength": 1
+          },
+          "isbn": {
+            "type": "string"
+          },
+          "editora": {
+            "type": "string"
+          },
+          "edicao": {
+            "type": "string"
+          },
+          "ano_publicacao": {
+            "type": "integer"
+          },
+          "descricao": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Erro": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "responses": {
+      "EntradaInvalida": {
+        "description": "Entrada invalida",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Erro"
+            }
+          }
+        }
+      },
+      "NaoAutenticado": {
+        "description": "Sessao ausente ou invalida",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Erro"
+            }
+          }
+        }
+      },
+      "PerfilInsuficiente": {
+        "description": "Perfil sem permissao para esta operacao",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Erro"
+            }
+          }
+        }
+      },
+      "NaoEncontrado": {
+        "description": "Recurso nao encontrado",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Erro"
+            }
+          }
+        }
+      },
+      "Conflito": {
+        "description": "Conflito com duplicidade, estado ou invariante",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Erro"
+            }
+          }
+        }
+      }
+    }
+  }
+}
