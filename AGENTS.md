@@ -5,7 +5,8 @@
 - Toda a documentação, interface, mensagens e comentários do projeto devem usar português do Brasil.
 - Trate `docs/project-overview.md` como visão global e `docs/domain-model.md` como modelo conceitual. Não os transforme em especificações de telas, endpoints ou tabelas.
 - O projeto está sendo reconstruído do zero em `biblioteca-mais-nova`. `biblioteca-nova` é somente referência; não copie seu modelo de dados ou seus contratos Xano sem nova verificação.
-- O backend será Xano. Reflex é candidato de frontend e precisa passar pela avaliação documentada antes da adoção e de qualquer implementação de interface.
+- O backend será Xano. Reflex é a tecnologia adotada e exclusiva do frontend; qualquer outra tecnologia de frontend exige mudança arquitetural aprovada.
+- A adoção do Reflex não autoriza implementar funcionalidades de produto nem fazer deploy até que as duas mitigações estejam concluídas: implementar e verificar `:focus-visible` na busca antes de iniciar funcionalidades; escolher e validar o ambiente acadêmico, manter segredos somente no backend e inspecionar logs antes de qualquer deploy.
 - Não introduza estrutura de banco separada da funcionalidade. Em cada Change vertical, especifique e implemente somente os dados, regras de servidor, API e interface necessários àquela capability.
 
 ## Fluxo obrigatório de trabalho
@@ -32,8 +33,9 @@ O usuário autorizou reconstruir integralmente o workspace Xano do projeto, incl
 
 ## Reflex e configuração local
 
-- Antes de adotar Reflex, avaliar compatibilidade operacional, integração REST/sessão, fluxos essenciais, autorização no backend, usabilidade, deploy e manutenção, com evidências. A nota de 11/14 e o conjunto eliminatório do planejamento são critérios propostos e devem ser confirmados na revisão da Change de avaliação.
-- Se Reflex for aprovado, cumprir o Apêndice B do curso e as instruções de setup antes de editar/rodar código; manter uma única estratégia de ambiente/dependências e consultar documentação/skills oficiais atuais.
+- Reflex é adotado exclusivamente para o frontend. Qualquer outra tecnologia de frontend exige mudança arquitetural aprovada.
+- A adoção não autoriza implementar funcionalidades de produto nem fazer deploy antes da conclusão das duas mitigações: `:focus-visible` na busca implementado e verificado antes de iniciar funcionalidades; ambiente acadêmico escolhido e validado, segredos mantidos somente no backend e logs inspecionados antes de qualquer deploy.
+- Cumprir o Apêndice B do curso e as instruções de setup antes de editar ou executar código; manter uma única estratégia de ambiente/dependências e consultar documentação/skills oficiais atuais.
 - Não instalar dependências, iniciar processos ou executar comandos com efeito remoto sem relação com tarefas aprovadas.
 
 ## Segurança e consistência do domínio

@@ -38,7 +38,10 @@ Autocadastro nunca concede perfil de bibliotecário. O método seguro de provisi
 ## Arquitetura e decisões de tecnologia
 
 - Backend e fonte de dados: Xano, integrado por API REST e XanoScript versionado quando exigido pela Change.
-- Frontend: Reflex ainda é candidato. Avaliar primeiro e adotar somente após revisar evidências e critérios de aceitação; nenhuma interface funcional deve ser implementada antes dessa decisão.
+- Frontend: Reflex é a tecnologia adotada e exclusiva. Qualquer outra tecnologia de frontend exige uma mudança arquitetural aprovada.
+- Pendências obrigatórias para liberar funcionalidades e deploy: a adoção do Reflex não autoriza implementar funcionalidades de produto nem fazer deploy até que as duas mitigações estejam concluídas:
+  1. Implementar o indicador visual `:focus-visible` na busca e verificar seu funcionamento antes de iniciar funcionalidades de produto.
+  2. Escolher e validar o ambiente acadêmico antes de qualquer deploy; manter segredos somente no backend e inspecionar os logs antes do deploy.
 - Especificação e histórico: OpenSpec com schema `spec-driven`; Git versiona código, documentação, changes ativas, specs consolidadas e arquivo.
 - Idioma do produto e documentação: português do Brasil.
 
@@ -56,4 +59,4 @@ O modelo conceitual está em `docs/domain-model.md`. Requisitos comportamentais 
 - Evento/canal que inicia a janela de retirada de dois dias e regras do calendário local.
 - Cancelamento de reservas, renovação, multas, limites de reservas e regularização de perdas.
 - Metadados bibliográficos e identificador individual do exemplar.
-- Resultado da avaliação do Reflex, do ambiente de deploy e da escolha do workspace/branch Xano.
+- Validação do ambiente de deploy e escolha do workspace/branch Xano.

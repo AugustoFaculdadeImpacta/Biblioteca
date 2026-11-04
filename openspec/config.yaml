@@ -1,7 +1,10 @@
 schema: spec-driven
 context: |
   Biblioteca escolar reconstruída do zero nesta pasta. Idioma: português do Brasil.
-  Backend: Xano; frontend: Reflex candidato, sujeito a avaliação antes de implementação.
+  Backend: Xano; Reflex é a tecnologia adotada e exclusiva do frontend. Outra tecnologia de frontend exige mudança arquitetural aprovada.
+  A adoção do Reflex não autoriza implementar funcionalidades de produto nem fazer deploy até que as duas mitigações estejam concluídas:
+  (1) implementar e verificar o indicador visual :focus-visible na busca antes de iniciar funcionalidades de produto;
+  (2) escolher e validar o ambiente acadêmico, manter segredos somente no backend e inspecionar logs antes de qualquer deploy.
   Estudantes fazem autocadastro com acesso imediato; perfis: estudante e bibliotecário.
   Catálogo público; operações autenticadas e autorizadas no backend.
   Títulos podem ter várias categorias e vários exemplares físicos. Empréstimo: um exemplar por estudante, 14 dias corridos desde retirada física registrada. Atraso bloqueia empréstimos e reservas. Reservas por título, FIFO, uma ativa por estudante/título, retirada em 2 dias após disponibilização. Dano/perda torna exemplar indisponível com observação.
