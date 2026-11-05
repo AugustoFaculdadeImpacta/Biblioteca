@@ -61,8 +61,19 @@ def test_signup_route_has_labeled_fields_in_keyboard_order_and_visible_focus():
         "signup-senha",
     ]
     assert not any(field.name._var_value == "perfil" for field in fields)
+    assert any(
+        getattr(
+            getattr(component.children[0].children[0], "contents", None),
+            "_var_value",
+            None,
+        )
+        == "Já tem conta? Entrar"
+        for component in components
+        if component.alias == "RadixThemesLink"
+        and "/login" in repr(component)
+    )
     assert frontend.app.style[":focus-visible"] == {
-        "outline": "3px solid #005fcc",
+        "outline": "3px solid var(--blue-9)",
         "outline_offset": "3px",
     }
 
@@ -239,12 +250,15 @@ def test_signup_event_keeps_token_and_password_out_of_client_state_and_logs(
             BaseStateToken(ident=session_id, cls=rx.State)
         ) as root:
             state = await root.get_state(frontend.State)
-            await state.submit_signup(payload)
+            redirect = await state.submit_signup(payload)
             delta = await root._get_resolved_delta()
             public_state = state.dict()
             assert state._read_session_token() == session_token
             assert state.is_authenticated is True
             assert state.signup_has_error is False
+            assert state.signup_success_message == (
+                "Cadastro realizado. Seu acesso de estudante está ativo."
+            )
             assert password not in json.dumps(delta, default=str)
             assert session_token not in json.dumps(delta, default=str)
             assert "api.example.test" not in json.dumps(delta, default=str)
@@ -253,6 +267,10 @@ def test_signup_event_keeps_token_and_password_out_of_client_state_and_logs(
             assert session_token not in json.dumps(public_state, default=str)
             assert "api.example.test" not in json.dumps(public_state, default=str)
             assert "_session_token" not in frontend.State.base_vars
+            assert "redirect" in repr(redirect).lower()
+            assert "_var_value='/'" in repr(redirect)
+            state.dismiss_signup_confirmation()
+            assert state.signup_success_message == ""
 
     asyncio.run(verify_session())
     assert len(requests) == 1

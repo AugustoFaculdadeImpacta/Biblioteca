@@ -36,6 +36,7 @@ from biblioteca_mais_nova.xano_client import (
 class State(rx.State):
     is_authenticated: bool = False
     signup_message: str = ""
+    signup_success_message: str = ""
     signup_has_error: bool = False
     login_message: str = ""
     login_has_error: bool = False
@@ -78,10 +79,41 @@ class State(rx.State):
     def _is_librarian(self) -> bool:
         return bool(self._session_token) and self._session_profile == "bibliotecario"
 
+    @rx.var
+    def is_librarian(self) -> bool:
+        return self._is_librarian()
+
     def _redirect_non_librarian(self):
         if not self._session_token:
             return rx.redirect("/login")
         return rx.redirect("/")
+
+    @rx.event
+    def logout(self):
+        self._clear_session_token()
+        self.signup_message = ""
+        self.signup_success_message = ""
+        self.signup_has_error = False
+        self.login_message = ""
+        self.login_has_error = False
+        self.catalog_message = ""
+        self.catalog_has_error = False
+        self.catalog_categories = []
+        self.selected_category_ids = []
+        self.catalog_categories_pending = False
+        self.catalog_title_created = False
+        self.catalog_created_codes = []
+        self.catalog_needs_manual_check = False
+        self._catalog_title_id = None
+        self._pending_category_ids = []
+        self._uncertain_category_ids = []
+        self._catalog_title_uncertain = False
+        self._catalog_copy_uncertain = False
+        return rx.redirect("/")
+
+    @rx.event
+    def dismiss_signup_confirmation(self):
+        self.signup_success_message = ""
 
     def _sync_catalog_progress(self) -> None:
         self.catalog_categories_pending = bool(
@@ -91,6 +123,7 @@ class State(rx.State):
     @rx.event
     async def submit_signup(self, form_data: dict[str, Any]):
         self.signup_message = ""
+        self.signup_success_message = ""
         self.signup_has_error = False
         try:
             payload = build_signup_payload(form_data)
@@ -106,14 +139,15 @@ class State(rx.State):
             return
 
         self._store_session(session["authToken"], "estudante")
-        self.signup_message = "Cadastro realizado. Seu acesso de estudante está ativo."
-        return rx.call_script(
-            "document.getElementById('form-cadastro-estudante')?.reset()"
+        self.signup_success_message = (
+            "Cadastro realizado. Seu acesso de estudante está ativo."
         )
+        return rx.redirect("/")
 
     @rx.event
     async def submit_login(self, form_data: dict[str, Any]):
         self.login_message = ""
+        self.signup_success_message = ""
         self.login_has_error = False
         try:
             payload = build_login_payload(form_data)
@@ -374,32 +408,100 @@ class State(rx.State):
         )
 
 
+def site_header() -> rx.Component:
+    return rx.el.header(
+        rx.link(
+            rx.heading("Biblioteca escolar", size="6"),
+            href="/",
+            class_name="brand-link",
+        ),
+        rx.el.nav(
+            rx.link("Início", href="/"),
+            rx.cond(
+                State.is_authenticated,
+                rx.fragment(
+                    rx.cond(
+                        State.is_librarian,
+                        rx.link("Cadastrar livro", href="/admin/acervo"),
+                        rx.fragment(),
+                    ),
+                    rx.button(
+                        "Sair",
+                        type="button",
+                        on_click=State.logout,
+                        class_name="nav-logout",
+                    ),
+                ),
+                rx.fragment(
+                    rx.link("Entrar", href="/login"),
+                    rx.link("Cadastrar-se", href="/cadastro"),
+                ),
+            ),
+            aria_label="Navegação principal",
+            class_name="site-nav",
+        ),
+        class_name="site-header",
+    )
+
+
 def index() -> rx.Component:
     return rx.box(
         rx.link("Pular para o conteúdo", href="#conteudo", class_name="skip-link"),
-        rx.el.header(
-            rx.heading("Biblioteca escolar", size="6"),
-            rx.text(
-                rx.cond(State.is_authenticated, "Sessão autenticada", "Acesso público"),
-                class_name="session-status",
-            ),
-            rx.el.nav(
-                rx.link("Início", href="#inicio"),
-                rx.link("Acessibilidade", href="#acessibilidade"),
-                rx.link("Cadastrar-se", href="/cadastro"),
-                rx.link("Entrar", href="/login"),
-                rx.link("Acervo", href="/admin/acervo"),
-                aria_label="Navegação principal",
-                class_name="site-nav",
-            ),
-            class_name="site-header",
-        ),
+        site_header(),
         rx.el.main(
             rx.el.section(
                 rx.heading("Bem-vindo à biblioteca", size="8"),
                 rx.text(
-                    "Esta é a estrutura inicial da aplicação. "
-                    "As funcionalidades serão adicionadas em etapas próprias."
+                    "Encontre os serviços da biblioteca escolar disponíveis para "
+                    "sua conta."
+                ),
+                rx.cond(
+                    State.signup_success_message != "",
+                    rx.el.div(
+                        rx.el.p(
+                            State.signup_success_message,
+                            role="status",
+                            aria_live="polite",
+                            class_name="signup-feedback signup-feedback-success",
+                        ),
+                        rx.button(
+                            "Fechar mensagem",
+                            type="button",
+                            on_click=State.dismiss_signup_confirmation,
+                            class_name="nav-logout",
+                        ),
+                        class_name="signup-confirmation",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.is_authenticated,
+                    rx.vstack(
+                        rx.text("Sua sessão está ativa."),
+                        rx.cond(
+                            State.is_librarian,
+                            rx.link(
+                                "Acessar cadastro de livros",
+                                href="/admin/acervo",
+                            ),
+                            rx.text(
+                                "Você está conectado como estudante e pode "
+                                "acompanhar sua conta pelo menu."
+                            ),
+                        ),
+                        align="start",
+                        width="100%",
+                    ),
+                    rx.vstack(
+                        rx.text(
+                            "Entre na sua conta ou cadastre-se para acessar os "
+                            "serviços destinados aos estudantes."
+                        ),
+                        rx.link("Entrar", href="/login"),
+                        rx.link("Cadastrar-se", href="/cadastro"),
+                        align="start",
+                        width="100%",
+                    ),
                 ),
                 id="inicio",
                 class_name="content-section",
@@ -439,11 +541,7 @@ def index() -> rx.Component:
 def student_signup() -> rx.Component:
     return rx.box(
         rx.link("Pular para o conteúdo", href="#conteudo-cadastro", class_name="skip-link"),
-        rx.el.header(
-            rx.heading("Biblioteca escolar", size="6"),
-            rx.link("Voltar ao início", href="/"),
-            class_name="site-header",
-        ),
+        site_header(),
         rx.el.main(
             rx.el.section(
                 rx.heading("Cadastro de estudante", size="7"),
@@ -456,7 +554,11 @@ def student_signup() -> rx.Component:
                         State.signup_message,
                         role=rx.cond(State.signup_has_error, "alert", "status"),
                         aria_live="polite",
-                        class_name="signup-feedback",
+                        class_name=rx.cond(
+                            State.signup_has_error,
+                            "signup-feedback signup-feedback-error",
+                            "signup-feedback signup-feedback-success",
+                        ),
                     ),
                     rx.fragment(),
                 ),
@@ -514,6 +616,7 @@ def student_signup() -> rx.Component:
                     "O perfil de estudante é atribuído pelo sistema.",
                     class_name="signup-note",
                 ),
+                rx.link("Já tem conta? Entrar", href="/login"),
                 id="conteudo-cadastro",
                 class_name="content-section signup-section",
             ),
@@ -530,11 +633,7 @@ def student_signup() -> rx.Component:
 def login_page() -> rx.Component:
     return rx.box(
         rx.link("Pular para o conteúdo", href="#conteudo-login", class_name="skip-link"),
-        rx.el.header(
-            rx.heading("Biblioteca escolar", size="6"),
-            rx.link("Voltar ao início", href="/"),
-            class_name="site-header",
-        ),
+        site_header(),
         rx.el.main(
             rx.el.section(
                 rx.heading("Entrar", size="7"),
@@ -545,7 +644,11 @@ def login_page() -> rx.Component:
                         State.login_message,
                         role=rx.cond(State.login_has_error, "alert", "status"),
                         aria_live="polite",
-                        class_name="signup-feedback",
+                        class_name=rx.cond(
+                            State.login_has_error,
+                            "signup-feedback signup-feedback-error",
+                            "signup-feedback signup-feedback-success",
+                        ),
                     ),
                     rx.fragment(),
                 ),
@@ -586,6 +689,7 @@ def login_page() -> rx.Component:
                     reset_on_submit=False,
                     class_name="signup-form",
                 ),
+                rx.link("Não tem conta? Cadastre-se", href="/cadastro"),
                 id="conteudo-login",
                 class_name="content-section signup-section",
             ),
@@ -608,11 +712,7 @@ def catalog_category_option(category: rx.Var[dict[str, Any]]) -> rx.Component:
 def catalog_admin() -> rx.Component:
     return rx.box(
         rx.link("Pular para o conteúdo", href="#conteudo-acervo", class_name="skip-link"),
-        rx.el.header(
-            rx.heading("Biblioteca escolar", size="6"),
-            rx.link("Voltar ao início", href="/"),
-            class_name="site-header",
-        ),
+        site_header(),
         rx.el.main(
             rx.el.section(
                 rx.heading("Cadastro de título e exemplares", size="7"),
@@ -626,7 +726,11 @@ def catalog_admin() -> rx.Component:
                         State.catalog_message,
                         role=rx.cond(State.catalog_has_error, "alert", "status"),
                         aria_live="polite",
-                        class_name="signup-feedback",
+                        class_name=rx.cond(
+                            State.catalog_has_error,
+                            "signup-feedback signup-feedback-error",
+                            "signup-feedback signup-feedback-success",
+                        ),
                     ),
                     rx.fragment(),
                 ),
@@ -814,11 +918,21 @@ def catalog_admin() -> rx.Component:
 app = rx.App(
     style={
         "font_family": "system-ui, sans-serif",
-        "color": "#172b4d",
-        "background_color": "#f7f9fc",
+        "color": "var(--gray-12)",
+        "background_color": "var(--gray-2)",
+        "*, *::before, *::after": {
+            "box_sizing": "border-box",
+        },
+        "body": {
+            "margin": "0",
+            "color": "var(--gray-12)",
+            "background_color": "var(--gray-2)",
+        },
         ".app-shell": {
             "min_height": "100vh",
-            "padding": "1rem",
+            "padding": "clamp(0.5rem, 3vw, 2rem)",
+            "color": "var(--gray-12)",
+            "background_color": "var(--gray-2)",
         },
         ".site-header": {
             "display": "flex",
@@ -830,12 +944,28 @@ app = rx.App(
             "padding": "1rem",
             "border_bottom": "1px solid #cbd5e1",
         },
+        ".brand-link": {
+            "color": "var(--gray-12)",
+            "text_decoration": "none",
+        },
         ".site-nav": {
             "display": "flex",
             "flex_wrap": "wrap",
+            "align_items": "center",
             "gap": "1rem",
         },
+        ".nav-logout": {
+            "min_height": "2.5rem",
+            "padding": "0.4rem 0.9rem",
+            "border": "1px solid var(--blue-8)",
+            "border_radius": "0.5rem",
+            "background_color": "transparent",
+            "color": "var(--blue-11)",
+            "font_weight": "600",
+            "cursor": "pointer",
+        },
         ".main-content": {
+            "width": "100%",
             "max_width": "72rem",
             "margin": "0 auto",
         },
@@ -846,29 +976,77 @@ app = rx.App(
             "gap": "1rem",
             "padding": "2rem 1rem",
         },
+        ".signup-section": {
+            "width": "min(100%, 34rem)",
+            "margin": "2rem auto",
+            "padding": "2rem",
+            "align_items": "stretch",
+            "border": "1px solid var(--gray-6)",
+            "border_radius": "1rem",
+            "background_color": "var(--gray-1)",
+            "box_shadow": "0 1rem 2.5rem rgba(0, 0, 0, 0.12)",
+        },
         ".signup-form": {
             "display": "flex",
             "flex_direction": "column",
-            "gap": "0.5rem",
-            "width": "min(100%, 28rem)",
+            "gap": "0.75rem",
+            "width": "100%",
         },
         ".signup-label": {
             "font_weight": "600",
             "margin_top": "0.5rem",
+            "color": "var(--gray-12)",
         },
         ".signup-input": {
             "width": "100%",
             "min_height": "2.75rem",
             "padding": "0.5rem 0.75rem",
-            "border": "1px solid #64748b",
-            "border_radius": "0.375rem",
-            "background_color": "#ffffff",
+            "border": "1px solid var(--gray-7)",
+            "border_radius": "0.5rem",
+            "color": "var(--gray-12)",
+            "background_color": "var(--gray-1)",
+            "transition": "border-color 120ms ease, box-shadow 120ms ease",
+        },
+        ".signup-input input": {
+            "color": "var(--gray-12)",
+            "background_color": "transparent",
+        },
+        "input:not([type='checkbox']):not([type='radio']), textarea, select": {
+            "color": "var(--gray-12)",
+            "background_color": "var(--gray-1)",
+            "caret_color": "var(--gray-12)",
+        },
+        ".signup-input input::placeholder, input:not([type='checkbox']):not([type='radio'])::placeholder, textarea::placeholder": {
+            "color": "var(--gray-11)",
+            "opacity": "1",
+        },
+        "select option": {
+            "color": "var(--gray-12)",
+            "background_color": "var(--gray-1)",
         },
         ".signup-feedback": {
             "max_width": "28rem",
             "padding": "0.75rem",
-            "border_radius": "0.375rem",
-            "background_color": "#e8f1fb",
+            "border_radius": "0.5rem",
+            "border": "1px solid var(--gray-6)",
+            "overflow_wrap": "anywhere",
+        },
+        ".signup-feedback-error": {
+            "border_left": "4px solid var(--red-9)",
+            "background_color": "var(--red-3)",
+            "color": "var(--red-12)",
+        },
+        ".signup-feedback-success": {
+            "border_left": "4px solid var(--green-9)",
+            "background_color": "var(--green-3)",
+            "color": "var(--green-12)",
+        },
+        ".signup-confirmation": {
+            "display": "flex",
+            "flex_wrap": "wrap",
+            "align_items": "center",
+            "gap": "0.75rem",
+            "width": "100%",
         },
         ".signup-note": {
             "max_width": "28rem",
@@ -878,28 +1056,41 @@ app = rx.App(
             "width": "min(100%, 24rem)",
             "min_height": "2.75rem",
             "padding": "0.5rem 0.75rem",
-            "border": "1px solid #64748b",
-            "border_radius": "0.375rem",
-            "background_color": "#ffffff",
+            "border": "1px solid var(--gray-7)",
+            "border_radius": "0.5rem",
+            "color": "var(--gray-12)",
+            "background_color": "var(--gray-1)",
         },
         ".focus-demo-button": {
             "min_height": "2.75rem",
             "padding": "0.5rem 1rem",
             "border": "0",
-            "border_radius": "0.375rem",
+            "border_radius": "0.5rem",
             "background_color": "#174ea6",
             "color": "#ffffff",
+            "font_weight": "600",
             "cursor": "pointer",
+            "transition": "background-color 120ms ease, transform 120ms ease",
+        },
+        ".focus-demo-button:hover": {
+            "background_color": "#123f88",
+        },
+        ".focus-demo-button:active": {
+            "transform": "translateY(1px)",
         },
         ".site-nav a": {
-            "color": "#174ea6",
+            "color": "var(--blue-11)",
             "font_weight": "600",
+        },
+        "a": {
+            "color": "var(--blue-11)",
+            "text_underline_offset": "0.2em",
         },
         ".site-footer": {
             "max_width": "72rem",
             "margin": "0 auto",
             "padding": "1rem",
-            "border_top": "1px solid #cbd5e1",
+            "border_top": "1px solid var(--gray-6)",
         },
         ".skip-link": {
             "position": "absolute",
@@ -907,23 +1098,32 @@ app = rx.App(
             "left": "1rem",
             "z_index": "10",
             "padding": "0.75rem 1rem",
-            "background_color": "#ffffff",
-            "color": "#174ea6",
+            "border_radius": "0.5rem",
+            "background_color": "var(--gray-1)",
+            "color": "var(--blue-11)",
         },
         ".skip-link:focus-visible": {
             "top": "1rem",
         },
         ":focus-visible": {
-            "outline": "3px solid #005fcc",
+            "outline": "3px solid var(--blue-9)",
             "outline_offset": "3px",
         },
         "@media screen and (max-width: 40rem)": {
+            ".app-shell": {
+                "padding": "0.5rem",
+            },
             ".site-header": {
                 "align_items": "flex-start",
                 "flex_direction": "column",
+                "padding": "0.75rem 0.5rem",
             },
             ".content-section": {
-                "padding": "1.5rem 0.5rem",
+                "padding": "1.25rem 0.25rem",
+            },
+            ".signup-section": {
+                "margin": "1rem auto",
+                "padding": "1.25rem 1rem",
             },
         },
     }

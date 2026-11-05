@@ -76,7 +76,7 @@ def test_catalog_form_has_only_defined_fields_and_category_selection():
     )
     assert description.name._var_value == "descricao"
     assert frontend.app.style[":focus-visible"] == {
-        "outline": "3px solid #005fcc",
+        "outline": "3px solid var(--blue-9)",
         "outline_offset": "3px",
     }
 
@@ -265,11 +265,14 @@ def test_admin_events_block_visitors_and_students_before_writes(monkeypatch):
             state = await root.get_state(frontend.State)
             if profile:
                 state._store_session("token-falso", profile)
-            await state.load_catalog_categories()
-            await state.submit_catalog_title(
+            destination = "/login" if not profile else "/"
+            category_redirect = await state.load_catalog_categories()
+            title_redirect = await state.submit_catalog_title(
                 {"titulo": "Livro", "autores": "Autoria"}
             )
-            await state.create_catalog_copy()
+            copy_redirect = await state.create_catalog_copy()
+            for redirect in (category_redirect, title_redirect, copy_redirect):
+                assert f"_var_value='{destination}'" in repr(redirect)
             assert state._catalog_title_id is None
 
     asyncio.run(verify_profile(""))

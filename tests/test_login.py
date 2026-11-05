@@ -48,8 +48,19 @@ def test_login_page_has_only_labeled_email_and_password_fields():
         "login-senha",
     ]
     assert not any(field.name._var_value == "perfil" for field in fields)
+    assert any(
+        getattr(
+            getattr(component.children[0].children[0], "contents", None),
+            "_var_value",
+            None,
+        )
+        == "Não tem conta? Cadastre-se"
+        for component in components
+        if component.alias == "RadixThemesLink"
+        and "/cadastro" in repr(component)
+    )
     assert frontend.app.style[":focus-visible"] == {
-        "outline": "3px solid #005fcc",
+        "outline": "3px solid var(--blue-9)",
         "outline_offset": "3px",
     }
 
@@ -185,11 +196,16 @@ def test_login_rejects_malformed_or_unexpected_session(monkeypatch):
             )
 
 
-def test_login_event_keeps_token_profile_and_password_private(monkeypatch, caplog):
+@pytest.mark.parametrize(
+    ("profile", "destination"),
+    [("bibliotecario", "/admin/acervo"), ("estudante", "/")],
+)
+def test_login_event_keeps_token_profile_and_password_private(
+    monkeypatch, caplog, profile, destination
+):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
     session_token = "token-falso-privado"
     password = "senha falsa de teste"
-    profile = "bibliotecario"
     payload = {"email": "ana@escola.edu.br", "senha": password}
     transport = httpx.MockTransport(
         lambda request: httpx.Response(
@@ -217,7 +233,7 @@ def test_login_event_keeps_token_profile_and_password_private(monkeypatch, caplo
             BaseStateToken(ident=session_id, cls=rx.State)
         ) as root:
             state = await root.get_state(frontend.State)
-            await state.submit_login(payload)
+            redirect = await state.submit_login(payload)
             delta = await root._get_resolved_delta()
             public_state = state.dict()
             assert state._read_session_token() == session_token
@@ -231,6 +247,8 @@ def test_login_event_keeps_token_profile_and_password_private(monkeypatch, caplo
             assert "Authorization" not in json.dumps(delta, default=str)
             assert "_session_token" not in frontend.State.base_vars
             assert "_session_profile" not in frontend.State.base_vars
+            assert "redirect" in repr(redirect).lower()
+            assert f"_var_value='{destination}'" in repr(redirect)
 
     asyncio.run(verify_session())
     assert session_token not in caplog.text
