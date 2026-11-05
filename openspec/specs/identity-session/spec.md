@@ -29,6 +29,26 @@ O sistema MUST aceitar nome, e-mail único e senha sem confirmação de e-mail e
 - **WHEN** o cliente inclui um papel bibliotecário ou outro perfil no cadastro
 - **THEN** o backend ignora o campo ou recusa o pedido e nunca concede esse papel por autocadastro
 
+#### Scenario: Formulário de autocadastro
+- **WHEN** visitante abre a tela de cadastro de estudante
+- **THEN** a interface solicita somente nome, e-mail e senha e não oferece campo para escolher perfil
+
+#### Scenario: Validação do formulário antes do envio
+- **WHEN** a pessoa envia o formulário com campo obrigatório vazio, e-mail fora do formato esperado ou e-mail com espaço interno após a normalização
+- **THEN** a interface informa o campo inválido em português e não envia a requisição de cadastro
+
+#### Scenario: E-mail já cadastrado informado pela API
+- **WHEN** a API recusa o cadastro por conflito de e-mail duplicado
+- **THEN** a interface informa claramente que o e-mail já está cadastrado e não autentica uma nova sessão
+
+#### Scenario: Erro de validação ou comunicação no cadastro
+- **WHEN** a API retorna erro de entrada ou ocorre falha de comunicação durante o cadastro
+- **THEN** a interface apresenta uma mensagem segura em português, sem expor token, cabeçalho de autorização, URL interna ou detalhes técnicos
+
+#### Scenario: Cadastro concluído pela interface
+- **WHEN** a API retorna sucesso com sessão e identidade pública
+- **THEN** a interface confirma o cadastro e permite acesso imediato como estudante, mantendo o token inacessível ao navegador e aos logs
+
 ### Requirement: Login e perfil usam identidade confiável
 O sistema MUST autenticar por e-mail e senha e obter o perfil da conta autenticada, sem aceitar papel declarado pelo cliente. O e-mail do login MUST seguir a mesma normalização do cadastro: remover espaços externos, converter para minúsculas e rejeitar espaços internos; a senha permanece inalterada.
 
@@ -47,3 +67,30 @@ O sistema MUST autenticar por e-mail e senha e obter o perfil da conta autentica
 #### Scenario: Perfil da conta autenticada
 - **WHEN** uma conta autenticada consulta sua identidade
 - **THEN** o sistema retorna o papel armazenado na conta; o primeiro bibliotecário é provisionado manualmente por operador autorizado no Xano, sem endpoint público de promoção nem credenciais embutidas nos arquivos do projeto
+
+### Requirement: Login pela interface mantém sessão privada
+A interface MUST permitir autenticação por e-mail e senha conforme o contrato, informar falhas sem expor detalhes técnicos e manter token e perfil inacessíveis ao navegador.
+
+#### Scenario: Formulário de login
+- **WHEN** visitante abre a tela de login
+- **THEN** a interface solicita somente e-mail e senha e não permite escolher perfil
+
+#### Scenario: Normalização de e-mail no login
+- **WHEN** a pessoa envia e-mail com espaços externos ou letras maiúsculas
+- **THEN** o sistema remove espaços externos e converte o e-mail para minúsculas, preservando a senha exatamente como foi digitada
+
+#### Scenario: E-mail inválido no login
+- **WHEN** a pessoa envia e-mail vazio, fora do formato esperado ou com espaço interno
+- **THEN** a interface informa o erro em português e não envia a requisição
+
+#### Scenario: Login com sucesso
+- **WHEN** a API retorna `200` com token e identidade pública válida
+- **THEN** a interface inicia sessão usando o perfil retornado pela API e apresenta navegação correspondente, sem permitir que o cliente escolha ou altere o perfil
+
+#### Scenario: Credenciais recusadas
+- **WHEN** a API retorna erro de entrada ou autenticação recusada
+- **THEN** a interface mostra mensagem segura em português sem revelar qual credencial falhou nem detalhes internos
+
+#### Scenario: Privacidade da sessão autenticada
+- **WHEN** a interface processa token ou perfil retornados pela API
+- **THEN** nenhum desses valores aparece em estado enviado ao cliente, persistência de navegador ou logs
