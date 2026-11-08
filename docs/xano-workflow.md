@@ -59,7 +59,36 @@ xano workspace push -d .\xano -w 151966 -b v1 -i "table/zz_teste_nota.xs"
 
 Para endpoints, inclua somente o arquivo de grupo e os endpoints descartáveis correspondentes, cada um com `-i` próprio. Se a prévia listar qualquer recurso fora do prefixo `zz_teste_*`, não confirme o push. O comando de push sem `--sync` é parcial; `--sync` envia todos os arquivos. `--delete` só funciona junto com `--sync` e exclui objetos remotos ausentes do conjunto enviado. **Não use `push --delete --sync` nesta Change.**
 
+### Criar e alterar `zz_teste_nota`
+
+O documento local `xano/table/zz_teste_nota.xs` define `id`, `texto`, `criado_em` e, após a alteração, `prioridade`. Para criar ou alterar somente essa tabela:
+
+```powershell
+xano workspace get -w 151966 --output json
+xano branch list -w 151966
+xano workspace push -d .\xano -w 151966 -b v1 -i "table/zz_teste_nota.xs" --dry-run
+```
+
+Revise toda a prévia: ela deve mostrar somente a criação ou atualização de `zz_teste_nota`. Somente depois dessa revisão, a execução delimitada aprovada é:
+
+```powershell
+xano workspace push -d .\xano -w 151966 -b v1 -i "table/zz_teste_nota.xs" --force
+```
+
+Para acrescentar `prioridade`, edite o mesmo documento `.xs`, repita a prévia acima e confirme que ela mostra somente a alteração dessa tabela; depois, use novamente o push delimitado acima. Nesta Change, `--force` só pode seguir uma prévia revisada que liste exclusivamente recursos `zz_teste_*`. Se o servidor recusar o push porque `preferences.allow_push = false`, pare; não habilite nem altere essa preferência sem autorização.
+
+Após cada push, confirme o schema pelo GET individual da Metadata API e/ou por um pull somente de definições. A tabela desta prova foi identificada como ID `912722`; sempre confira o ID e o nome juntos antes de uma operação individual. Não inclua token, cabeçalho de autorização ou resposta que contenha segredo na documentação ou nos logs.
+
 O pull/push pelo CLI manipula documentos XanoScript multidoc. A Metadata API também documenta `GET` e `POST /workspace/{workspace_id}/multidoc`, mas o POST aplica conteúdo multidoc ao workspace; não o use como operação pontual de exclusão.
+
+### Evidências desta prova (2026-11-08)
+
+- Workspace confirmado: `151966`; branch `v1` live. `workspace get` retornou `preferences.allow_push = false`; essa preferência não foi alterada.
+- A tabela `zz_teste_nota`, ID `912722`, foi criada e alterada para incluir `prioridade`. As prévias delimitadas registradas para essas operações listaram somente a tabela de teste.
+- Antes da exclusão, a Metadata API confirmou conjuntamente o ID `912722` e o nome `zz_teste_nota`. O DELETE individual retornou HTTP 200; o GET seguinte da mesma tabela retornou 404.
+- O GET de grupos não encontrou recursos com prefixo `zz_teste_*`. O pull somente de definições trouxe 57 documentos e nenhum arquivo `zz_teste_*`.
+- O arquivo local `xano/table/zz_teste_nota.xs` foi removido. Como já era rastreado, `git status --short -- xano/` mostra apenas `D xano/table/zz_teste_nota.xs`; `git diff -- xano/` mostra somente essa exclusão.
+- Não foram criados nem chamados endpoints temporários, não foi testada a validação de POST e não foi implementado ou executado teste pytest/Reflex com `httpx.MockTransport`. Esse ciclo ficou fora do escopo por decisão aprovada, diante de `allow_push = false`.
 
 Para operações individuais, a Metadata API oficial documenta:
 
@@ -85,4 +114,4 @@ Referências oficiais:
 5. Teste o endpoint Xano com HTTP real somente quando houver credencial de usuário de teste autorizada. Para teste do cliente Reflex, injete `httpx.MockTransport` ao `XanoClient`; valide método, caminho e resposta sem conexão real nem POST de escrita pelo app.
 6. Obtenha IDs por GET da Metadata API ou pela resposta de criação. Remova individualmente os endpoints e a tabela/grupo de teste; nunca use exclusão global. Confirme ausência por GET/404, remova somente os arquivos locais temporários e verifique `git status --short -- xano/`.
 
-O endpoint e o teste de cliente descritos acima são o procedimento desta Change; seus resultados reais devem ser anotados aqui somente depois de executados e verificados. Não declare validação XanoScript pelo Developer MCP: esse servidor MCP não está disponível nesta sessão; a referência foi a documentação oficial e a aceitação do servidor Xano durante o push, caso autorizado pelo workspace.
+As etapas de endpoint e cliente acima são orientações gerais, não resultados desta Change. Nesta execução não houve endpoint para chamar nem teste de cliente para rodar. Não declare validação XanoScript pelo Developer MCP: esse servidor MCP não está disponível nesta sessão; para a tabela, a referência foi a documentação oficial e o pull/GET observado.
