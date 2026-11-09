@@ -115,3 +115,17 @@ Referências oficiais:
 6. Obtenha IDs por GET da Metadata API ou pela resposta de criação. Remova individualmente os endpoints e a tabela/grupo de teste; nunca use exclusão global. Confirme ausência por GET/404, remova somente os arquivos locais temporários e verifique `git status --short -- xano/`.
 
 As etapas de endpoint e cliente acima são orientações gerais, não resultados desta Change. Nesta execução não houve endpoint para chamar nem teste de cliente para rodar. Não declare validação XanoScript pelo Developer MCP: esse servidor MCP não está disponível nesta sessão; para a tabela, a referência foi a documentação oficial e o pull/GET observado.
+
+## Reconciliação do snapshot live (2026-11-08)
+
+O workspace `151966`, branch live `v1`, foi consultado pela CLI Xano 1.3.4. O pull de definições foi feito fora do repositório, sem registros, variáveis ou drafts. O snapshot tinha 57 documentos: 11 tabelas, 36 endpoints em três grupos, 3 funções quick-start, 1 addon, 2 recursos AI e metadados do workspace. O Git contém 9 tabelas e 28 endpoints da biblioteca. Não há tabelas ou endpoints somente locais.
+
+### Decisões por divergência
+
+- **(a) Importado no Git:** foram adicionados retornos explícitos de lista em `GET /catalogo/categorias`, `GET /catalogo/categorias/{categoria_id}`, `GET /catalogo/categorias/{categoria_id}/titulos` e `GET /catalogo/titulos/{titulo_id}`. Nenhuma outra parte das definições remotas foi copiada.
+- **(a) Plataforma fora do escopo, documentada sem importação:** grupos `Authentication` e `Event Logs`, tabelas `user` e `event_log`, 3 funções quick-start, 1 addon, 2 recursos AI e metadados do workspace.
+- **(b) Git mantido; remoto divergente da FIFO:** `GET /admin/titulos/{titulo_id}/fila-reservas`, `POST /admin/reservas/ofertar-proxima`, `POST /admin/reservas/processar-expiradas` e `POST /admin/emprestimos/{emprestimo_id}/devolucao` não preservam no remoto todas as ordenações FIFO exigidas pelas specs. Não foi feito push.
+- **(c) Segurança, sem importação:** `auth = false` remoto em `categoria`, `condicao_exemplar`, `emprestimo`, `exemplar`, `reserva`, `solicitacao_emprestimo`, `titulo`, `titulo_categoria` e `event_log`. A tabela local `usuario` coincide; as diferenças adicionais nos schemas das outras oito tabelas também não foram importadas.
+- **(c) Sem equivalência comprovada:** diferenças de ordenação/serialização em consultas administrativas e pessoais; reescrita de append em `GET /catalogo/titulos`; formato de resposta em `GET /catalogo/titulos/{titulo_id}`; conversão de fuso e resposta em `GET /minhas/reservas`; diferenças nos fluxos de autenticação entre `user` e `usuario`; e diferenças de consulta, validação, autorização, resposta ou prazo nos demais endpoints divergentes. A lista por recurso está em `design.md` da Change arquivada `reconciliar-xano-com-git`.
+
+O campo `swagger.token` do grupo Biblioteca foi tratado como exposto e deve ser rotacionado pelo operador no painel. O valor foi removido da cópia temporária do pull antes de inspeções posteriores e não foi incorporado a arquivos versionados, documentação ou relatórios. `allow_push = false` permaneceu inalterado; não houve push nem commit Git.

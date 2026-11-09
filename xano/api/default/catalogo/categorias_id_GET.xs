@@ -18,10 +18,12 @@ query "catalogo/categorias/{categoria_id}" verb=GET {
 
     db.query titulo_categoria {
       where = $db.titulo_categoria.categoria_id == $input.categoria_id
+      return = {type: "list"}
     } as $associacoes
 
     db.query titulo {
       where = $db.titulo.id in ($associacoes|pluck:"titulo_id")
+      return = {type: "list"}
     } as $titulos
   }
 

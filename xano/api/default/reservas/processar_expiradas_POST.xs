@@ -23,14 +23,17 @@ query "admin/reservas/processar-expiradas" verb=POST {
 
     db.query reserva {
       where = $db.reserva.estado == "ofertada" && $db.reserva.expira_em < $agora
-      sort = {reserva.expira_em: "asc", reserva.id: "asc"}
     } as $expiradas
+
+    var $expiradas_ordenadas {
+      value = $expiradas|sort:"id":"number":true|sort:"expira_em":"number":true
+    }
 
     var $processadas {
       value = 0
     }
 
-    foreach ($expiradas) {
+    foreach ($expiradas_ordenadas) {
       each as $reserva_expirada {
         db.transaction {
           stack {
@@ -60,19 +63,22 @@ query "admin/reservas/processar-expiradas" verb=POST {
               if ($condicoes == 0) {
                 db.query reserva {
                   where = $db.reserva.titulo_id == $reserva_expirada.titulo_id && $db.reserva.estado == "aguardando"
-                  sort = {reserva.criada_em: "asc", reserva.id: "asc"}
                 } as $fila
+
+                var $fila_reoferta_ordenada {
+                  value = $fila|sort:"id":"number":true|sort:"criada_em":"number":true
+                }
 
                 var $proxima_reserva {
                   value = null
                 }
 
-                foreach ($fila) {
+                foreach ($fila_reoferta_ordenada) {
                   each as $item {
                     conditional {
                       if ($proxima_reserva == null) {
                         db.query emprestimo {
-                          where = $db.emprestimo.usuario_id == $item.usuario_id && $db.emprestimo.devolvido_em == null && $db.emprestimo.vence_em < $agora
+                          where = $db.emprestimo.usuario_id == $item.usuario_id && ($db.emprestimo.devolvido_em == null || $db.emprestimo.devolvido_em == 0) && $db.emprestimo.vence_em < $agora
                           return = {type: "count"}
                         } as $atrasados
 
@@ -83,7 +89,7 @@ query "admin/reservas/processar-expiradas" verb=POST {
                               where: $db.emprestimo.exemplar_id == $db.exemplar.id
                             }
                           }
-                          where = $db.emprestimo.usuario_id == $item.usuario_id && $db.emprestimo.devolvido_em == null && $db.exemplar.titulo_id == $reserva_expirada.titulo_id
+                          where = $db.emprestimo.usuario_id == $item.usuario_id && ($db.emprestimo.devolvido_em == null || $db.emprestimo.devolvido_em == 0) && $db.exemplar.titulo_id == $reserva_expirada.titulo_id
                           return = {type: "count"}
                         } as $emprestimos_do_titulo
 

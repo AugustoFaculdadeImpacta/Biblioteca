@@ -23,7 +23,7 @@ query "admin/emprestimos/{emprestimo_id}/devolucao" verb=POST {
       field_value = $input.emprestimo_id
     } as $emprestimo
 
-    precondition ($emprestimo != null && $emprestimo.devolvido_em == null) {
+    precondition ($emprestimo != null && ($emprestimo.devolvido_em == null || $emprestimo.devolvido_em == 0)) {
       error_type = "notfound"
       error = "Emprestimo ativo nao encontrado."
     }
@@ -74,7 +74,7 @@ query "admin/emprestimos/{emprestimo_id}/devolucao" verb=POST {
             conditional {
               if ($proxima_reserva == null) {
                 db.query emprestimo {
-                  where = $db.emprestimo.usuario_id == $item.usuario_id && $db.emprestimo.devolvido_em == null && $db.emprestimo.vence_em < $agora
+                  where = $db.emprestimo.usuario_id == $item.usuario_id && ($db.emprestimo.devolvido_em == null || $db.emprestimo.devolvido_em == 0) && $db.emprestimo.vence_em < $agora
                   return = {type: "count"}
                 } as $atrasados
 
@@ -85,7 +85,7 @@ query "admin/emprestimos/{emprestimo_id}/devolucao" verb=POST {
                       where: $db.emprestimo.exemplar_id == $db.exemplar.id
                     }
                   }
-                  where = $db.emprestimo.usuario_id == $item.usuario_id && $db.emprestimo.devolvido_em == null && $db.exemplar.titulo_id == $exemplar.titulo_id
+                  where = $db.emprestimo.usuario_id == $item.usuario_id && ($db.emprestimo.devolvido_em == null || $db.emprestimo.devolvido_em == 0) && $db.exemplar.titulo_id == $exemplar.titulo_id
                   return = {type: "count"}
                 } as $emprestimos_do_titulo
 

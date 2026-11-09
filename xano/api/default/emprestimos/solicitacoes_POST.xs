@@ -33,7 +33,7 @@ query "solicitacoes-emprestimo" verb=POST {
     }
 
     db.query emprestimo {
-      where = $db.emprestimo.usuario_id == $auth.id && $db.emprestimo.devolvido_em == null && $db.emprestimo.vence_em < $agora
+      where = $db.emprestimo.usuario_id == $auth.id && ($db.emprestimo.devolvido_em == null || $db.emprestimo.devolvido_em == 0) && $db.emprestimo.vence_em < $agora
       return = {type: "count"}
     } as $emprestimos_atrasados
 
@@ -73,7 +73,7 @@ query "solicitacoes-emprestimo" verb=POST {
               where: $db.emprestimo.exemplar_id == $db.exemplar.id
             }
           }
-          where = $db.emprestimo.usuario_id == $auth.id && $db.emprestimo.devolvido_em == null && $db.emprestimo.vence_em >= $agora && $db.exemplar.titulo_id == $input.titulo_id
+          where = $db.emprestimo.usuario_id == $auth.id && ($db.emprestimo.devolvido_em == null || $db.emprestimo.devolvido_em == 0) && $db.emprestimo.vence_em >= $agora && $db.exemplar.titulo_id == $input.titulo_id
           return = {type: "count"}
         } as $emprestimos_ativos_do_titulo
 

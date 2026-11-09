@@ -266,6 +266,16 @@ class TestCandidateContracts(unittest.TestCase):
         pickup = (APIS / "emprestimos" / "retirada_POST.xs").read_text(
             encoding="utf-8"
         )
+        return_loan = (APIS / "emprestimos" / "devolucao_POST.xs").read_text(
+            encoding="utf-8"
+        )
+        reservations = (APIS / "reservas" / "reservas_POST.xs").read_text(
+            encoding="utf-8"
+        )
+        reservation_pickup = (APIS / "reservas" / "retirada_POST.xs").read_text(
+            encoding="utf-8"
+        )
+        queue = (APIS / "reservas" / "fila_GET.xs").read_text(encoding="utf-8")
         offer = (APIS / "reservas" / "ofertar_proxima_POST.xs").read_text(
             encoding="utf-8"
         )
@@ -277,6 +287,24 @@ class TestCandidateContracts(unittest.TestCase):
         )
         signup = (APIS / "auth" / "signup_POST.xs").read_text(encoding="utf-8")
 
+        active_loan_sentinel = (
+            "($db.emprestimo.devolvido_em == null || "
+            "$db.emprestimo.devolvido_em == 0)"
+        )
+        self.assertEqual(2, requests.count(active_loan_sentinel))
+        self.assertEqual(2, pickup.count(active_loan_sentinel))
+        self.assertIn(
+            "($emprestimo.devolvido_em == null || $emprestimo.devolvido_em == 0)",
+            return_loan,
+        )
+        self.assertEqual(2, return_loan.count(active_loan_sentinel))
+        self.assertEqual(2, reservations.count(active_loan_sentinel))
+        self.assertEqual(2, reservation_pickup.count(active_loan_sentinel))
+        self.assertEqual(2, offer.count(active_loan_sentinel))
+        self.assertEqual(2, expiry.count(active_loan_sentinel))
+        self.assertIn('value = "now"|to_timestamp', return_loan)
+        self.assertIn('|set:"devolvido_em":$agora', return_loan)
+
         self.assertIn('estado == "aguardando"', requests)
         self.assertIn("vence_em < $agora", requests)
         self.assertIn('perfil : "estudante"', signup)
@@ -286,10 +314,31 @@ class TestCandidateContracts(unittest.TestCase):
         self.assertIn("$emprestimos_ativos == 0", pickup)
         self.assertIn("$agora|add_secs_to_timestamp:1209600", pickup)
 
-        self.assertIn("criada_em: \"asc\"", offer)
-        self.assertIn("reserva.id: \"asc\"", offer)
+        self.assertNotRegex(offer, r"(?m)^\s*sort\s*=")
+        self.assertIn(
+            'value = $fila|sort:"id":"number":true|sort:"criada_em":"number":true',
+            offer,
+        )
+        self.assertIn('value = "now"|to_timestamp', offer)
+        self.assertIn("$db.emprestimo.vence_em < $agora", offer)
+        self.assertNotIn('$db.emprestimo.vence_em < ("now"|to_timestamp)', offer)
         self.assertIn("$ofertada_em|add_secs_to_timestamp:172800", offer)
         self.assertIn("$atrasados == 0 && $emprestimos_do_titulo == 0", offer)
+        self.assertNotRegex(queue, r"(?m)^\s*sort\s*=")
+        self.assertIn(
+            'value = $fila|sort:"id":"number":true|sort:"criada_em":"number":true',
+            queue,
+        )
+        self.assertIn("response = $fila_ordenada", queue)
+        self.assertNotRegex(expiry, r"(?m)^\s*sort\s*=")
+        self.assertIn(
+            'value = $expiradas|sort:"id":"number":true|sort:"expira_em":"number":true',
+            expiry,
+        )
+        self.assertIn(
+            'value = $fila|sort:"id":"number":true|sort:"criada_em":"number":true',
+            expiry,
+        )
 
         self.assertIn('$db.reserva.estado == "ofertada"', expiry)
         self.assertIn('data = {estado: "expirada"}', expiry)
