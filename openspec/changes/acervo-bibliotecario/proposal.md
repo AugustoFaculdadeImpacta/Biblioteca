@@ -25,6 +25,6 @@ Bibliotecários precisam consultar e manter o acervo completo, inclusive exempla
 ## Impact
 
 - Reflex: área administrativa para listar, cadastrar, editar, adicionar exemplares, desativar e reativar títulos.
-- Xano: schema do título e operações de leitura/escrita necessárias; o contrato existente confirma `PATCH /catalogo/titulos/{tituloId}`, `POST /catalogo/titulos`, associações de categoria e criação de exemplares. Não há hoje campo de ativação nem consulta administrativa completa; nenhum endpoint novo será presumido sem validação do contrato.
+- Xano: schema do título e operações de leitura/escrita necessárias; o contrato existente confirma `PATCH /catalogo/titulos/{tituloId}`, `POST /catalogo/titulos`, associações de categoria e criação de exemplares. `GET /admin/acervo` é um endpoint candidato aprovado para implementação local, ainda não confirmado no workspace remoto. Não haverá sincronização remota nesta Change local.
 - Testes pytest com transportes mockados, validação OpenSpec estrita e compilação Reflex.
 - A alteração de autorização para admin depende da conclusão da Change `perfil-admin-xano`; até lá, somente a autorização de bibliotecário existente pode ser considerada confirmada.

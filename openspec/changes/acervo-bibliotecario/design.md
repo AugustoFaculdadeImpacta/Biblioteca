@@ -32,9 +32,9 @@ O backend deve revalidar empréstimos e reservas associados ao título e a todos
 
 **Alternativa considerada:** consultar bloqueios no cliente e depois enviar a desativação; rejeitada porque o estado pode mudar entre consulta e gravação.
 
-### Contratos administrativos ausentes
+### Contratos administrativos locais
 
-O OpenAPI local confirma `PATCH /catalogo/titulos/{tituloId}`, mas não oferece listagem de todos os títulos com exemplares/estados, desativação ou reativação. Não escolher caminhos, verbos ou schemas para essas operações por convenção. Consultar documentação atual do Xano Developer antes de definir os contratos; se não for possível validá-los, manter as tarefas correspondentes como NÃO EXECUTADAS e não apresentar funcionalidade parcial como concluída. A listagem completa deve permanecer autenticada e autorizada no servidor.
+O OpenAPI local confirma `PATCH /catalogo/titulos/{tituloId}`, mas não oferece listagem de todos os títulos com exemplares/estados. Por decisão delegada, `GET /admin/acervo` é um candidato aprovado para implementação local e o PATCH existente aceitará a alteração opcional de `ativo`. Esses contratos não foram encontrados no pull remoto e não serão sincronizados nesta sessão. A listagem completa deve permanecer autenticada e autorizada no servidor.
 
 **Alternativa considerada:** reutilizar a listagem pública para a interface administrativa; rejeitada porque ela omite exemplares individuais e não pode incluir títulos desativados.
 
@@ -46,13 +46,13 @@ Todas as consultas e mutações administrativas exigem autenticação e validaç
 
 ### Operação e validação Xano
 
-O CLI confirmou workspace `151966`, branch `v1` live, grupo Biblioteca e `allow_push=false`; sandbox push não oferece filtro unitário `-i`. O pull isolado de referência contém 57 arquivos fora do repositório e `xano/` local permanece sem alterações. Nenhuma escrita foi enviada ao Xano. Não alterar `allow_push`, não usar sincronização ampla e não editar/sincronizar `xano/` se não houver uma via unitária permitida. A ferramenta Xano Developer MCP para consultar documentação/validar XanoScript não está disponível nesta sessão; portanto, os contratos ausentes não serão inferidos. Antes de qualquer operação remota futura, repetir a identificação do destino, obter pull isolado e rollback fora do repositório, e exigir dry-run de um único CREATE/UPDATE para cada arquivo.
+O CLI confirmou workspace `151966`, branch `v1` live, grupo Biblioteca e `allow_push=false`; sandbox push não oferece filtro unitário `-i`. O pull somente de definições desta sessão contém 57 documentos em uma pasta temporária fora do repositório. Nenhuma escrita será enviada ao Xano. Não alterar `allow_push`, não usar sandbox push nem sincronizar `xano/`. O Xano Developer MCP valida sintaxe local e informa documentação, mas não garante execução, concorrência ou publicação no workspace; contratos não encontrados no pull permanecem candidatos locais. Antes de qualquer operação remota futura, repetir a identificação do destino, obter pull isolado e rollback fora do repositório, e exigir dry-run unitário de um único CREATE/UPDATE para cada arquivo.
 
 Enquanto o backend estiver bloqueado, os testes de interface/clientes usam respostas mockadas. Nenhum teste mockado será descrito como verificação contra Xano real.
 
 ## Risks / Trade-offs
 
-- [O campo `ativo` exige migração de schema] → preservar todos os registros, default ativo e atualizar somente após prova reversível e dry-run unitário.
+- [O campo `ativo` exige migração de schema] → preservar todos os registros; a migração remota continua pendente e não será feita nesta sessão.
 - [A lista administrativa pode expor dados operacionais] → autenticação e perfil verificados no backend; nunca usar o GET público como substituto.
 - [Corrida entre verificação de empréstimos/reservas e desativação] → revalidar no servidor com garantia de consistência; bloquear a ação se essa garantia não puder ser comprovada.
 - [A Change `perfil-admin-xano` está incompleta] → manter o acesso de admin pendente até conclusão backend daquela Change.
@@ -60,18 +60,19 @@ Enquanto o backend estiver bloqueado, os testes de interface/clientes usam respo
 
 ## Migration Plan
 
-1. Reconfirmar workspace, branch, ambiente e permissões do CLI; obter pull isolado e cópia de rollback fora do repositório.
-2. Validar o campo `ativo` e suas consultas com documentação Xano e teste reversível; não alterar dados de produção sem mecanismo unitário aprovado.
-3. Implementar cada alteração em arquivo Xano separado, validando dry-run de um único CREATE/UPDATE e pull de conferência após cada operação autorizada.
-4. Testar com dados sintéticos e limpar individualmente; verificar GET 404 e contagens finais exigidas antes de considerar o backend verificado.
-5. Se o gate de push ou a validação de consistência falhar, não sincronizar e manter esta Change ativa.
+1. Para este Apply, manter todas as mudanças Xano somente em arquivos locais e validar cada arquivo com o Xano Developer MCP.
+2. Não alterar dados remotos: push, sandbox, fixtures sintéticas, prova de concorrência e limpeza ficam NÃO EXECUTADOS.
+3. Antes de uma publicação futura, reidentificar o destino, obter pull isolado e cópia de rollback fora do repositório, e enviar apenas após dry-run unitário revisado.
 
 ## Decisões tomadas por delegação (revisar)
 
-- A desativação é lógica, usando `ativo`; novos e existentes começam ativos para preservar o catálogo atual.
-- Bloquear remoção lógica se existir qualquer empréstimo ainda não devolvido (`devolvido_em` nulo ou zero) ou reserva ativa associada ao título/exemplar.
+- `titulo.ativo` é booleano com padrão verdadeiro; `ativo` ausente ou nulo em título legado significa ativo.
+- A desativação é lógica; títulos inativos somem de todas as rotas públicas, mas permanecem na listagem completa do acervo com o estado visível e podem ser reativados.
+- Título inativo não aceita novas solicitações de empréstimo ou reservas; filas existentes não são alteradas.
+- Bloquear remoção lógica se existir qualquer empréstimo ainda não devolvido (`devolvido_em` nulo ou zero) ou reserva ativa (`aguardando`/`ofertada`) associada ao título ou a seus exemplares.
 - Não remover fisicamente títulos com histórico nem seus exemplares.
-- Título inativo desaparece do catálogo público e não aceita nova solicitação ou reserva; bibliotecário continua vendo-o na área administrativa.
-- Não inventar endpoint para listagem completa, desativação ou reativação. Se a documentação Xano não permitir validar o contrato, deixar essas tarefas pendentes.
-- Admin deve ter as mesmas permissões do bibliotecário, mas essa parte depende do backend da Change `perfil-admin-xano`.
+- A interface usa o candidato local `GET /admin/acervo` para listar títulos, exemplares e estados; a consulta é restrita no backend.
+- `PATCH /catalogo/titulos/{titulo_id}` será reutilizado para edição e alteração de `ativo`; o contrato `ativo` é candidato local e não foi confirmado no Xano remoto.
+- As operações de acervo são para bibliotecário/admin e são verificadas no servidor. Nenhuma verificação mockada equivale à validação remota ou garante atomicidade concorrente.
+- A autorização de admin está preparada localmente pela Change `perfil-admin-xano`; ainda depende de publicação e testes remotos.
 - O destino continua workspace `151966`, branch `v1`, grupo Biblioteca; `allow_push` não será alterado.

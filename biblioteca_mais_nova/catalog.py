@@ -9,6 +9,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoClient,
     XanoConfigurationError,
     XanoRequestError,
+    XanoResponseError,
 )
 
 
@@ -21,6 +22,7 @@ class PublicTitleFields(TypedDict):
     id: int
     titulo: str
     autores: str
+    ativo: NotRequired[bool | None]
     isbn: NotRequired[str | None]
     editora: NotRequired[str | None]
     edicao: NotRequired[str | None]
@@ -59,6 +61,40 @@ class Copy(TypedDict):
     titulo_id: int
     estado: str
     codigo_tombo: str
+
+
+class AdminCatalogCopy(TypedDict):
+    id: int
+    titulo_id: int
+    estado: str
+    codigo_tombo: str | None
+
+
+class AdminCatalogEntry(TypedDict):
+    titulo: PublicTitleFields
+    categorias: list["TitleCategory"]
+    exemplares: list[AdminCatalogCopy]
+    exemplares_disponiveis: int
+
+
+class AdminCatalogDisplayCopy(TypedDict):
+    codigo_tombo: str
+    estado: str
+
+
+class AdminCatalogDisplayEntry(TypedDict):
+    id: int
+    titulo: str
+    autores: str
+    isbn: str
+    editora: str
+    edicao: str
+    ano_publicacao: str
+    descricao: str
+    ativo: bool
+    categorias: str
+    exemplares_disponiveis: int
+    exemplares: list[AdminCatalogDisplayCopy]
 
 
 class CatalogValidationError(ValueError):
@@ -150,6 +186,11 @@ def _parse_public_catalog_entry(value: object) -> PublicCatalogEntry:
         "titulo": title["titulo"],
         "autores": title["autores"],
     }
+    active = title.get("ativo")
+    if active is not None and type(active) is not bool:
+        raise _response_error()
+    if "ativo" in title:
+        parsed_title["ativo"] = active
     for field in ("isbn", "editora", "edicao", "descricao"):
         field_value = title.get(field)
         if field_value is not None and not isinstance(field_value, str):
@@ -197,7 +238,19 @@ async def list_public_titles(
     titles = _response_json(response)
     if not isinstance(titles, list):
         raise _response_error()
-    return [_parse_public_catalog_entry(title) for title in titles]
+    public_titles: list[PublicCatalogEntry] = []
+    for title in titles:
+        if isinstance(title, dict):
+            title_fields = title.get("titulo")
+            active = (
+                title_fields.get("ativo")
+                if isinstance(title_fields, dict)
+                else None
+            )
+            if active is False:
+                continue
+        public_titles.append(_parse_public_catalog_entry(title))
+    return public_titles
 
 
 async def get_public_title(
@@ -209,7 +262,98 @@ async def get_public_title(
         raise _response_error()
     client = XanoClient.from_environment(transport=transport)
     response = await client.request("GET", f"/catalogo/titulos/{title_id}")
-    return _parse_public_catalog_entry(_response_json(response))
+    value = _response_json(response)
+    if (
+        isinstance(value, dict)
+        and isinstance(value.get("titulo"), dict)
+        and value["titulo"].get("ativo") is False
+    ):
+        raise XanoResponseError(404)
+    return _parse_public_catalog_entry(value)
+
+
+def _parse_admin_catalog_entry(value: object) -> AdminCatalogEntry:
+    if not isinstance(value, dict):
+        raise _response_error()
+    public_entry = _parse_public_catalog_entry(value)
+    copies = value.get("exemplares")
+    if not isinstance(copies, list):
+        raise _response_error()
+
+    parsed_copies: list[AdminCatalogCopy] = []
+    for copy in copies:
+        if (
+            not isinstance(copy, dict)
+            or type(copy.get("id")) is not int
+            or copy.get("titulo_id") != public_entry["titulo"]["id"]
+            or type(copy.get("titulo_id")) is not int
+            or not isinstance(copy.get("estado"), str)
+            or copy["estado"]
+            not in {"disponivel", "reservado", "emprestado", "indisponivel"}
+        ):
+            raise _response_error()
+        code = copy.get("codigo_tombo")
+        if code is not None and not isinstance(code, str):
+            raise _response_error()
+        parsed_copies.append(
+            {
+                "id": copy["id"],
+                "titulo_id": copy["titulo_id"],
+                "estado": copy["estado"],
+                "codigo_tombo": code,
+            }
+        )
+
+    return {
+        "titulo": public_entry["titulo"],
+        "categorias": public_entry["categorias"],
+        "exemplares": parsed_copies,
+        "exemplares_disponiveis": public_entry["exemplares_disponiveis"],
+    }
+
+
+async def list_admin_catalog(
+    token: str,
+    *,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> list[AdminCatalogEntry]:
+    client = XanoClient.from_environment(transport=transport)
+    response = await client.request("GET", "/admin/acervo", token=token)
+    entries = _response_json(response)
+    if not isinstance(entries, list):
+        raise _response_error()
+    return [_parse_admin_catalog_entry(entry) for entry in entries]
+
+
+async def update_title(
+    title_id: int,
+    payload: TitlePayload,
+    token: str,
+    *,
+    active: bool | None = None,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> Title:
+    if type(title_id) is not int or title_id < 1:
+        raise _response_error()
+    request_payload: dict[str, object] = dict(payload)
+    if active is not None:
+        request_payload["ativo"] = active
+
+    client = XanoClient.from_environment(transport=transport)
+    response = await client.request(
+        "PATCH",
+        f"/catalogo/titulos/{title_id}",
+        token=token,
+        json=request_payload,
+    )
+    title = _response_json(response)
+    if (
+        not isinstance(title, dict)
+        or type(title.get("id")) is not int
+        or title["id"] != title_id
+    ):
+        raise _response_error()
+    return {"id": title_id}
 
 
 async def create_title(
@@ -321,6 +465,8 @@ def catalog_error_message(error: Exception) -> str:
         return str(error)
     if isinstance(error, XanoConfigurationError):
         return "O acervo está temporariamente indisponível. Tente novamente mais tarde."
+    if isinstance(error, XanoResponseError) and error.public_detail:
+        return error.public_detail
     if isinstance(error, XanoRequestError):
         return "Não foi possível concluir a operação no acervo. Confira a situação antes de tentar novamente."
     return "Ocorreu um erro inesperado. Tente novamente mais tarde."

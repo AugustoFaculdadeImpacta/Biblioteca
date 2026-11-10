@@ -83,6 +83,7 @@ class TestCandidateContracts(unittest.TestCase):
         self.assertIn('$usuario.ativo != false', login)
         self.assertIn("text titulo filters=trim", title)
         self.assertIn("text autores filters=trim", title)
+        self.assertIn("bool ativo?=true", title)
         self.assertIn('type: "btree|unique", field: [{name: "codigo_tombo"', copy)
 
     def test_category_title_queries_map_association_ids_without_unknown_pluck(self):
@@ -111,7 +112,7 @@ class TestCandidateContracts(unittest.TestCase):
                 )
                 self.assertIn('$usuario.ativo != false', source, path.name)
 
-        self.assertEqual(15, len(guarded_files))
+        self.assertEqual(16, len(guarded_files))
 
         for path in [
             APIS / "admin" / "usuarios_GET.xs",
@@ -155,6 +156,53 @@ class TestCandidateContracts(unittest.TestCase):
         self.assertIn('$bibliotecario.perfil == "bibliotecario"', update_user)
         self.assertIn("data = {ativo: $input.ativo}", update_user)
         self.assertNotIn("senha:", update_user.split("response =", 1)[-1])
+
+    def test_title_active_state_is_filtered_publicly_and_guarded_for_writes(self):
+        public_list = (APIS / "catalogo" / "titulos_GET.xs").read_text(
+            encoding="utf-8"
+        )
+        public_detail = (APIS / "catalogo" / "titulos_id_GET.xs").read_text(
+            encoding="utf-8"
+        )
+        category_titles = (
+            APIS / "catalogo" / "categorias_titulos_GET.xs"
+        ).read_text(encoding="utf-8")
+        title_patch = (APIS / "catalogo" / "titulos_id_PATCH.xs").read_text(
+            encoding="utf-8"
+        )
+        loan_request = (
+            APIS / "emprestimos" / "solicitacoes_POST.xs"
+        ).read_text(encoding="utf-8")
+        reservation = (APIS / "reservas" / "reservas_POST.xs").read_text(
+            encoding="utf-8"
+        )
+        admin_catalog = (APIS / "admin" / "acervo_GET.xs").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("$titulo.ativo != false", public_list)
+        self.assertIn("$titulo.ativo != false", public_detail)
+        self.assertIn("$db.titulo.ativo != false", category_titles)
+        self.assertIn("$input.ativo == false", title_patch)
+        self.assertIn("db.transaction", title_patch)
+        self.assertIn("$emprestimos_ativos == 0", title_patch)
+        self.assertIn("$reservas_ativas == 0", title_patch)
+        self.assertIn("devolvido_em == null", title_patch)
+        self.assertIn("devolvido_em == 0", title_patch)
+
+        for source in (loan_request, reservation):
+            self.assertIn("$titulo.ativo != false", source)
+            self.assertLess(
+                source.index("$titulo.ativo != false"),
+                source.index("db.add "),
+            )
+
+        self.assertIn('query "admin/acervo" verb=GET', admin_catalog)
+        self.assertIn('auth = "usuario"', admin_catalog)
+        self.assertIn('$usuario.perfil == "bibliotecario" || $usuario.perfil == "admin"', admin_catalog)
+        self.assertIn("exemplares: $exemplares", admin_catalog)
+        self.assertIn("exemplares_disponiveis: $disponiveis", admin_catalog)
+        self.assertNotIn("senha", admin_catalog)
 
     def test_xanoscript_candidate_delimiters_are_balanced(self):
         for path in ROOT.rglob("*.xs"):
@@ -214,7 +262,7 @@ class TestCandidateContracts(unittest.TestCase):
             for route, method in API_DECLARATION.findall(source):
                 candidates.append((method, "/" + route, path, source))
 
-        self.assertEqual(len(operations), 31)
+        self.assertEqual(len(operations), 32)
         self.assertEqual(len(candidates), len(operations))
 
         for method, path, operation in operations:

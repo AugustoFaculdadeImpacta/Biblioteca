@@ -28,6 +28,11 @@ query "reservas" verb=POST {
       error = "Titulo nao encontrado."
     }
 
+    precondition ($titulo.ativo != false) {
+      error_type = "accessdenied"
+      error = "Titulo inativo nao aceita novas reservas."
+    }
+
     var $agora {
       value = "now"|to_timestamp
     }

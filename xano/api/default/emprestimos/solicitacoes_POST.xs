@@ -28,6 +28,11 @@ query "solicitacoes-emprestimo" verb=POST {
       error = "Titulo nao encontrado."
     }
 
+    precondition ($titulo.ativo != false) {
+      error_type = "accessdenied"
+      error = "Titulo inativo nao aceita novas solicitacoes."
+    }
+
     var $agora {
       value = "now"|to_timestamp
     }

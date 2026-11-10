@@ -19,6 +19,8 @@ from biblioteca_mais_nova.login import (
     submit_login as authenticate,
 )
 from biblioteca_mais_nova.catalog import (
+    AdminCatalogDisplayEntry,
+    AdminCatalogEntry,
     CatalogValidationError,
     associate_category,
     build_title_payload,
@@ -27,8 +29,10 @@ from biblioteca_mais_nova.catalog import (
     create_copy,
     create_title,
     get_public_title,
+    list_admin_catalog,
     list_categories,
     list_public_titles,
+    update_title,
 )
 from biblioteca_mais_nova.circulation import (
     list_my_loans,
@@ -66,6 +70,11 @@ class State(rx.State):
     catalog_title_created: bool = False
     catalog_created_codes: list[str] = []
     catalog_needs_manual_check: bool = False
+    admin_catalog_entries: list[AdminCatalogEntry] = []
+    admin_catalog_message: str = ""
+    admin_catalog_has_error: bool = False
+    admin_catalog_pending: bool = False
+    admin_catalog_needs_manual_check: bool = False
     _session_token: str = ""
     _session_profile: str = ""
     _catalog_title_id: int | None = None
@@ -153,6 +162,8 @@ class State(rx.State):
         visible: list[dict[str, Any]] = []
         for entry in self.public_catalog_entries:
             title = entry["titulo"]
+            if title.get("ativo") is False:
+                continue
             category_ids = {
                 association["categoria_id"]
                 for association in entry["categorias"]
@@ -211,6 +222,50 @@ class State(rx.State):
     @rx.var
     def public_catalog_has_available_copies(self) -> bool:
         return self.public_catalog_detail.get("exemplares_disponiveis", 0) > 0
+
+    @rx.var
+    def admin_catalog_display_entries(self) -> list[AdminCatalogDisplayEntry]:
+        category_names = {
+            category["id"]: category["nome"]
+            for category in self.catalog_categories
+        }
+        display_entries: list[AdminCatalogDisplayEntry] = []
+        for entry in self.admin_catalog_entries:
+            title = entry["titulo"]
+            category_ids = sorted(
+                association["categoria_id"]
+                for association in entry["categorias"]
+            )
+            display_entry: AdminCatalogDisplayEntry = {
+                "id": title["id"],
+                "titulo": title["titulo"],
+                "autores": title["autores"],
+                "isbn": title.get("isbn") or "",
+                "editora": title.get("editora") or "",
+                "edicao": title.get("edicao") or "",
+                "ano_publicacao": str(title.get("ano_publicacao") or ""),
+                "descricao": title.get("descricao") or "",
+                "ativo": title.get("ativo") is not False,
+                "categorias": ", ".join(
+                    category_names[category_id]
+                    for category_id in category_ids
+                    if category_id in category_names
+                )
+                or "Sem categoria",
+                "exemplares_disponiveis": entry[
+                    "exemplares_disponiveis"
+                ],
+                "exemplares": [
+                    {
+                        "codigo_tombo": copy.get("codigo_tombo")
+                        or "Código de tombo não informado",
+                        "estado": copy["estado"],
+                    }
+                    for copy in entry["exemplares"]
+                ],
+            }
+            display_entries.append(display_entry)
+        return display_entries
 
     @rx.var
     def has_student_library_loans(self) -> bool:
@@ -663,16 +718,236 @@ class State(rx.State):
         )
         self.librarian_management_success = True
 
-    @rx.event
-    async def load_catalog_categories(self):
-        if not self._is_librarian():
-            return self._redirect_non_librarian()
+    async def _load_catalog_categories(self):
         try:
             self.catalog_categories = await list_categories()
         except (XanoConfigurationError, XanoRequestError, XanoResponseError) as error:
             self.catalog_message = catalog_error_message(error)
             self.catalog_has_error = True
             return
+        self.catalog_has_error = False
+
+    @rx.event
+    async def load_catalog_categories(self):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        await self._load_catalog_categories()
+
+    @rx.event
+    async def load_catalog_page(self):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        await self._load_catalog_categories()
+        if not self.catalog_has_error:
+            await self._refresh_admin_catalog()
+
+    async def _refresh_admin_catalog(self):
+        self.admin_catalog_pending = True
+        self.admin_catalog_has_error = False
+        try:
+            self.admin_catalog_entries = await list_admin_catalog(
+                self._session_token
+            )
+        except (
+            XanoConfigurationError,
+            XanoRequestError,
+            XanoResponseError,
+        ) as error:
+            self.admin_catalog_message = catalog_error_message(error)
+            self.admin_catalog_has_error = True
+        finally:
+            self.admin_catalog_pending = False
+
+    @rx.event
+    async def refresh_admin_catalog(self):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        self.admin_catalog_message = ""
+        await self._refresh_admin_catalog()
+
+    @rx.event
+    async def save_admin_title(self, form_data: dict[str, Any]):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        if self.admin_catalog_pending:
+            self.admin_catalog_message = "Aguarde a operação atual do acervo."
+            self.admin_catalog_has_error = True
+            return
+        self.admin_catalog_message = ""
+
+        raw_id = str(form_data.get("titulo_id", ""))
+        if not raw_id.isdecimal() or int(raw_id) < 1:
+            self.admin_catalog_message = "Não foi possível identificar o título."
+            self.admin_catalog_has_error = True
+            return
+
+        try:
+            payload = build_title_payload(
+                {
+                    key: str(form_data.get(key, ""))
+                    for key in (
+                        "titulo",
+                        "autores",
+                        "isbn",
+                        "editora",
+                        "edicao",
+                        "ano_publicacao",
+                        "descricao",
+                    )
+                }
+            )
+            self.admin_catalog_pending = True
+            await update_title(int(raw_id), payload, self._session_token)
+        except (
+            CatalogValidationError,
+            XanoConfigurationError,
+            XanoRequestError,
+            XanoResponseError,
+        ) as error:
+            self.admin_catalog_message = catalog_error_message(error)
+            self.admin_catalog_has_error = True
+            return
+        finally:
+            self.admin_catalog_pending = False
+
+        self.admin_catalog_message = "Título atualizado."
+        self.admin_catalog_has_error = False
+        await self._refresh_admin_catalog()
+
+    @rx.event
+    async def set_title_active(self, title_id: int, active: bool):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        if self.admin_catalog_pending:
+            self.admin_catalog_message = "Aguarde a operação atual do acervo."
+            self.admin_catalog_has_error = True
+            return
+        if type(title_id) is not int or title_id < 1 or type(active) is not bool:
+            self.admin_catalog_message = "Não foi possível identificar o título."
+            self.admin_catalog_has_error = True
+            return
+
+        entry = next(
+            (
+                item
+                for item in self.admin_catalog_entries
+                if item["titulo"]["id"] == title_id
+            ),
+            None,
+        )
+        if entry is None:
+            self.admin_catalog_message = "Título não encontrado no acervo."
+            self.admin_catalog_has_error = True
+            return
+
+        title = entry["titulo"]
+        form_data = {
+            key: str(title.get(key) or "")
+            for key in (
+                "titulo",
+                "autores",
+                "isbn",
+                "editora",
+                "edicao",
+                "descricao",
+            )
+        }
+        year = title.get("ano_publicacao")
+        form_data["ano_publicacao"] = str(year) if year is not None else ""
+        try:
+            self.admin_catalog_pending = True
+            payload = build_title_payload(form_data)
+            await update_title(
+                title_id,
+                payload,
+                self._session_token,
+                active=active,
+            )
+        except (
+            CatalogValidationError,
+            XanoConfigurationError,
+            XanoRequestError,
+            XanoResponseError,
+        ) as error:
+            self.admin_catalog_message = catalog_error_message(error)
+            self.admin_catalog_has_error = True
+            return
+        finally:
+            self.admin_catalog_pending = False
+
+        self.admin_catalog_message = (
+            "Título reativado." if active else "Título desativado."
+        )
+        self.admin_catalog_has_error = False
+        await self._refresh_admin_catalog()
+
+    @rx.event
+    async def add_copy_to_title(self, title_id: int):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        if self.admin_catalog_pending:
+            self.admin_catalog_message = "Aguarde a operação atual do acervo."
+            self.admin_catalog_has_error = True
+            return
+        if self.admin_catalog_needs_manual_check:
+            self.admin_catalog_message = (
+                "Confira os exemplares no acervo antes de iniciar outra criação."
+            )
+            self.admin_catalog_has_error = True
+            return
+        if type(title_id) is not int or title_id < 1:
+            self.admin_catalog_message = "Não foi possível identificar o título."
+            self.admin_catalog_has_error = True
+            return
+
+        self.admin_catalog_pending = True
+        try:
+            await create_copy(title_id, self._session_token)
+        except XanoResponseError as error:
+            if error.status_code >= 500:
+                self.admin_catalog_needs_manual_check = True
+                self.admin_catalog_message = (
+                    "O resultado da criação do exemplar é incerto. Confira o acervo "
+                    "antes de iniciar outra criação."
+                )
+                self.admin_catalog_has_error = True
+                return
+            self.admin_catalog_message = catalog_error_message(error)
+            self.admin_catalog_has_error = True
+            return
+        except XanoRequestError:
+            self.admin_catalog_needs_manual_check = True
+            self.admin_catalog_message = (
+                "O resultado da criação do exemplar é incerto. Confira o acervo "
+                "antes de iniciar outra criação."
+            )
+            self.admin_catalog_has_error = True
+            return
+        except XanoConfigurationError as error:
+            self.admin_catalog_message = catalog_error_message(error)
+            self.admin_catalog_has_error = True
+            return
+        finally:
+            self.admin_catalog_pending = False
+
+        self.admin_catalog_message = "Exemplar adicionado."
+        self.admin_catalog_has_error = False
+        await self._refresh_admin_catalog()
+
+    @rx.event
+    def acknowledge_admin_catalog_check(self):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        if self.admin_catalog_pending:
+            self.admin_catalog_message = "Aguarde a operação atual do acervo."
+            self.admin_catalog_has_error = True
+            return
+        if self.admin_catalog_needs_manual_check:
+            self.admin_catalog_needs_manual_check = False
+            self.admin_catalog_message = (
+                "Operações liberadas. Confira os exemplares antes de criar novamente."
+            )
+            self.admin_catalog_has_error = False
 
     @rx.event
     def toggle_catalog_category(self, category_id: int, selected: bool):
@@ -739,6 +1014,8 @@ class State(rx.State):
         self._pending_category_ids = list(self.selected_category_ids)
         self._sync_catalog_progress()
         await self._process_pending_categories()
+        if not self.catalog_categories_pending and not self.catalog_has_error:
+            await self._refresh_admin_catalog()
 
     async def _process_pending_categories(self):
         if self._catalog_title_id is None:
@@ -825,6 +1102,8 @@ class State(rx.State):
         self.catalog_needs_manual_check = False
         self.catalog_has_error = False
         await self._process_pending_categories()
+        if not self.catalog_categories_pending and not self.catalog_has_error:
+            await self._refresh_admin_catalog()
 
     @rx.event
     async def create_catalog_copy(self):
@@ -874,6 +1153,7 @@ class State(rx.State):
         self.catalog_created_codes.append(copy["codigo_tombo"])
         self.catalog_message = "Exemplar criado."
         self.catalog_has_error = False
+        await self._refresh_admin_catalog()
 
     @rx.event
     def start_new_catalog_title(self):
@@ -1712,6 +1992,154 @@ def catalog_category_option(category: rx.Var[dict[str, Any]]) -> rx.Component:
     )
 
 
+def admin_copy_row(copy: rx.Var[dict[str, Any]]) -> rx.Component:
+    return rx.el.li(
+        rx.text(copy["codigo_tombo"], " — ", copy["estado"]),
+        class_name="admin-copy-row",
+    )
+
+
+def admin_title_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
+    return rx.el.article(
+        rx.heading(title["titulo"], size="4"),
+        rx.text("Autores: ", title["autores"]),
+        rx.text("Estado: ", rx.cond(title["ativo"], "Ativo", "Desativado")),
+        rx.text("Categorias: ", title["categorias"]),
+        rx.text(
+            "Exemplares disponíveis: ",
+            title["exemplares_disponiveis"],
+        ),
+        rx.cond(
+            title["exemplares"].length() > 0,
+            rx.el.ul(
+                rx.foreach(title["exemplares"], admin_copy_row),
+                class_name="admin-copy-list",
+            ),
+            rx.text("Nenhum exemplar cadastrado.", role="status"),
+        ),
+        rx.form(
+            rx.input(type="hidden", name="titulo_id", value=title["id"]),
+            rx.el.label(
+                "Título",
+                rx.input(
+                    name="titulo",
+                    type="text",
+                    required=True,
+                    default_value=title["titulo"],
+                    aria_label="Título",
+                    class_name="signup-input",
+                ),
+                class_name="signup-label",
+            ),
+            rx.el.label(
+                "Autores",
+                rx.input(
+                    name="autores",
+                    type="text",
+                    required=True,
+                    default_value=title["autores"],
+                    aria_label="Autores",
+                    class_name="signup-input",
+                ),
+                class_name="signup-label",
+            ),
+            rx.el.label(
+                "ISBN (opcional)",
+                rx.input(
+                    name="isbn",
+                    type="text",
+                    default_value=title["isbn"],
+                    aria_label="ISBN (opcional)",
+                    class_name="signup-input",
+                ),
+                class_name="signup-label",
+            ),
+            rx.el.label(
+                "Editora (opcional)",
+                rx.input(
+                    name="editora",
+                    type="text",
+                    default_value=title["editora"],
+                    aria_label="Editora (opcional)",
+                    class_name="signup-input",
+                ),
+                class_name="signup-label",
+            ),
+            rx.el.label(
+                "Edição (opcional)",
+                rx.input(
+                    name="edicao",
+                    type="text",
+                    default_value=title["edicao"],
+                    aria_label="Edição (opcional)",
+                    class_name="signup-input",
+                ),
+                class_name="signup-label",
+            ),
+            rx.el.label(
+                "Ano de publicação (opcional)",
+                rx.input(
+                    name="ano_publicacao",
+                    type="number",
+                    default_value=title["ano_publicacao"],
+                    aria_label="Ano de publicação (opcional)",
+                    class_name="signup-input",
+                ),
+                class_name="signup-label",
+            ),
+            rx.el.label(
+                "Descrição (opcional)",
+                rx.text_area(
+                    name="descricao",
+                    default_value=title["descricao"],
+                    aria_label="Descrição (opcional)",
+                    class_name="signup-input",
+                ),
+                class_name="signup-label",
+            ),
+            rx.button(
+                "Salvar alterações",
+                type="submit",
+                disabled=State.admin_catalog_pending,
+                class_name="focus-demo-button",
+            ),
+            on_submit=State.save_admin_title,
+            reset_on_submit=False,
+            class_name="admin-title-edit-form",
+        ),
+        rx.hstack(
+            rx.button(
+                "Adicionar exemplar",
+                type="button",
+                on_click=State.add_copy_to_title(title["id"]),
+                disabled=State.admin_catalog_pending
+                | State.admin_catalog_needs_manual_check,
+                class_name="focus-demo-button",
+            ),
+            rx.cond(
+                title["ativo"],
+                rx.button(
+                    "Desativar título",
+                    type="button",
+                    on_click=State.set_title_active(title["id"], False),
+                    disabled=State.admin_catalog_pending,
+                    class_name="nav-logout",
+                ),
+                rx.button(
+                    "Reativar título",
+                    type="button",
+                    on_click=State.set_title_active(title["id"], True),
+                    disabled=State.admin_catalog_pending,
+                    class_name="focus-demo-button",
+                ),
+            ),
+            flex_wrap="wrap",
+            align="center",
+        ),
+        class_name="admin-title-card",
+    )
+
+
 def catalog_admin() -> rx.Component:
     return rx.box(
         rx.link("Pular para o conteúdo", href="#conteudo-acervo", class_name="skip-link"),
@@ -1720,7 +2148,7 @@ def catalog_admin() -> rx.Component:
             rx.el.section(
                 rx.heading("Cadastro de título e exemplares", size="7"),
                 rx.text(
-                    "Acesso restrito a bibliotecários. As categorias disponíveis "
+                    "Acesso restrito a bibliotecários e admins. As categorias disponíveis "
                     "são carregadas do catálogo."
                 ),
                 rx.cond(
@@ -1910,6 +2338,78 @@ def catalog_admin() -> rx.Component:
                 ),
                 id="conteudo-acervo",
                 class_name="content-section signup-section",
+            ),
+            rx.el.section(
+                rx.heading("Acervo completo", size="6"),
+                rx.text(
+                    "Inclui títulos ativos e desativados e mostra o estado de "
+                    "cada exemplar."
+                ),
+                rx.cond(
+                    State.admin_catalog_message != "",
+                    rx.el.p(
+                        State.admin_catalog_message,
+                        role=rx.cond(
+                            State.admin_catalog_has_error,
+                            "alert",
+                            "status",
+                        ),
+                        aria_live="polite",
+                        class_name=rx.cond(
+                            State.admin_catalog_has_error,
+                            "signup-feedback signup-feedback-error",
+                            "signup-feedback signup-feedback-success",
+                        ),
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.admin_catalog_pending,
+                    rx.text("Carregando acervo…", role="status"),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.admin_catalog_display_entries.length() > 0,
+                    rx.el.div(
+                        rx.foreach(
+                            State.admin_catalog_display_entries,
+                            admin_title_card,
+                        ),
+                        class_name="admin-catalog-grid",
+                    ),
+                    rx.cond(
+                        State.admin_catalog_pending,
+                        rx.fragment(),
+                        rx.cond(
+                            State.admin_catalog_has_error,
+                            rx.fragment(),
+                            rx.text(
+                                "Nenhum título cadastrado.",
+                                role="status",
+                            ),
+                        ),
+                    ),
+                ),
+                rx.button(
+                    "Atualizar acervo",
+                    type="button",
+                    on_click=State.refresh_admin_catalog,
+                    disabled=State.admin_catalog_pending,
+                    class_name="nav-logout",
+                ),
+                rx.cond(
+                    State.admin_catalog_needs_manual_check,
+                    rx.button(
+                        "Conferi a lista; liberar novas operações",
+                        type="button",
+                        on_click=State.acknowledge_admin_catalog_check,
+                        disabled=State.admin_catalog_pending,
+                        class_name="focus-demo-button",
+                    ),
+                    rx.fragment(),
+                ),
+                id="conteudo-acervo-completo",
+                class_name="content-section admin-catalog-section",
             ),
             class_name="main-content",
         ),
@@ -2172,6 +2672,36 @@ app = rx.App(
             "gap": "1rem",
             "width": "100%",
         },
+        ".admin-catalog-grid": {
+            "display": "grid",
+            "grid_template_columns": "repeat(auto-fit, minmax(min(100%, 20rem), 1fr))",
+            "gap": "1rem",
+            "width": "100%",
+        },
+        ".admin-title-card": {
+            "display": "flex",
+            "flex_direction": "column",
+            "align_items": "stretch",
+            "gap": "0.75rem",
+            "min_width": "0",
+            "padding": "1rem",
+            "border": "1px solid var(--gray-6)",
+            "border_radius": "0.75rem",
+            "background_color": "var(--gray-1)",
+        },
+        ".admin-title-edit-form": {
+            "display": "grid",
+            "grid_template_columns": "repeat(auto-fit, minmax(min(100%, 12rem), 1fr))",
+            "gap": "0.75rem",
+            "width": "100%",
+        },
+        ".admin-copy-list": {
+            "display": "flex",
+            "flex_direction": "column",
+            "gap": "0.25rem",
+            "margin": "0",
+            "padding_left": "1.25rem",
+        },
         ".catalog-card, .catalog-detail-card": {
             "display": "flex",
             "flex_direction": "column",
@@ -2400,7 +2930,7 @@ app.add_page(
     catalog_admin,
     route="/admin/acervo",
     title="Cadastro de acervo",
-    on_load=State.load_catalog_categories,
+    on_load=State.load_catalog_page,
 )
 app.add_page(
     librarian_management,

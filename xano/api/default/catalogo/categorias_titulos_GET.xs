@@ -26,7 +26,7 @@ query "catalogo/categorias/{categoria_id}/titulos" verb=GET {
     } as $titulo_ids
 
     db.query titulo {
-      where = $db.titulo.id in ($titulo_ids)
+      where = $db.titulo.id in ($titulo_ids) && $db.titulo.ativo != false
       return = {type: "list"}
     } as $titulos
   }

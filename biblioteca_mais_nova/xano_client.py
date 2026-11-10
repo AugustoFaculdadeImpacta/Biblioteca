@@ -9,6 +9,31 @@ import httpx
 from dotenv import load_dotenv
 
 
+SAFE_ERROR_MESSAGES = {
+    "A desativacao foi recusada: ha emprestimo ativo.": (
+        "O título não pode ser desativado enquanto houver empréstimo ativo."
+    ),
+    "A desativacao foi recusada: ha reserva ativa.": (
+        "O título não pode ser desativado enquanto houver reserva ativa."
+    ),
+    "Estudante possui emprestimo atrasado.": (
+        "A reserva foi recusada porque o estudante possui empréstimo atrasado."
+    ),
+    "Estudante ja possui o titulo emprestado.": (
+        "A reserva foi recusada porque o estudante já está com esse título."
+    ),
+    "Estudante ja possui reserva ativa para este titulo.": (
+        "O estudante já possui uma reserva ativa para esse título."
+    ),
+    "Titulo inativo nao aceita novas reservas.": (
+        "Não é possível reservar um título desativado."
+    ),
+    "Estudante nao encontrado ou inativo.": (
+        "Estudante não encontrado ou com conta desativada."
+    ),
+}
+
+
 class XanoConfigurationError(ValueError):
     """Configuração ausente ou inválida para acessar o Xano."""
 
@@ -20,8 +45,13 @@ class XanoRequestError(RuntimeError):
 class XanoResponseError(XanoRequestError):
     """Resposta HTTP de erro retornada pelo Xano."""
 
-    def __init__(self, status_code: int) -> None:
+    def __init__(
+        self,
+        status_code: int,
+        public_detail: str | None = None,
+    ) -> None:
         self.status_code = status_code
+        self.public_detail = public_detail
         super().__init__(f"O serviço Xano retornou um erro HTTP {status_code}.")
 
 
@@ -130,5 +160,16 @@ class XanoClient:
             ) from None
 
         if response.is_error:
-            raise XanoResponseError(response.status_code)
+            public_detail = None
+            try:
+                body = response.json()
+            except ValueError:
+                body = None
+            if isinstance(body, dict):
+                for key in ("message", "error", "detail"):
+                    detail = body.get(key)
+                    if isinstance(detail, str) and detail in SAFE_ERROR_MESSAGES:
+                        public_detail = SAFE_ERROR_MESSAGES[detail]
+                        break
+            raise XanoResponseError(response.status_code, public_detail)
         return response

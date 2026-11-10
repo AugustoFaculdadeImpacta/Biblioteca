@@ -116,7 +116,7 @@
       "get": {
         "operationId": "listarTitulos",
         "summary": "Listar catalogo publico",
-        "description": "Publico. Retorna metadados do titulo, categorias e disponibilidade derivada de exemplares elegiveis; nunca expoe dados pessoais.",
+        "description": "Publico. Retorna somente titulos ativos; inclui metadados, categorias e disponibilidade derivada, sem dados pessoais.",
         "responses": {
           "200": {
             "description": "Titulos publicados"
@@ -159,7 +159,7 @@
       ],
       "get": {
         "operationId": "consultarTitulo",
-        "description": "Publico; inclui categorias e disponibilidade agregada derivada.",
+        "description": "Publico; retorna titulo ativo com categorias e disponibilidade agregada derivada.",
         "responses": {
           "200": {
             "description": "Titulo e exemplares agregados sem dados pessoais"
@@ -176,13 +176,13 @@
             "bearerAuth": []
           }
         ],
-        "description": "Bibliotecario ou admin. Nao oferece exclusao ou arquivamento.",
+        "description": "Bibliotecario ou admin. Pode alterar ativo; desativacao e logica e bloqueada por emprestimo ou reserva ativa.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TituloEntrada"
+                "$ref": "#/components/schemas/AtualizarTitulo"
               }
             }
           }
@@ -814,6 +814,25 @@
         }
       }
     },
+    "/admin/acervo": {
+      "get": {
+        "operationId": "listarAcervoCompleto",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Candidato local ainda nao confirmado no Xano remoto. Bibliotecario ou admin; inclui titulos inativos, categorias e exemplares com estado.",
+        "responses": {
+          "200": {
+            "description": "Acervo completo sem dados de usuario"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          }
+        }
+      }
+    },
     "/admin/usuarios": {
       "get": {
         "operationId": "listarBibliotecarios",
@@ -1128,6 +1147,42 @@
           },
           "descricao": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AtualizarTitulo": {
+        "type": "object",
+        "required": [
+          "titulo",
+          "autores"
+        ],
+        "properties": {
+          "titulo": {
+            "type": "string",
+            "minLength": 1
+          },
+          "autores": {
+            "type": "string",
+            "minLength": 1
+          },
+          "isbn": {
+            "type": "string"
+          },
+          "editora": {
+            "type": "string"
+          },
+          "edicao": {
+            "type": "string"
+          },
+          "ano_publicacao": {
+            "type": "integer"
+          },
+          "descricao": {
+            "type": "string"
+          },
+          "ativo": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false

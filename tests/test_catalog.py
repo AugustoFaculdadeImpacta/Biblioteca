@@ -405,34 +405,73 @@ def test_public_catalog_filters_accented_search_category_availability_and_sort()
                     ],
                     "exemplares_disponiveis": 1,
                 },
+                {
+                    "titulo": {
+                        "id": 4,
+                        "titulo": "Ação indisponível",
+                        "autores": "Dora",
+                    },
+                    "categorias": [
+                        {"id": 13, "titulo_id": 4, "categoria_id": 7},
+                    ],
+                    "exemplares_disponiveis": 0,
+                },
+                {
+                    "titulo": {
+                        "id": 5,
+                        "titulo": "Ação removida",
+                        "autores": "Eva",
+                        "ativo": False,
+                    },
+                    "categorias": [
+                        {"id": 14, "titulo_id": 5, "categoria_id": 7},
+                    ],
+                    "exemplares_disponiveis": 2,
+                },
             ]
 
             assert [
                 item["titulo"] for item in state.filtered_public_catalog
-            ] == ["Ação e memória", "Ação recente", "Ética antiga"]
+            ] == [
+                "Ação e memória",
+                "Ação indisponível",
+                "Ação recente",
+                "Ética antiga",
+            ]
 
             state.public_catalog_search = "acao"
-            assert [
-                item["titulo"] for item in state.filtered_public_catalog
-            ] == ["Ação e memória", "Ação recente"]
-
-            state.public_catalog_search = ""
             state.set_public_catalog_category("7")
-            assert [
-                item["titulo"] for item in state.filtered_public_catalog
-            ] == ["Ação e memória", "Ação recente"]
-
-            state.set_public_catalog_category("")
             state.public_catalog_only_available = True
             assert [
                 item["titulo"] for item in state.filtered_public_catalog
             ] == ["Ação e memória", "Ação recente"]
 
-            state.public_catalog_only_available = False
             state.public_catalog_sort = "desc"
             assert [
                 item["titulo"] for item in state.filtered_public_catalog
-            ] == ["Ética antiga", "Ação recente", "Ação e memória"]
+            ] == ["Ação recente", "Ação e memória"]
+
+            state.public_catalog_search = ""
+            state.set_public_catalog_category("7")
+            assert [
+                item["titulo"] for item in state.filtered_public_catalog
+            ] == ["Ação recente", "Ação e memória"]
+
+            state.set_public_catalog_category("")
+            assert [
+                item["titulo"] for item in state.filtered_public_catalog
+            ] == ["Ação recente", "Ação e memória"]
+
+            state.public_catalog_only_available = False
+            state.public_catalog_sort = "asc"
+            assert [
+                item["titulo"] for item in state.filtered_public_catalog
+            ] == [
+                "Ação e memória",
+                "Ação indisponível",
+                "Ação recente",
+                "Ética antiga",
+            ]
 
             state.public_catalog_search = "sem resultados"
             assert state.filtered_public_catalog == []
