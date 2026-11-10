@@ -48,6 +48,12 @@ from biblioteca_mais_nova.user_admin import (
     set_librarian_active,
     user_admin_error_message,
 )
+from biblioteca_mais_nova.staff_reservations import (
+    StaffReservationValidationError,
+    create_staff_reservation,
+    find_student_by_email,
+    staff_reservation_error_message,
+)
 from biblioteca_mais_nova.xano_client import (
     XanoConfigurationError,
     XanoRequestError,
@@ -110,6 +116,14 @@ class State(rx.State):
     librarian_management_has_error: bool = False
     librarian_management_success: bool = False
     managed_librarians: list[dict[str, Any]] = []
+    staff_reservation_pending: bool = False
+    staff_reservation_message: str = ""
+    staff_reservation_has_error: bool = False
+    staff_reservation_email: str = ""
+    staff_reservation_student: dict[str, Any] = {}
+    staff_reservation_title_options: list[dict[str, str]] = []
+    staff_reservation_title_id: str = ""
+    staff_reservation_needs_manual_check: bool = False
 
     def _store_session_token(self, token: str) -> None:
         if not token:
@@ -279,6 +293,10 @@ class State(rx.State):
     def has_student_library_reservations(self) -> bool:
         return bool(self.student_library_reservations)
 
+    @rx.var
+    def has_staff_reservation_student(self) -> bool:
+        return bool(self.staff_reservation_student)
+
     def _redirect_non_librarian(self):
         if not self._session_token:
             return rx.redirect("/login")
@@ -311,6 +329,14 @@ class State(rx.State):
         self.librarian_management_has_error = False
         self.librarian_management_success = False
         self.managed_librarians = []
+        self.staff_reservation_pending = False
+        self.staff_reservation_message = ""
+        self.staff_reservation_has_error = False
+        self.staff_reservation_email = ""
+        self.staff_reservation_student = {}
+        self.staff_reservation_title_options = []
+        self.staff_reservation_title_id = ""
+        self.staff_reservation_needs_manual_check = False
         self.catalog_categories = []
         self.selected_category_ids = []
         self.catalog_categories_pending = False
@@ -717,6 +743,193 @@ class State(rx.State):
             else "Bibliotecário desativado."
         )
         self.librarian_management_success = True
+
+    @rx.event
+    def update_staff_reservation_email(self, value: str):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        self.staff_reservation_email = value
+        self.staff_reservation_student = {}
+        self.staff_reservation_title_id = ""
+        self.staff_reservation_message = ""
+        self.staff_reservation_has_error = False
+
+    @rx.event
+    def update_staff_reservation_title_id(self, value: str):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        self.staff_reservation_title_id = value
+
+    @rx.event
+    async def load_staff_reservation_page(self):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+
+        self.staff_reservation_pending = True
+        self.staff_reservation_message = ""
+        self.staff_reservation_has_error = False
+        self.staff_reservation_email = ""
+        self.staff_reservation_student = {}
+        self.staff_reservation_title_id = ""
+        self.staff_reservation_needs_manual_check = False
+        try:
+            entries = await list_admin_catalog(self._session_token)
+        except (
+            XanoConfigurationError,
+            XanoRequestError,
+            XanoResponseError,
+        ) as error:
+            self.staff_reservation_message = catalog_error_message(error)
+            self.staff_reservation_has_error = True
+            self.staff_reservation_title_options = []
+        else:
+            self.staff_reservation_title_options = [
+                {
+                    "id": str(entry["titulo"]["id"]),
+                    "label": entry["titulo"]["titulo"],
+                }
+                for entry in entries
+                if entry["titulo"].get("ativo") is not False
+            ]
+            if not self.staff_reservation_title_options:
+                self.staff_reservation_message = (
+                    "Não há títulos ativos disponíveis para reserva."
+                )
+        finally:
+            self.staff_reservation_pending = False
+
+    @rx.event
+    async def search_staff_reservation_student(self):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        if self.staff_reservation_pending:
+            self.staff_reservation_message = "Aguarde a operação atual."
+            self.staff_reservation_has_error = True
+            return
+
+        self.staff_reservation_pending = True
+        self.staff_reservation_student = {}
+        self.staff_reservation_title_id = ""
+        self.staff_reservation_message = ""
+        self.staff_reservation_has_error = False
+        try:
+            student = await find_student_by_email(
+                self.staff_reservation_email,
+                self._session_token,
+            )
+        except (
+            StaffReservationValidationError,
+            XanoConfigurationError,
+            XanoRequestError,
+            XanoResponseError,
+        ) as error:
+            self.staff_reservation_message = staff_reservation_error_message(
+                error
+            )
+            self.staff_reservation_has_error = True
+        else:
+            if student is None:
+                self.staff_reservation_message = (
+                    "Nenhum estudante ativo foi encontrado para esse e-mail."
+                )
+                self.staff_reservation_has_error = True
+            else:
+                self.staff_reservation_student = student
+                self.staff_reservation_message = (
+                    "Confirme o estudante antes de registrar a reserva."
+                )
+        finally:
+            self.staff_reservation_pending = False
+
+    @rx.event
+    async def submit_staff_reservation(self):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        if self.staff_reservation_pending:
+            self.staff_reservation_message = "Aguarde a operação atual."
+            self.staff_reservation_has_error = True
+            return
+        if self.staff_reservation_needs_manual_check:
+            self.staff_reservation_message = (
+                "Confira a fila de reservas antes de tentar novamente."
+            )
+            self.staff_reservation_has_error = True
+            return
+        student_id = self.staff_reservation_student.get("id")
+        try:
+            title_id = int(self.staff_reservation_title_id)
+        except ValueError:
+            title_id = 0
+        if type(student_id) is not int or student_id < 1:
+            self.staff_reservation_message = "Busque e confirme um estudante."
+            self.staff_reservation_has_error = True
+            return
+        if title_id < 1 or not any(
+            option["id"] == self.staff_reservation_title_id
+            for option in self.staff_reservation_title_options
+        ):
+            self.staff_reservation_message = "Selecione um título ativo."
+            self.staff_reservation_has_error = True
+            return
+
+        self.staff_reservation_pending = True
+        self.staff_reservation_message = ""
+        self.staff_reservation_has_error = False
+        try:
+            await create_staff_reservation(
+                student_id,
+                title_id,
+                self._session_token,
+            )
+        except XanoResponseError as error:
+            if error.status_code >= 500:
+                self.staff_reservation_needs_manual_check = True
+                self.staff_reservation_message = (
+                    "Não foi possível confirmar o resultado. Confira a fila "
+                    "antes de tentar novamente."
+                )
+            else:
+                self.staff_reservation_message = (
+                    staff_reservation_error_message(error)
+                )
+            self.staff_reservation_has_error = True
+        except XanoRequestError:
+            self.staff_reservation_needs_manual_check = True
+            self.staff_reservation_message = (
+                "Não foi possível confirmar o resultado. Confira a fila "
+                "antes de tentar novamente."
+            )
+            self.staff_reservation_has_error = True
+        except XanoConfigurationError as error:
+            self.staff_reservation_message = staff_reservation_error_message(
+                error
+            )
+            self.staff_reservation_has_error = True
+        finally:
+            self.staff_reservation_pending = False
+        if self.staff_reservation_has_error:
+            return
+
+        self.staff_reservation_student = {}
+        self.staff_reservation_title_id = ""
+        self.staff_reservation_message = (
+            "Reserva registrada na fila normal do título; a ordem é definida "
+            "pelo servidor."
+        )
+
+    @rx.event
+    def acknowledge_staff_reservation_check(self):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        if self.staff_reservation_pending:
+            self.staff_reservation_message = "Aguarde a operação atual."
+            self.staff_reservation_has_error = True
+            return
+        self.staff_reservation_needs_manual_check = False
+        self.staff_reservation_message = (
+            "A verificação foi confirmada. Você pode iniciar uma nova busca."
+        )
+        self.staff_reservation_has_error = False
 
     async def _load_catalog_categories(self):
         try:
@@ -1205,6 +1418,14 @@ def site_header() -> rx.Component:
                     rx.cond(
                         State.is_librarian,
                         rx.link("Cadastrar livro", href="/admin/acervo"),
+                        rx.fragment(),
+                    ),
+                    rx.cond(
+                        State.is_librarian,
+                        rx.link(
+                            "Reservas para estudantes",
+                            href="/admin/reservas",
+                        ),
                         rx.fragment(),
                     ),
                     rx.cond(
@@ -2573,6 +2794,137 @@ def librarian_management() -> rx.Component:
     )
 
 
+def staff_reservation_page() -> rx.Component:
+    return rx.box(
+        rx.link(
+            "Pular para o conteúdo",
+            href="#conteudo-reservas",
+            class_name="skip-link",
+        ),
+        site_header(),
+        rx.el.main(
+            rx.el.section(
+                rx.heading("Reservar para estudante", size="7"),
+                rx.text(
+                    "A busca exige o e-mail completo. A reserva segue as "
+                    "mesmas regras e a fila normal do catálogo."
+                ),
+                rx.cond(
+                    State.staff_reservation_message != "",
+                    rx.el.p(
+                        State.staff_reservation_message,
+                        role=rx.cond(
+                            State.staff_reservation_has_error,
+                            "alert",
+                            "status",
+                        ),
+                        aria_live="polite",
+                        class_name=rx.cond(
+                            State.staff_reservation_has_error,
+                            "signup-feedback signup-feedback-error",
+                            "signup-feedback signup-feedback-success",
+                        ),
+                    ),
+                    rx.fragment(),
+                ),
+                rx.el.label(
+                    "E-mail completo do estudante",
+                    html_for="reserva-estudante-email",
+                    class_name="signup-label",
+                ),
+                rx.input(
+                    id="reserva-estudante-email",
+                    type="email",
+                    value=State.staff_reservation_email,
+                    on_change=State.update_staff_reservation_email,
+                    required=True,
+                    aria_label="E-mail completo do estudante",
+                    class_name="signup-input",
+                    disabled=State.staff_reservation_pending
+                    | State.staff_reservation_needs_manual_check,
+                ),
+                rx.button(
+                    "Buscar estudante",
+                    type="button",
+                    on_click=State.search_staff_reservation_student,
+                    disabled=State.staff_reservation_pending
+                    | State.staff_reservation_needs_manual_check,
+                    class_name="focus-demo-button",
+                ),
+                rx.cond(
+                    State.has_staff_reservation_student,
+                    rx.el.div(
+                        rx.heading("Confirme o estudante", size="5"),
+                        rx.text(
+                            State.staff_reservation_student["nome"],
+                            aria_label="Nome do estudante localizado",
+                        ),
+                        class_name="librarian-card",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.el.label(
+                    "Título ativo",
+                    html_for="reserva-titulo-id",
+                    class_name="signup-label",
+                ),
+                rx.select.root(
+                    rx.select.trigger(
+                        placeholder="Selecione um título ativo",
+                        aria_label="Título para reserva",
+                    ),
+                    rx.select.content(
+                        rx.select.group(
+                            rx.foreach(
+                                State.staff_reservation_title_options,
+                                lambda option: rx.select.item(
+                                    option["label"],
+                                    value=option["id"],
+                                ),
+                            )
+                        )
+                    ),
+                    value=State.staff_reservation_title_id,
+                    on_change=State.update_staff_reservation_title_id,
+                    disabled=State.staff_reservation_pending
+                    | State.staff_reservation_needs_manual_check,
+                    id="reserva-titulo-id",
+                ),
+                rx.button(
+                    "Registrar reserva na fila",
+                    type="button",
+                    on_click=State.submit_staff_reservation,
+                    disabled=State.staff_reservation_pending
+                    | State.staff_reservation_needs_manual_check
+                    | ~State.has_staff_reservation_student,
+                    class_name="focus-demo-button",
+                ),
+                rx.cond(
+                    State.staff_reservation_pending,
+                    rx.text("Processando…", role="status"),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.staff_reservation_needs_manual_check,
+                    rx.button(
+                        "Já conferi a fila no Xano; permitir nova tentativa",
+                        type="button",
+                        on_click=State.acknowledge_staff_reservation_check,
+                        disabled=State.staff_reservation_pending,
+                        class_name="nav-logout",
+                    ),
+                    rx.fragment(),
+                ),
+                id="conteudo-reservas",
+                class_name="content-section librarian-management-section",
+            ),
+            class_name="main-content",
+        ),
+        rx.el.footer(rx.text("Biblioteca escolar"), class_name="site-footer"),
+        class_name="app-shell",
+    )
+
+
 app = rx.App(
     style={
         "font_family": "system-ui, sans-serif",
@@ -2937,4 +3289,10 @@ app.add_page(
     route="/admin/bibliotecarios",
     title="Gestão de bibliotecários",
     on_load=State.load_librarians,
+)
+app.add_page(
+    staff_reservation_page,
+    route="/admin/reservas",
+    title="Reservar para estudante",
+    on_load=State.load_staff_reservation_page,
 )

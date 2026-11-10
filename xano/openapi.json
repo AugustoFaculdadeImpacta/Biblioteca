@@ -741,6 +741,108 @@
         }
       }
     },
+    "/admin/estudantes": {
+      "get": {
+        "operationId": "buscarEstudanteParaReserva",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Candidato local ainda nao confirmado no Xano remoto. Bibliotecario ou admin; busca email exato normalizado e retorna somente ID e nome de estudante ativo.",
+        "parameters": [
+          {
+            "name": "email",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "email"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista vazia ou uma identidade minima de estudante",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "maxItems": 1,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "nome"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "nome": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          }
+        }
+      }
+    },
+    "/admin/reservas": {
+      "post": {
+        "operationId": "criarReservaParaEstudante",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Candidato local ainda nao confirmado no Xano remoto. Bibliotecario ou admin; revalida conta estudante, titulo ativo, atraso, emprestimo ativo e duplicidade, inserindo no fim normal da fila. Nao aceita prioridade, posicao ou horario.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "usuario_id",
+                  "titulo_id"
+                ],
+                "properties": {
+                  "usuario_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "titulo_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Reserva na fila normal do titulo"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflito"
+          }
+        }
+      }
+    },
     "/admin/exemplares/{exemplarId}/condicoes": {
       "parameters": [
         {

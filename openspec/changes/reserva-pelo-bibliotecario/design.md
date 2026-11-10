@@ -38,11 +38,11 @@ Reutilizar os invariantes do endpoint atual: sem empréstimo atrasado (emprésti
 
 **Alternativa considerada:** atribuir imediatamente um exemplar disponível ao estudante atendido pelo funcionário; rejeitada porque pode pular a fila existente e mistura reserva com retirada/atendimento.
 
-### Contratos Xano pendentes
+### Contratos Xano locais e pendentes
 
-O CLI confirmou workspace `151966`, branch `v1` live, grupo Biblioteca e `allow_push=false`; o pull isolado de referência com 57 definições está fora do repositório, e `xano/` local continua sem alterações. A ferramenta Xano Developer MCP não está disponível nesta sessão. Não há contrato local para busca por estudante ou criação em nome de terceiro. Não inventar caminho, verbo, campos ou formato de resposta. Validar o desenho com Xano Developer antes de implementar; a operação de criação deve usar o ator autenticado para autorização e o estudante alvo como beneficiário, e precisa garantir atomicidade entre validação de duplicidade/FIFO e gravação. Se a documentação ou a capacidade de push unitário não estiver disponível, marcar tarefas Xano como NÃO EXECUTADAS e não simular sucesso de produção.
+O CLI confirmou workspace `151966`, branch `v1` live, grupo Biblioteca e `allow_push=false`; o pull somente de definições desta sessão contém 57 documentos fora do repositório. As rotas administrativas de busca e criação para outra pessoa não foram encontradas nesse pull. O Xano Developer MCP está disponível para documentação e validação de sintaxe local, mas não comprova existência remota, execução ou atomicidade. Os caminhos `GET /admin/estudantes?email=` e `POST /admin/reservas` são contratos candidatos explicitamente aprovados para implementação local; permanecem não confirmados no Xano remoto. A criação usa o funcionário autenticado para autorização e estudante alvo como beneficiário. Escrita, execução de fixtures e prova de concorrência não serão realizadas nesta sessão.
 
-**Alternativa considerada:** estender `POST /reservas` existente para aceitar `usuario_id`; rejeitada até validação explícita, pois mudaria uma operação de identidade própria e poderia ampliar sua superfície de autorização.
+**Alternativa considerada:** estender `POST /reservas` existente para aceitar `usuario_id`; rejeitada porque mudaria uma operação de identidade própria e poderia ampliar sua superfície de autorização.
 
 ### Dependências de perfil e acervo
 
@@ -70,15 +70,16 @@ Usar a rota Reflex `/admin/reservas` para busca e criação. A tela coleta o e-m
 2. Consultar Xano Developer para validar busca, criação para terceiro, payload mínimo, autorização, consistência/FIFO e integração com título ativo.
 3. Implementar cada endpoint em arquivo separado somente com contrato validado; exigir dry-run de um único CREATE/UPDATE, push unitário permitido e pull de conferência.
 4. Testar com estudantes sintéticos `zz-teste-*@exemplo.invalid`, registrar IDs fora do repositório, limpar individualmente pela Metadata API e verificar GET 404 e contagens finais.
-5. Testar Reflex com respostas mockadas, documentando-as como simuladas; não chamar Xano real com dados de teste enquanto o gate não estiver aprovado.
+5. Neste Apply, manter candidatos `.xs` somente locais, validar sua sintaxe pelo MCP e testar o cliente com respostas mockadas. Não executar Xano real, fixtures ou limpeza.
 
 ## Decisões tomadas por delegação (revisar)
 
-- Busca de estudante por e-mail completo normalizado, não parcial por nome, para reduzir exposição de dados.
-- A resposta da busca contém somente identificador e nome.
-- A reserva criada pelo funcionário entra no fim da fila segundo o horário gerado pelo servidor; não há prioridade, escolha de exemplar nem oferta imediata pela tela.
-- São mantidos atraso, empréstimo ativo do mesmo título, reserva ativa única e perfil estudante, sem exceções administrativas.
+- Operação reservada a bibliotecário/admin, com perfil checado no backend; o alvo deve ser estudante ativo.
+- Busca por e-mail exato normalizado; resultado mínimo contém somente `id` e `nome`.
+- A reserva criada pelo funcionário entra no fim da fila FIFO segundo o horário gerado pelo servidor; não há prioridade, escolha de exemplar nem oferta imediata pela tela.
+- São mantidos atraso, empréstimo ativo do mesmo título, reserva ativa única e perfil estudante, sem exceções administrativas. Título inativo deve ser recusado.
 - `devolvido_em` nulo ou zero significa empréstimo não devolvido.
-- A tela Reflex fica em `/admin/reservas`; isso é uma rota de interface, não um endpoint Xano.
-- Não inventar contrato Xano; título ativo depende de `acervo-bibliotecario`, e perfil admin depende de `perfil-admin-xano`.
+- Os endpoints candidatos locais são `GET /admin/estudantes?email=` e `POST /admin/reservas`; a leitura remota não os encontrou e não confirma o contrato.
+- A tela Reflex fica em `/admin/reservas`; isso é uma rota de interface, não um endpoint Xano. O cliente não envia credenciais do estudante nem prioridade/posição.
+- O suporte real a título ativo e perfil admin depende das mudanças locais da capability `acervo-bibliotecario` e `perfil-admin-xano` serem publicadas e testadas no Xano.
 - O destino Xano permanece workspace `151966`, branch `v1`, grupo Biblioteca; `allow_push` não será alterado.

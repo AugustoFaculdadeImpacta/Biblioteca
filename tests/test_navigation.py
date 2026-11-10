@@ -29,6 +29,8 @@ def test_navigation_changes_by_profile_and_logout_clears_session():
             assert state.is_librarian is False
             assert state.is_student is False
             assert "/minha-biblioteca" in header
+            assert "/admin/reservas" in header
+            assert "Reservas para estudantes" in header
 
             state._store_session("token-falso-navegacao", "estudante")
             assert state.is_authenticated is True

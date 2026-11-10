@@ -23,6 +23,6 @@ Bibliotecários precisam registrar uma reserva solicitada presencialmente por um
 ## Impact
 
 - Reflex: tela de busca de estudante e criação de reserva para bibliotecário/admin, com mensagens seguras e sem armazenar credenciais estudantis.
-- Xano: operações autenticadas de busca mínima de estudante e criação de reserva por estudante informado; o OpenAPI atual só documenta a criação pelo próprio estudante e não contém esses contratos administrativos.
+- Xano: operações autenticadas de busca mínima de estudante e criação de reserva por estudante informado. `GET /admin/estudantes?email=` e `POST /admin/reservas` são contratos candidatos aprovados para implementação local, ainda não encontrados no pull remoto.
 - Testes pytest com transportes mockados, validação OpenSpec estrita e compilação Reflex.
 - A criação para título inativo depende da conclusão de `acervo-bibliotecario`; a autorização de admin depende de `perfil-admin-xano`. Nenhuma dessas permissões será presumida enquanto o backend não as confirmar.

@@ -112,7 +112,7 @@ class TestCandidateContracts(unittest.TestCase):
                 )
                 self.assertIn('$usuario.ativo != false', source, path.name)
 
-        self.assertEqual(16, len(guarded_files))
+        self.assertEqual(18, len(guarded_files))
 
         for path in [
             APIS / "admin" / "usuarios_GET.xs",
@@ -204,6 +204,62 @@ class TestCandidateContracts(unittest.TestCase):
         self.assertIn("exemplares_disponiveis: $disponiveis", admin_catalog)
         self.assertNotIn("senha", admin_catalog)
 
+    def test_staff_reservation_endpoints_enforce_identity_and_fifo_rules(self):
+        search_student = (APIS / "admin" / "estudantes_GET.xs").read_text(
+            encoding="utf-8"
+        )
+        create_reservation = (APIS / "admin" / "reservas_POST.xs").read_text(
+            encoding="utf-8"
+        )
+        document = json.loads(OPENAPI.read_text(encoding="utf-8"))
+        paths = document["paths"]
+
+        self.assertIn('query "admin/estudantes" verb=GET', search_student)
+        self.assertIn("email", input_fields(search_student))
+        self.assertIn('$usuario.perfil == "bibliotecario" || $usuario.perfil == "admin"', search_student)
+        self.assertIn('$usuario.ativo != false', search_student)
+        self.assertIn('$db.usuario.email == $input.email', search_student)
+        self.assertIn('$db.usuario.perfil == "estudante"', search_student)
+        self.assertIn('$db.usuario.ativo != false', search_student)
+        self.assertIn("id: $estudante.id", search_student)
+        self.assertIn("nome: $estudante.nome", search_student)
+        self.assertNotIn("$estudante.email", search_student)
+        self.assertNotIn("senha", search_student)
+        self.assertNotIn("hash", search_student)
+        self.assertNotIn("token", search_student)
+
+        self.assertIn('query "admin/reservas" verb=POST', create_reservation)
+        self.assertEqual({"usuario_id", "titulo_id"}, input_fields(create_reservation))
+        self.assertIn('$usuario.perfil == "bibliotecario" || $usuario.perfil == "admin"', create_reservation)
+        self.assertIn('$estudante.perfil == "estudante"', create_reservation)
+        self.assertIn("$estudante.ativo != false", create_reservation)
+        self.assertIn("$titulo.ativo != false", create_reservation)
+        self.assertIn("$emprestimos_atrasados == 0", create_reservation)
+        self.assertIn("$emprestimos_do_titulo == 0", create_reservation)
+        self.assertIn("$reservas_ativas == 0", create_reservation)
+        self.assertIn("db.transaction", create_reservation)
+        self.assertIn("estado: \"aguardando\"", create_reservation)
+        self.assertNotIn("prioridade", create_reservation)
+        self.assertNotIn("posicao", create_reservation)
+        self.assertNotIn("senha", create_reservation)
+        self.assertNotIn("hash", create_reservation)
+        self.assertNotIn("token", create_reservation)
+
+        search = paths["/admin/estudantes"]["get"]
+        email_parameter = next(
+            parameter
+            for parameter in search["parameters"]
+            if parameter["name"] == "email"
+        )
+        self.assertEqual("query", email_parameter["in"])
+        self.assertTrue(email_parameter["required"])
+        self.assertEqual(["id", "nome"], search["responses"]["200"]["content"]["application/json"]["schema"]["items"]["required"])
+        reservation = paths["/admin/reservas"]["post"]
+        body = reservation["requestBody"]["content"]["application/json"]["schema"]
+        self.assertEqual({"usuario_id", "titulo_id"}, set(body["properties"]))
+        self.assertEqual({"usuario_id", "titulo_id"}, set(body["required"]))
+        self.assertTrue(body["additionalProperties"] is False)
+
     def test_xanoscript_candidate_delimiters_are_balanced(self):
         for path in ROOT.rglob("*.xs"):
             source = re.sub(r"(?m)//.*$", "", path.read_text(encoding="utf-8"))
@@ -227,6 +283,8 @@ class TestCandidateContracts(unittest.TestCase):
             "/solicitacoes-emprestimo",
             "/reservas",
             "/admin/reservas/processar-expiradas",
+            "/admin/estudantes",
+            "/admin/reservas",
             "/admin/exemplares/{exemplarId}/condicoes",
         }
         self.assertLessEqual(required_paths, set(paths))
@@ -262,7 +320,7 @@ class TestCandidateContracts(unittest.TestCase):
             for route, method in API_DECLARATION.findall(source):
                 candidates.append((method, "/" + route, path, source))
 
-        self.assertEqual(len(operations), 32)
+        self.assertEqual(len(operations), 34)
         self.assertEqual(len(candidates), len(operations))
 
         for method, path, operation in operations:
