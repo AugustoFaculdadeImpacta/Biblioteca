@@ -96,7 +96,7 @@ class State(rx.State):
         self.is_authenticated = True
 
     def _store_session(self, token: str, profile: str) -> None:
-        if profile not in {"estudante", "bibliotecario"}:
+        if profile not in {"estudante", "bibliotecario", "admin"}:
             raise ValueError("O perfil de sessão retornado não é válido.")
         self._store_session_token(token)
         self._session_profile = profile
@@ -110,7 +110,10 @@ class State(rx.State):
         self.is_authenticated = False
 
     def _is_librarian(self) -> bool:
-        return bool(self._session_token) and self._session_profile == "bibliotecario"
+        return bool(self._session_token) and self._session_profile in {
+            "bibliotecario",
+            "admin",
+        }
 
     @rx.var
     def is_librarian(self) -> bool:
@@ -514,7 +517,7 @@ class State(rx.State):
             return
 
         self._store_session(session["authToken"], session["usuario"]["perfil"])
-        if self._session_profile == "bibliotecario":
+        if self._is_librarian():
             return rx.redirect("/admin/acervo")
         return rx.redirect("/")
 

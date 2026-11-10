@@ -570,7 +570,8 @@ def test_admin_events_block_visitors_and_students_before_writes(monkeypatch):
     assert calls == 0
 
 
-def test_admin_rejected_write_is_not_reported_as_success(monkeypatch):
+@pytest.mark.parametrize("profile", ["bibliotecario", "admin"])
+def test_admin_rejected_write_is_not_reported_as_success(monkeypatch, profile):
     async def rejected_title(payload, token):
         raise XanoResponseError(403)
 
@@ -581,7 +582,7 @@ def test_admin_rejected_write_is_not_reported_as_success(monkeypatch):
             BaseStateToken(ident=f"catalog-403-{uuid4()}", cls=rx.State)
         ) as root:
             state = await root.get_state(frontend.State)
-            state._store_session("token-falso", "bibliotecario")
+            state._store_session("token-falso", profile)
             await state.submit_catalog_title(
                 {"titulo": "Livro", "autores": "Autoria"}
             )

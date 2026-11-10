@@ -2,8 +2,8 @@
 
 ## 1. Gates de destino e prova do schema
 
-- [ ] 1.1 Confirmar pelo Xano CLI que workspace `151966`, branch e ambiente selecionados correspondem ao grupo Biblioteca; verificar `allow_push` e que o destino aceita push delimitado por um único arquivo. Se não aceitar, registrar o bloqueio e parar sem editar ou enviar arquivos Xano.
-- [ ] 1.2 Após preflight seguro, fazer pull isolado somente de definições, salvar rollback fora do repositório, e verificar `git status` e diff antes de qualquer edição Xano.
+- [x] 1.1 Confirmar pelo Xano CLI que workspace `151966`, branch `v1` live e ambiente selecionados correspondem ao grupo Biblioteca; verificar `allow_push` e que o destino aceita push delimitado por um único arquivo. Resultado: destino confirmado; `allow_push=false` e o push unitário não está disponível; nenhum arquivo Xano foi alterado.
+- [x] 1.2 Fazer pull isolado somente de definições, salvar referência/rollback fora do repositório e verificar `git status` e diff. Resultado: pull local de referência concluído sem registros/ambiente; `xano/` permaneceu sem alterações.
 - [ ] 1.3 Validar com Xano Developer a alteração do enum em tabela de teste reversível; comprovar aceitação dos três perfis, remover a tabela de teste e confirmar sua ausência antes de editar `usuario`.
 
 ## 2. Perfil e autorização no Xano
@@ -15,13 +15,14 @@
 
 ## 3. Compatibilidade de sessão Reflex
 
-- [ ] 3.1 Permitir que login Reflex valide o perfil admin e que as verificações administrativas tratem admin como bibliotecário; manter operações exclusivas de estudante bloqueadas e provar privacidade do token/perfil com testes.
-- [ ] 3.2 Testar login/admin, chamadas administrativas e recusas por perfil com mocks; verificar que nenhum segredo ou dado pessoal real aparece em logs, estado público ou diff.
+- [x] 3.1 Permitir que login Reflex valide o perfil admin e que as verificações administrativas tratem admin como bibliotecário; manter operações exclusivas de estudante bloqueadas e provar privacidade do token/perfil com testes. Implementação local concluída; autorização Xano real permanece pendente nas tarefas 2.x.
+- [x] 3.2 Testar login/admin, chamadas administrativas e recusas por perfil com mocks; verificar que nenhum segredo ou dado pessoal real aparece em logs ou estado público. Resultado: testes de login, navegação e administração passaram com transportes mockados; nenhuma chamada de escrita real foi enviada.
+- [ ] 3.3 Criar tela de gestão de bibliotecários somente para admin, incluindo criação e desativação lógica. Bloqueada até existir contrato Xano verificável para listar e desativar contas; não inventar campos ou rotas.
 
 ## 4. Verificação integrada
 
-- [ ] 4.1 Executar `PYTHONDONTWRITEBYTECODE=1 .venv\Scripts\python.exe -m pytest tests -q`, `openspec validate perfil-admin-xano --strict`, `openspec validate --specs --strict` e `reflex compile --dry`; registrar evidências.
-- [ ] 4.2 Revisar `git status` e `git diff`, confirmar que somente arquivos autorizados foram alterados e que nada em `auth=false`, `allow_push`, tabelas/dados não relacionados ou outras Changes foi modificado.
+- [x] 4.1 Executar `PYTHONDONTWRITEBYTECODE=1 .venv\Scripts\python.exe -m pytest tests -q`, `openspec validate perfil-admin-xano --strict`, `openspec validate --specs --strict` e `reflex compile --dry`; resultado: 91 testes passaram, validações OpenSpec passaram (6 specs), compilação Reflex passou.
+- [x] 4.2 Revisar `git status` e `git diff`; os arquivos alterados pertencem ao código Reflex, testes, documentação e artefatos desta Change; `xano/` e outras Changes não foram alterados. `reflex.log` já estava como não rastreado e não foi editado; será ignorado conforme solicitado no fechamento.
 
 ## Workflow follow-up
 

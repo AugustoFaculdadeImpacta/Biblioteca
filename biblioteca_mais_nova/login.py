@@ -23,7 +23,7 @@ class LoginUser(TypedDict):
     id: int
     nome: str
     email: str
-    perfil: Literal["estudante", "bibliotecario"]
+    perfil: Literal["estudante", "bibliotecario", "admin"]
 
 
 class LoginSession(TypedDict):
@@ -77,7 +77,7 @@ async def submit_login(
         or not isinstance(user.get("nome"), str)
         or not isinstance(user.get("email"), str)
         or not isinstance(user.get("perfil"), str)
-        or user["perfil"] not in {"estudante", "bibliotecario"}
+        or user["perfil"] not in {"estudante", "bibliotecario", "admin"}
     ):
         raise XanoRequestError(
             "O serviço não retornou uma resposta válida. Tente novamente mais tarde."

@@ -94,7 +94,7 @@ def test_invalid_login_data_is_rejected_before_http(form_data, message):
         build_login_payload(form_data)
 
 
-@pytest.mark.parametrize("profile", ["estudante", "bibliotecario"])
+@pytest.mark.parametrize("profile", ["estudante", "bibliotecario", "admin"])
 def test_login_posts_only_contract_fields_through_mock_transport(
     monkeypatch, profile
 ):
@@ -198,7 +198,11 @@ def test_login_rejects_malformed_or_unexpected_session(monkeypatch):
 
 @pytest.mark.parametrize(
     ("profile", "destination"),
-    [("bibliotecario", "/admin/acervo"), ("estudante", "/")],
+    [
+        ("bibliotecario", "/admin/acervo"),
+        ("admin", "/admin/acervo"),
+        ("estudante", "/"),
+    ],
 )
 def test_login_event_keeps_token_profile_and_password_private(
     monkeypatch, caplog, profile, destination
@@ -240,9 +244,11 @@ def test_login_event_keeps_token_profile_and_password_private(
             assert state._session_profile == profile
             assert state.is_authenticated is True
             assert state.login_has_error is False
-            for value in (session_token, password, profile):
+            for value in (session_token, password):
                 assert value not in json.dumps(delta, default=str)
                 assert value not in json.dumps(public_state, default=str)
+            assert f'"{profile}"' not in json.dumps(delta, default=str)
+            assert f'"{profile}"' not in json.dumps(public_state, default=str)
             assert "api.example.test" not in json.dumps(delta, default=str)
             assert "Authorization" not in json.dumps(delta, default=str)
             assert "_session_token" not in frontend.State.base_vars
@@ -267,7 +273,7 @@ def test_login_sessions_are_isolated(monkeypatch):
                 "id": 41,
                 "nome": "Ana",
                 "email": "ana@escola.edu.br",
-                "perfil": "bibliotecario",
+                "perfil": "admin",
             },
         }
 
@@ -282,7 +288,8 @@ def test_login_sessions_are_isolated(monkeypatch):
                 {"email": "ana@escola.edu.br", "senha": "senha"}
             )
             assert first._read_session_token() == "token-sessao-1"
-            assert first._session_profile == "bibliotecario"
+            assert first._session_profile == "admin"
+            assert first.is_librarian is True
 
         async with frontend.app.modify_state(
             BaseStateToken(ident=f"login-second-{uuid4()}", cls=rx.State)

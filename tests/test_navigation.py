@@ -44,6 +44,14 @@ def test_navigation_changes_by_profile_and_logout_clears_session():
             assert "token-falso-bibliotecario" not in serialized_delta
             assert "bibliotecario" not in serialized_delta
 
+            state._store_session("token-falso-admin", "admin")
+            assert state.is_librarian is True
+            assert state.is_student is False
+            admin_delta = await root._get_resolved_delta()
+            admin_serialized_delta = json.dumps(admin_delta, default=str)
+            assert "token-falso-admin" not in admin_serialized_delta
+            assert '"admin"' not in admin_serialized_delta
+
             redirect = state.logout()
             assert redirect is not None
             assert "redirect" in repr(redirect).lower()

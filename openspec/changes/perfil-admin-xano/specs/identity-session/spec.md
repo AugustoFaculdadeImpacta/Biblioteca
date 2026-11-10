@@ -53,3 +53,22 @@ O sistema MUST permitir que somente admin autenticado crie contas com perfil bib
 #### Scenario: Autocadastro público permanece restrito
 - **WHEN** visitante usa o cadastro público ou inclui nele um perfil privilegiado
 - **THEN** o backend cria somente estudante ou recusa o campo de perfil e nunca cria conta bibliotecária ou admin
+
+### Requirement: Gestão de bibliotecários é exclusiva de admin
+O sistema MUST permitir a admin autenticado criar e desativar contas de bibliotecário, preservando a conta e seu histórico. A operação deve ser autorizada no backend; não se presume um campo ou endpoint que ainda não esteja definido no contrato Xano.
+
+#### Scenario: Admin cria bibliotecário
+- **WHEN** admin autenticado cria uma conta de bibliotecário com os dados válidos exigidos pelo contrato aprovado
+- **THEN** o backend cria a conta com perfil bibliotecário e retorna somente dados públicos
+
+#### Scenario: Admin desativa bibliotecário
+- **WHEN** admin autenticado desativa uma conta de bibliotecário
+- **THEN** a conta deixa de poder autenticar ou executar operações privilegiadas, sem ser removida fisicamente nem perder seu histórico
+
+#### Scenario: Bibliotecário, estudante ou visitante tenta gerir bibliotecários
+- **WHEN** usuário que não é admin tenta criar ou desativar conta de bibliotecário
+- **THEN** o backend recusa a operação sem alterar contas
+
+#### Scenario: Cadastro público solicita perfil privilegiado
+- **WHEN** pessoa visitante tenta usar o cadastro público para criar bibliotecário ou admin
+- **THEN** o backend cria somente estudante ou recusa o pedido

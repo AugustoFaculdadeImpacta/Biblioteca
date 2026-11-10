@@ -19,7 +19,11 @@ A aplicação MUST exibir em todas as telas um cabeçalho navegável com opçõe
 
 #### Scenario: Admin autenticado navega na aplicação
 - **WHEN** admin autenticado abre qualquer tela da aplicação
-- **THEN** o cabeçalho oferece as mesmas opções administrativas que ao bibliotecário e não oferece ações exclusivas de estudante
+- **THEN** o cabeçalho oferece as mesmas opções administrativas que ao bibliotecário, acesso à gestão de bibliotecários e não oferece ações exclusivas de estudante
+
+#### Scenario: Bibliotecário tenta abrir gestão de bibliotecários
+- **WHEN** bibliotecário autenticado abre a rota de gestão de bibliotecários
+- **THEN** a interface nega o acesso e não envia operações de gestão de contas
 
 #### Scenario: Usuário encerra a sessão
 - **WHEN** usuário autenticado ativa Sair
