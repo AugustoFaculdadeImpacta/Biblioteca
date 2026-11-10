@@ -40,6 +40,6 @@ O usuário autorizou reconstruir integralmente o workspace Xano do projeto, incl
 
 ## Segurança e consistência do domínio
 
-- O catálogo é público; operações requerem autenticação. Operações administrativas exigem perfil bibliotecário, validadas no backend e não apenas ocultadas na interface.
+- O catálogo é público; operações requerem autenticação. Operações administrativas exigem perfil bibliotecário ou admin, validadas no backend e não apenas ocultadas na interface; gestão de contas bibliotecárias exige especificamente admin.
 - Revalidar no servidor disponibilidade, limite de empréstimo, atraso, elegibilidade da reserva e posição na fila para proteger operações concorrentes.
 - Não inventar campos, endpoints, regras ou decisões pendentes. Registrar alternativas e pedir decisão quando forem necessárias para avançar.

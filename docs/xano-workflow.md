@@ -2,7 +2,7 @@
 
 ## Primeiro administrador
 
-O primeiro administrador deve ser provisionado manualmente pelo dono do workspace correto, fora do cadastro público. Confirme workspace `151966`, branch `v1` e grupo `Biblioteca` antes de agir. Use a interface ou o fluxo de gerenciamento de usuários oficialmente suportado pelo Xano para criar um registro em `usuario` com os campos existentes `nome`, `email`, `senha` e `perfil=admin`; forneça a senha somente pelo mecanismo seguro do Xano e não a consulte, copie, registre ou inclua em comandos, logs, `.env` ou Git. Não use o grupo `Authentication` e não habilite `allow_push` para realizar esse provisionamento. Se o Xano não oferecer um fluxo seguro e suportado para definir o campo `senha`, interrompa e valide o procedimento com a documentação oficial antes de criar a conta.
+O primeiro administrador deve ser provisionado manualmente pelo dono do workspace correto, fora do cadastro público. Confirme workspace `151966`, branch `v1` e grupo `Biblioteca` antes de agir. Use a interface ou o fluxo de gerenciamento de usuários oficialmente suportado pelo Xano para criar um registro em `usuario` com os campos existentes `nome`, `email`, `senha`, `perfil=admin` e `ativo=true`; forneça a senha somente pelo mecanismo seguro do Xano e não a consulte, copie, registre ou inclua em comandos, logs, `.env` ou Git. Não use o grupo `Authentication` e não habilite `allow_push` para realizar esse provisionamento. Se o Xano não oferecer um fluxo seguro e suportado para definir o campo `senha`, interrompa e valide o procedimento com a documentação oficial antes de criar a conta.
 
 ## Destino confirmado para esta prova
 

@@ -5,7 +5,7 @@ Este modelo apresenta conceitos e relações do domínio, não tabelas Xano nem 
 ## Conceitos
 
 ### Conta e perfil
-Identidade de acesso com dados de identificação escolar, credenciais/sessão e papel de estudante ou bibliotecário. O autocadastro cria estudante. Bibliotecário é provisionado por mecanismo administrativo ainda a decidir.
+Identidade de acesso com dados de identificação escolar, credenciais/sessão, papel de estudante, bibliotecário ou administrador e situação ativa. O autocadastro cria estudante. O administrador tem as permissões do bibliotecário e gere contas bibliotecárias; somente o dono do workspace provisiona a primeira conta administradora.
 
 ### Título
 Obra bibliográfica descrita por metadados como título, autoria e edição/publicação. Um título pode ter várias categorias e possuir vários exemplares físicos.
