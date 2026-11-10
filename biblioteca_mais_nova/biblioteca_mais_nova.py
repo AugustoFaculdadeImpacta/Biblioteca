@@ -2,7 +2,8 @@
 
 import unicodedata
 from datetime import datetime, timezone
-from typing import Any
+from functools import wraps
+from typing import Any, Callable
 
 import reflex as rx
 
@@ -83,6 +84,16 @@ class State(rx.State):
     admin_catalog_needs_manual_check: bool = False
     _session_token: str = ""
     _session_profile: str = ""
+    _session_name: str = ""
+    accessibility_font_scale_raw: str = rx.LocalStorage(
+        "100", name="biblioteca-acessibilidade-fonte", sync=True
+    )
+    accessibility_high_contrast_raw: str = rx.LocalStorage(
+        "false", name="biblioteca-acessibilidade-contraste", sync=True
+    )
+    accessibility_reduce_motion_raw: str = rx.LocalStorage(
+        "false", name="biblioteca-acessibilidade-movimento", sync=True
+    )
     _catalog_title_id: int | None = None
     _pending_category_ids: list[int] = []
     _uncertain_category_ids: list[int] = []
@@ -131,11 +142,74 @@ class State(rx.State):
         self._session_token = token
         self.is_authenticated = True
 
-    def _store_session(self, token: str, profile: str) -> None:
+    def _store_session(self, token: str, profile: str, name: str = "") -> None:
         if profile not in {"estudante", "bibliotecario", "admin"}:
             raise ValueError("O perfil de sessão retornado não é válido.")
         self._store_session_token(token)
         self._session_profile = profile
+        self._session_name = name.strip()
+
+    @rx.var
+    def greeting_name(self) -> str:
+        return self._session_name if self._session_token else ""
+
+    def _valid_accessibility_font_scale(self) -> int:
+        try:
+            scale = int(self.accessibility_font_scale_raw)
+        except (TypeError, ValueError):
+            return 100
+        return scale if scale in range(100, 151, 10) else 100
+
+    @rx.var
+    def accessibility_font_scale(self) -> int:
+        return self._valid_accessibility_font_scale()
+
+    @rx.var
+    def accessibility_font_size(self) -> str:
+        return f"{self.accessibility_font_scale}%"
+
+    @rx.var
+    def accessibility_high_contrast(self) -> bool:
+        return self.accessibility_high_contrast_raw == "true"
+
+    @rx.var
+    def accessibility_reduce_motion(self) -> bool:
+        return self.accessibility_reduce_motion_raw == "true"
+
+    @rx.var
+    def accessibility_classes(self) -> str:
+        classes = ["a11y-shell"]
+        if self.accessibility_high_contrast:
+            classes.append("a11y-high-contrast")
+        if self.accessibility_reduce_motion:
+            classes.append("a11y-reduce-motion")
+        return " ".join(classes)
+
+    @rx.event
+    def increase_accessibility_font(self):
+        scale = self._valid_accessibility_font_scale()
+        self.accessibility_font_scale_raw = str(min(150, scale + 10))
+
+    @rx.event
+    def decrease_accessibility_font(self):
+        scale = self._valid_accessibility_font_scale()
+        self.accessibility_font_scale_raw = str(max(100, scale - 10))
+
+    @rx.event
+    def reset_accessibility_font(self):
+        self.accessibility_font_scale_raw = "100"
+
+    @rx.event
+    def toggle_accessibility_high_contrast(self):
+        self.accessibility_high_contrast_raw = (
+            "false" if self.accessibility_high_contrast else "true"
+        )
+
+    @rx.event
+    def toggle_accessibility_reduce_motion(self):
+        self.accessibility_reduce_motion_raw = (
+            "false" if self.accessibility_reduce_motion else "true"
+        )
 
     def _read_session_token(self) -> str | None:
         return self._session_token or None
@@ -143,6 +217,7 @@ class State(rx.State):
     def _clear_session_token(self) -> None:
         self._session_token = ""
         self._session_profile = ""
+        self._session_name = ""
         self.is_authenticated = False
 
     def _is_librarian(self) -> bool:
@@ -608,7 +683,11 @@ class State(rx.State):
             self.signup_has_error = True
             return
 
-        self._store_session(session["authToken"], "estudante")
+        self._store_session(
+            session["authToken"],
+            "estudante",
+            str(session["usuario"]["nome"]),
+        )
         self.signup_success_message = (
             "Cadastro realizado. Seu acesso de estudante está ativo."
         )
@@ -632,7 +711,11 @@ class State(rx.State):
             self.login_has_error = True
             return
 
-        self._store_session(session["authToken"], session["usuario"]["perfil"])
+        self._store_session(
+            session["authToken"],
+            session["usuario"]["perfil"],
+            session["usuario"]["nome"],
+        )
         if self._is_librarian():
             return rx.redirect("/admin/acervo")
         return rx.redirect("/")
@@ -1410,11 +1493,15 @@ def site_header() -> rx.Component:
             class_name="brand-link",
         ),
         rx.el.nav(
-            rx.link("Início", href="/"),
             rx.link("Catálogo", href="/catalogo"),
             rx.cond(
                 State.is_authenticated,
                 rx.fragment(
+                    rx.text(
+                        "Olá, ",
+                        State.greeting_name,
+                        class_name="session-greeting",
+                    ),
                     rx.cond(
                         State.is_student,
                         rx.link("Minha biblioteca", href="/minha-biblioteca"),
@@ -1455,6 +1542,56 @@ def site_header() -> rx.Component:
             ),
             aria_label="Navegação principal",
             class_name="site-nav",
+        ),
+        rx.el.details(
+            rx.el.summary("Acessibilidade"),
+            rx.el.div(
+                rx.button(
+                    "Aumentar fonte",
+                    type="button",
+                    on_click=State.increase_accessibility_font,
+                    disabled=State.accessibility_font_scale >= 150,
+                    aria_label="Aumentar fonte",
+                ),
+                rx.button(
+                    "Diminuir fonte",
+                    type="button",
+                    on_click=State.decrease_accessibility_font,
+                    disabled=State.accessibility_font_scale <= 100,
+                    aria_label="Diminuir fonte",
+                ),
+                rx.button(
+                    "Restaurar fonte",
+                    type="button",
+                    on_click=State.reset_accessibility_font,
+                    aria_label="Restaurar fonte ao tamanho padrão",
+                ),
+                rx.button(
+                    rx.cond(
+                        State.accessibility_high_contrast,
+                        "Alto contraste: ligado",
+                        "Alto contraste: desligado",
+                    ),
+                    type="button",
+                    on_click=State.toggle_accessibility_high_contrast,
+                    aria_pressed=State.accessibility_high_contrast,
+                    aria_label="Alternar alto contraste",
+                ),
+                rx.button(
+                    rx.cond(
+                        State.accessibility_reduce_motion,
+                        "Reduzir animações: ligado",
+                        "Reduzir animações: desligado",
+                    ),
+                    type="button",
+                    on_click=State.toggle_accessibility_reduce_motion,
+                    aria_pressed=State.accessibility_reduce_motion,
+                    aria_label="Alternar redução de animações",
+                ),
+                class_name="a11y-controls",
+                aria_label="Controles de acessibilidade",
+            ),
+            class_name="a11y-menu",
         ),
         class_name="site-header",
     )
@@ -2108,6 +2245,7 @@ def login_page() -> rx.Component:
                     reset_on_submit=False,
                     class_name="signup-form",
                 ),
+                rx.link("Ver catálogo sem entrar", href="/catalogo"),
                 rx.link("Não tem conta? Cadastre-se", href="/cadastro"),
                 id="conteudo-login",
                 class_name="content-section signup-section",
@@ -2840,6 +2978,22 @@ def staff_reservation_page() -> rx.Component:
     )
 
 
+def accessible_page(page: Callable[[], rx.Component]) -> Callable[[], rx.Component]:
+    @wraps(page)
+    def wrapped() -> rx.Component:
+        return rx.el.div(
+            page(),
+            class_name=State.accessibility_classes,
+            style={
+                "width": "100%",
+                "min_height": "100vh",
+                "font_size": State.accessibility_font_size,
+            },
+        )
+
+    return wrapped
+
+
 app = rx.App(
     style={
         "font_family": "system-ui, sans-serif",
@@ -2861,6 +3015,7 @@ app = rx.App(
         },
         ".site-header": {
             "display": "flex",
+            "flex_wrap": "wrap",
             "align_items": "center",
             "justify_content": "space-between",
             "gap": "1rem",
@@ -2878,6 +3033,71 @@ app = rx.App(
             "flex_wrap": "wrap",
             "align_items": "center",
             "gap": "1rem",
+            "min_width": "0",
+            "max_width": "100%",
+        },
+        ".session-greeting": {
+            "font_weight": "700",
+            "overflow_wrap": "anywhere",
+        },
+        ".a11y-menu": {
+            "max_width": "100%",
+            "padding": "0.5rem 0",
+        },
+        ".a11y-menu summary": {
+            "min_height": "2.5rem",
+            "padding": "0.5rem 0.75rem",
+            "font_weight": "600",
+            "cursor": "pointer",
+        },
+        ".a11y-controls": {
+            "display": "flex",
+            "flex_wrap": "wrap",
+            "gap": "0.5rem",
+            "max_width": "100%",
+            "padding": "0.5rem 0",
+        },
+        ".a11y-controls button": {
+            "min_height": "2.5rem",
+            "max_width": "100%",
+            "padding": "0.4rem 0.65rem",
+            "border": "1px solid var(--gray-7)",
+            "border_radius": "0.4rem",
+            "background_color": "var(--gray-1)",
+            "color": "var(--gray-12)",
+            "cursor": "pointer",
+            "overflow_wrap": "anywhere",
+        },
+        ".a11y-controls button:disabled": {
+            "opacity": "0.65",
+            "cursor": "not-allowed",
+        },
+        ".a11y-high-contrast, .a11y-high-contrast *": {
+            "color": "#000000 !important",
+            "background_color": "#ffffff !important",
+            "border_color": "#000000 !important",
+            "box_shadow": "none !important",
+        },
+        ".a11y-high-contrast a": {
+            "color": "#00008b !important",
+        },
+        ".a11y-high-contrast button, .a11y-high-contrast [role='button']": {
+            "color": "#ffffff !important",
+            "background_color": "#000000 !important",
+        },
+        ".a11y-high-contrast input::placeholder, .a11y-high-contrast textarea::placeholder": {
+            "color": "#000000 !important",
+            "opacity": "1 !important",
+        },
+        ".a11y-high-contrast :focus-visible": {
+            "outline": "3px solid #000000 !important",
+            "outline_offset": "3px",
+        },
+        ".a11y-reduce-motion *, .a11y-reduce-motion *::before, .a11y-reduce-motion *::after": {
+            "animation_duration": "0.01ms !important",
+            "animation_iteration_count": "1 !important",
+            "scroll_behavior": "auto !important",
+            "transition_duration": "0.01ms !important",
         },
         ".nav-logout": {
             "min_height": "2.5rem",
@@ -3159,6 +3379,13 @@ app = rx.App(
                 "flex_direction": "column",
                 "padding": "0.75rem 0.5rem",
             },
+            ".site-nav": {
+                "gap": "0.5rem",
+                "width": "100%",
+            },
+            ".a11y-menu": {
+                "width": "100%",
+            },
             ".content-section": {
                 "padding": "1.25rem 0.25rem",
             },
@@ -3173,44 +3400,48 @@ app = rx.App(
     }
 )
 app.add_page(
-    index,
+    accessible_page(index),
     title="Biblioteca escolar",
     on_load=State.redirect_authenticated_home,
 )
-app.add_page(student_signup, route="/cadastro", title="Cadastro de estudante")
-app.add_page(login_page, route="/login", title="Entrar")
 app.add_page(
-    public_catalog,
+    accessible_page(student_signup),
+    route="/cadastro",
+    title="Cadastro de estudante",
+)
+app.add_page(accessible_page(login_page), route="/login", title="Entrar")
+app.add_page(
+    accessible_page(public_catalog),
     route="/catalogo",
     title="Catálogo",
     on_load=State.load_public_catalog,
 )
 app.add_page(
-    public_catalog_detail,
+    accessible_page(public_catalog_detail),
     route="/catalogo/[titulo_id]",
     title="Detalhes do título",
     on_load=State.load_public_catalog_detail,
 )
 app.add_page(
-    student_library,
+    accessible_page(student_library),
     route="/minha-biblioteca",
     title="Minha biblioteca",
     on_load=State.load_student_library,
 )
 app.add_page(
-    catalog_admin,
+    accessible_page(catalog_admin),
     route="/admin/acervo",
     title="Cadastro de acervo",
     on_load=State.load_catalog_page,
 )
 app.add_page(
-    librarian_management,
+    accessible_page(librarian_management),
     route="/admin/bibliotecarios",
     title="Gestão de bibliotecários",
     on_load=State.load_librarians,
 )
 app.add_page(
-    staff_reservation_page,
+    accessible_page(staff_reservation_page),
     route="/admin/reservas",
     title="Reservar para estudante",
     on_load=State.load_staff_reservation_page,

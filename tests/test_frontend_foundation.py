@@ -28,14 +28,15 @@ def test_index_renders_navigable_application_shell():
     )
 
     assert nav.custom_attrs["aria-label"] == "Navegação principal"
-    assert len(links) == 3
+    assert len(links) == 2
     nav_content = repr(links)
     assert "/catalogo" in nav_content
     assert "/cadastro" in nav_content
     assert "/login" in nav_content
     assert "/admin/acervo" in nav_content
-    assert "Cadastrar livro" in nav_content
-    assert "Sair" in nav_content
+    assert "Início" not in nav_content
+    assert "Acessibilidade" in repr(page)
+    assert r"Ver cat\\u00e1logo sem entrar" in repr(page)
     assert "#conteudo-login" in repr(page.children[0].children)
     assert all(getattr(link, "tab_index", None) is None for link in links)
     assert {field.id for field in fields} >= {"login-email", "login-senha"}
@@ -87,4 +88,23 @@ def test_shared_navigation_is_conditioned_on_private_session_profile():
     nav_content = repr(nav)
     assert "is_authenticated_rx_state_" in nav_content
     assert "is_librarian_rx_state_" in nav_content
+    assert "greeting_name_rx_state_" in nav_content
+    assert "Início" not in nav_content
     assert "logout" in nav_content
+    assert "Acessibilidade" in repr(header)
+    assert "Aumentar fonte" in repr(header)
+    assert "Alto contraste" in repr(header)
+    assert "accessibility_reduce_motion_rx_state_" in repr(header)
+
+
+def test_accessibility_high_contrast_and_reduced_motion_styles():
+    assert app.style[".a11y-high-contrast, .a11y-high-contrast *"]["color"] == (
+        "#000000 !important"
+    )
+    assert app.style[".a11y-high-contrast a"]["color"] == "#00008b !important"
+    assert app.style[
+        ".a11y-high-contrast button, .a11y-high-contrast [role='button']"
+    ]["color"] == "#ffffff !important"
+    assert "0.01ms !important" in app.style[
+        ".a11y-reduce-motion *, .a11y-reduce-motion *::before, .a11y-reduce-motion *::after"
+    ]["transition_duration"]
