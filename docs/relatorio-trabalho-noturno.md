@@ -141,7 +141,7 @@ api/default/admin/usuarios_id_PATCH.xs
 
 ## Saídas OpenSpec e Git
 
-Saídas coletadas antes do commit final deste relatório. O bloco `git log` lista os dois commits de implementação e não inclui o commit de documentação que contém este próprio relatório.
+Saídas coletadas antes dos commits finais de documentação. O bloco `git log` lista os dois commits de implementação e não inclui os commits posteriores que atualizaram este relatório.
 
 Comando: `openspec list --json`
 
@@ -219,7 +219,4 @@ fbebc97 vscode:.venv de começo
 50d404d feat: melhorar UI e navegação de autenticação
 c99a0bf feat: fundação Reflex, cadastro de estudante, login e cadastro de livros
 2621095 docs: oficializar Reflex como frontend exclusivo
-28c2a1f docs(openspec): consolidar specs Xano da biblioteca
-b4bef20 chore(openspec): archive estrutura-inicial-xano-biblioteca
-31ebd60 chore: arquiva avaliação e preparação da prova Reflex
 ```
