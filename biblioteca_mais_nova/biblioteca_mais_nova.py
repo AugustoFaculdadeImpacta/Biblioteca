@@ -308,6 +308,11 @@ class State(rx.State):
         return rx.redirect("/")
 
     @rx.event
+    def redirect_authenticated_home(self):
+        if self._session_token:
+            return rx.redirect("/catalogo")
+
+    @rx.event
     def logout(self):
         self._clear_session_token()
         self.signup_message = ""
@@ -1949,97 +1954,7 @@ def student_library() -> rx.Component:
 
 
 def index() -> rx.Component:
-    return rx.box(
-        rx.link("Pular para o conteúdo", href="#conteudo", class_name="skip-link"),
-        site_header(),
-        rx.el.main(
-            rx.el.section(
-                rx.heading("Bem-vindo à biblioteca", size="8"),
-                rx.text(
-                    "Encontre os serviços da biblioteca escolar disponíveis para "
-                    "sua conta."
-                ),
-                rx.cond(
-                    State.signup_success_message != "",
-                    rx.el.div(
-                        rx.el.p(
-                            State.signup_success_message,
-                            role="status",
-                            aria_live="polite",
-                            class_name="signup-feedback signup-feedback-success",
-                        ),
-                        rx.button(
-                            "Fechar mensagem",
-                            type="button",
-                            on_click=State.dismiss_signup_confirmation,
-                            class_name="nav-logout",
-                        ),
-                        class_name="signup-confirmation",
-                    ),
-                    rx.fragment(),
-                ),
-                rx.cond(
-                    State.is_authenticated,
-                    rx.vstack(
-                        rx.text("Sua sessão está ativa."),
-                        rx.cond(
-                            State.is_librarian,
-                            rx.link(
-                                "Acessar cadastro de livros",
-                                href="/admin/acervo",
-                            ),
-                            rx.text(
-                                "Você está conectado como estudante e pode "
-                                "acompanhar sua conta pelo menu."
-                            ),
-                        ),
-                        align="start",
-                        width="100%",
-                    ),
-                    rx.vstack(
-                        rx.text(
-                            "Entre na sua conta ou cadastre-se para acessar os "
-                            "serviços destinados aos estudantes."
-                        ),
-                        rx.link("Entrar", href="/login"),
-                        rx.link("Cadastrar-se", href="/cadastro"),
-                        align="start",
-                        width="100%",
-                    ),
-                ),
-                id="inicio",
-                class_name="content-section",
-            ),
-            rx.el.section(
-                rx.heading("Acessibilidade", size="5"),
-                rx.text(
-                    "Use a tecla Tab para percorrer a busca demonstrativa e "
-                    "o botão, verificando o indicador de foco."
-                ),
-                rx.input(
-                    type="search",
-                    placeholder="Busca do catálogo (demonstração)",
-                    aria_label="Busca do catálogo (demonstração)",
-                    read_only=True,
-                    class_name="focus-demo-field",
-                ),
-                rx.button(
-                    "Botão de demonstração",
-                    type="button",
-                    class_name="focus-demo-button",
-                ),
-                id="acessibilidade",
-                class_name="content-section",
-            ),
-            id="conteudo",
-            class_name="main-content",
-        ),
-        rx.el.footer(
-            rx.text("Biblioteca escolar"),
-            class_name="site-footer",
-        ),
-        class_name="app-shell",
-    )
+    return login_page()
 
 
 def student_signup() -> rx.Component:
@@ -3257,7 +3172,11 @@ app = rx.App(
         },
     }
 )
-app.add_page(index, title="Biblioteca escolar")
+app.add_page(
+    index,
+    title="Biblioteca escolar",
+    on_load=State.redirect_authenticated_home,
+)
 app.add_page(student_signup, route="/cadastro", title="Cadastro de estudante")
 app.add_page(login_page, route="/login", title="Entrar")
 app.add_page(

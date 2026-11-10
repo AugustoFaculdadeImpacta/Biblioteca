@@ -8,14 +8,25 @@ from reflex.istate.manager.token import BaseStateToken
 import biblioteca_mais_nova.biblioteca_mais_nova as frontend
 
 
-def test_homepage_has_public_and_profile_specific_actions_and_confirmation():
+def test_homepage_is_login_and_authenticated_sessions_go_to_catalog():
     homepage = repr(frontend.index())
-    assert "Bem-vindo" in homepage
-    assert "/login" in homepage
+    assert "Entrar" in homepage
+    assert "login-email" in homepage
+    assert "login-senha" in homepage
     assert "/cadastro" in homepage
-    assert "/admin/acervo" in homepage
-    assert "signup_success_message_rx_state_" in homepage
-    assert "dismiss_signup_confirmation" in homepage
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"home-redirect-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            assert state.redirect_authenticated_home() is None
+
+            state._store_session("token-falso-estudante", "estudante")
+            redirect = state.redirect_authenticated_home()
+            assert "/catalogo" in repr(redirect)
+
+    asyncio.run(verify())
 
 
 def test_navigation_changes_by_profile_and_logout_clears_session():

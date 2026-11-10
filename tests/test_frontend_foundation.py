@@ -16,11 +16,11 @@ def test_index_renders_navigable_application_shell():
     components = list(_components(page))
     nav = next(component for component in components if type(component).__name__ == "Nav")
     links = nav.children
-    field = next(
+    fields = [
         component
         for component in components
         if component.alias == "RadixThemesTextField.Root"
-    )
+    ]
     button = next(
         component
         for component in components
@@ -36,13 +36,12 @@ def test_index_renders_navigable_application_shell():
     assert "/admin/acervo" in nav_content
     assert "Cadastrar livro" in nav_content
     assert "Sair" in nav_content
-    assert "#conteudo" in repr(page.children[0].children)
+    assert "#conteudo-login" in repr(page.children[0].children)
     assert all(getattr(link, "tab_index", None) is None for link in links)
-    assert field.read_only._var_value is True
-    assert getattr(field, "disabled", None) is None
+    assert {field.id for field in fields} >= {"login-email", "login-senha"}
+    assert all(getattr(field, "disabled", None) is None for field in fields)
     assert getattr(button, "disabled", None) is None
-    assert any(component.id == "inicio" for component in components)
-    assert any(component.id == "conteudo" for component in components)
+    assert any(component.id == "conteudo-login" for component in components)
 
 
 def test_focusable_field_and_button_have_visible_keyboard_focus_style():

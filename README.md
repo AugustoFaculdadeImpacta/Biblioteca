@@ -2,6 +2,19 @@
 
 Aplicação frontend em Reflex. A URL base do Xano é lida pelo backend da variável `XANO_API_BASE_URL`; nenhuma URL ou credencial deve ser incluída no código ou em arquivos versionados.
 
+## Início rápido
+
+No PowerShell, na raiz do projeto:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+reflex run
+```
+
+Configure `XANO_API_BASE_URL` no `.env` local conforme a seção abaixo. O
+comando padrão abre `http://localhost:3000`.
+
 ## Preparar o ambiente no Windows PowerShell
 
 Na raiz do repositório, siga o Apêndice B:
