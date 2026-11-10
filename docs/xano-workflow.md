@@ -6,6 +6,8 @@
 - Perfil padrão: `default`, no workspace `151966` (`Augusto's Workspace`).
 - Instância: `x8ki-letl-twmt.n7.xano.io`.
 - Branch: `v1`, única branch listada e marcada como live.
+- API do app: usar o grupo `Biblioteca` no workspace acima; a URL base verificada para o grupo é `https://x8ki-letl-twmt.n7.xano.io/api:MNu77wNi`, configurada pelo Reflex via `XANO_API_BASE_URL` no `.env` (ignorado pelo Git). O valor também está no `.env.example`; não usar o grupo `Authentication`.
+- A sessão do painel/CLI Xano não autentica o usuário no app. O login do app usa uma conta da tabela `usuario` pelo endpoint `/auth/login`; `reflex run` apenas inicia o frontend e não cria contas nem transfere sessões do navegador.
 - `workspace get` retornou `preferences.allow_push = false`. A documentação oficial da CLI diz que, em planos pagos, o push por sandbox é o padrão/obrigatório até habilitar **Allow Direct Workspace Push**. Não habilite essa preferência automaticamente; verifique o resultado do dry-run e pare se o push delimitado não estiver permitido.
 - A documentação da CLI também informa que `xano sandbox push` não aceita filtros `-i/--include`; portanto, se o push direto for recusado por `allow_push = false`, não substitua por sandbox nem altere a preferência sem nova autorização.
 - A credencial padrão é `~/.xano/credentials.yaml`, fora do repositório. Não copie nem imprima seu conteúdo, não o inclua em Git, logs ou documentação. O `.env` do Reflex não precisa armazenar o token Metadata API.
