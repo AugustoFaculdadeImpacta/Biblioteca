@@ -19,11 +19,32 @@ versionados. O comando padrão abre `http://localhost:3000`.
 
 ## Estado atual
 
-Catálogo, cadastro e login estão integrados à API Xano, mas o funcionamento
-contra o Xano real ainda não foi verificado nesta validação; acessibilidade foi
-verificada localmente. Acervo do bibliotecário, reserva por estudante e gestão
-de bibliotecários estão implementados e testados com dados simulados, aguardando
-a publicação dos endpoints correspondentes no Xano.
+O catálogo está integrado à API Xano; o `GET /catalogo/titulos` no Xano real
+retornou HTTP 200. Login e cadastro contra o Xano real ainda não foram
+verificados; acessibilidade foi verificada localmente. Acervo do bibliotecário,
+reserva por estudante e gestão de bibliotecários estão implementados e testados
+com dados simulados, aguardando a publicação dos endpoints correspondentes no
+Xano.
+
+## Demonstração com dados simulados
+
+Abra dois terminais na raiz do projeto. No primeiro, inicie a API em memória:
+
+```powershell
+python scripts/demo_api.py
+```
+
+No segundo, ative o `.venv` e inicie o Reflex apontando para a API simulada:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+$env:XANO_API_BASE_URL='http://127.0.0.1:8765'; reflex run
+```
+
+Use `demo.bibliotecario@example.invalid` ou
+`demo.estudante@example.invalid`, ambos com senha `demo123`. A variável de
+ambiente vale somente naquele terminal e não altera o arquivo `.env`. A API
+simulada mantém os dados apenas em memória e não substitui o Xano.
 
 ## Preparar o ambiente no Windows PowerShell
 
