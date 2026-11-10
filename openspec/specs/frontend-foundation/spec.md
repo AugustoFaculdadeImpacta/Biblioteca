@@ -55,19 +55,19 @@ O sistema MUST manter o token de sessão somente em estado isolado por sessão n
 - **THEN** o erro apresentado e os logs não contêm o token nem o cabeçalho de autorização
 
 ### Requirement: Navegação compartilhada apresenta opções adequadas à sessão
-A aplicação MUST exibir em todas as telas um cabeçalho navegável com opções coerentes com a sessão e o perfil autenticado.
+A aplicação MUST exibir em todas as telas um cabeçalho navegável com opções coerentes com a sessão e o perfil autenticado e acesso ao catálogo público.
 
 #### Scenario: Visitante navega entre áreas públicas
 - **WHEN** visitante abre qualquer tela da aplicação
-- **THEN** o cabeçalho oferece links para Início, Entrar e Cadastrar-se, além de navegação por teclado com foco visível
+- **THEN** o cabeçalho oferece links para Início, Catálogo, Entrar e Cadastrar-se, além de navegação por teclado com foco visível
 
 #### Scenario: Estudante autenticado navega na aplicação
 - **WHEN** estudante autenticado abre qualquer tela da aplicação
-- **THEN** o cabeçalho oferece Início e Sair e não exibe Entrar, Cadastrar-se ou acesso administrativo
+- **THEN** o cabeçalho oferece Início, Catálogo, Minha biblioteca e Sair e não exibe Entrar, Cadastrar-se ou acesso administrativo
 
 #### Scenario: Bibliotecário autenticado navega na aplicação
 - **WHEN** bibliotecário autenticado abre qualquer tela da aplicação
-- **THEN** o cabeçalho oferece Início, Cadastrar livro em `/admin/acervo` e Sair
+- **THEN** o cabeçalho oferece Início, Catálogo, Cadastrar livro em `/admin/acervo` e Sair
 
 #### Scenario: Usuário encerra a sessão
 - **WHEN** usuário autenticado ativa Sair

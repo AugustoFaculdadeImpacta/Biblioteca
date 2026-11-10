@@ -1,6 +1,7 @@
 """Estrutura inicial da interface da Biblioteca."""
 
 import unicodedata
+from datetime import datetime, timezone
 from typing import Any
 
 import reflex as rx
@@ -28,6 +29,12 @@ from biblioteca_mais_nova.catalog import (
     get_public_title,
     list_categories,
     list_public_titles,
+)
+from biblioteca_mais_nova.circulation import (
+    list_my_loans,
+    list_my_requests,
+    list_my_reservations,
+    request_title_loan,
 )
 from biblioteca_mais_nova.xano_client import (
     XanoConfigurationError,
@@ -72,6 +79,15 @@ class State(rx.State):
     public_catalog_detail_has_error: bool = False
     public_catalog_detail_not_found: bool = False
     public_catalog_detail_pending: bool = False
+    student_library_pending: bool = False
+    student_library_message: str = ""
+    student_library_has_error: bool = False
+    student_library_loans: list[dict[str, Any]] = []
+    student_library_requests: list[dict[str, Any]] = []
+    student_library_reservations: list[dict[str, Any]] = []
+    student_request_pending: bool = False
+    student_request_message: str = ""
+    student_request_has_error: bool = False
 
     def _store_session_token(self, token: str) -> None:
         if not token:
@@ -99,6 +115,10 @@ class State(rx.State):
     @rx.var
     def is_librarian(self) -> bool:
         return self._is_librarian()
+
+    @rx.var
+    def is_student(self) -> bool:
+        return bool(self._session_token) and self._session_profile == "estudante"
 
     @rx.var
     def filtered_public_catalog(self) -> list[dict[str, Any]]:
@@ -165,6 +185,22 @@ class State(rx.State):
     def has_public_catalog_detail(self) -> bool:
         return bool(self.public_catalog_detail)
 
+    @rx.var
+    def public_catalog_has_available_copies(self) -> bool:
+        return self.public_catalog_detail.get("exemplares_disponiveis", 0) > 0
+
+    @rx.var
+    def has_student_library_loans(self) -> bool:
+        return bool(self.student_library_loans)
+
+    @rx.var
+    def has_student_library_requests(self) -> bool:
+        return bool(self.student_library_requests)
+
+    @rx.var
+    def has_student_library_reservations(self) -> bool:
+        return bool(self.student_library_reservations)
+
     def _redirect_non_librarian(self):
         if not self._session_token:
             return rx.redirect("/login")
@@ -180,6 +216,13 @@ class State(rx.State):
         self.login_has_error = False
         self.catalog_message = ""
         self.catalog_has_error = False
+        self.student_library_message = ""
+        self.student_library_has_error = False
+        self.student_library_loans = []
+        self.student_library_requests = []
+        self.student_library_reservations = []
+        self.student_request_message = ""
+        self.student_request_has_error = False
         self.catalog_categories = []
         self.selected_category_ids = []
         self.catalog_categories_pending = False
@@ -245,6 +288,8 @@ class State(rx.State):
         self.public_catalog_detail_has_error = False
         self.public_catalog_detail_not_found = False
         self.public_catalog_detail_pending = True
+        self.student_request_message = ""
+        self.student_request_has_error = False
 
         raw_title_id = self.router.page.params.get("titulo_id", "")
         if not raw_title_id.isdecimal() or int(raw_title_id) < 1:
@@ -290,6 +335,136 @@ class State(rx.State):
             "exemplares_disponiveis": entry["exemplares_disponiveis"],
         }
         self.public_catalog_detail_pending = False
+
+    @rx.event
+    async def request_catalog_title(self, title_id: int):
+        if not self._session_token:
+            return rx.redirect("/login")
+        if self._session_profile != "estudante" or type(title_id) is not int or title_id < 1:
+            self.student_request_message = (
+                "Somente estudantes podem solicitar um empréstimo ou reserva."
+            )
+            self.student_request_has_error = True
+            return rx.redirect("/")
+        if self.public_catalog_detail.get("id") != title_id:
+            return
+
+        self.student_request_pending = True
+        self.student_request_message = ""
+        self.student_request_has_error = False
+        try:
+            result = await request_title_loan(title_id, self._session_token)
+        except XanoResponseError as error:
+            self.student_request_has_error = True
+            if error.status_code == 403:
+                self.student_request_message = (
+                    "Seu perfil não está autorizado a solicitar este título."
+                )
+            elif error.status_code == 409:
+                self.student_request_message = (
+                    "A solicitação foi recusada. Verifique se há atraso, uma reserva "
+                    "ativa ou outro impedimento antes de tentar novamente."
+                )
+            elif error.status_code >= 500:
+                self.student_request_message = (
+                    "Não foi possível confirmar o resultado. Confira Minha biblioteca "
+                    "antes de fazer outra solicitação."
+                )
+            else:
+                self.student_request_message = (
+                    "Não foi possível solicitar este título. Confira sua sessão e "
+                    "tente novamente."
+                )
+        except (XanoConfigurationError, XanoRequestError) as error:
+            self.student_request_has_error = True
+            self.student_request_message = (
+                "Não foi possível confirmar o resultado. Confira Minha biblioteca "
+                "antes de fazer outra solicitação."
+                if isinstance(error, XanoRequestError)
+                else catalog_error_message(error)
+            )
+        else:
+            if result["estado"] == "em_reserva":
+                self.student_request_message = (
+                    "Sua solicitação foi registrada na fila de reservas."
+                )
+            else:
+                self.student_request_message = (
+                    "Sua solicitação foi registrada. A equipe da biblioteca "
+                    "confirmará a retirada."
+                )
+        self.student_request_pending = False
+
+    @rx.event
+    async def load_student_library(self):
+        if not self._session_token:
+            return rx.redirect("/login")
+        if not self.is_student:
+            return rx.redirect("/")
+
+        self.student_library_pending = True
+        self.student_library_message = ""
+        self.student_library_has_error = False
+        try:
+            loans = await list_my_loans(self._session_token)
+            requests = await list_my_requests(self._session_token)
+            reservations = await list_my_reservations(self._session_token)
+            titles = await list_public_titles()
+        except (XanoConfigurationError, XanoRequestError, XanoResponseError) as error:
+            self.student_library_message = catalog_error_message(error)
+            self.student_library_has_error = True
+            self.student_library_pending = False
+            return
+
+        title_names = {
+            entry["titulo"]["id"]: entry["titulo"]["titulo"] for entry in titles
+        }
+        reservation_ids = {
+            reservation["id"] for reservation in reservations
+        }
+        self.student_library_loans = [
+            {
+                "id": loan["id"],
+                "exemplar_id": loan["exemplar_id"],
+                "retirado_em": _format_timestamp(loan["retirado_em"]),
+                "vence_em": _format_timestamp(loan["vence_em"]),
+                "devolvido": loan["devolvido_em"] not in (None, 0),
+                "em_atraso": _is_overdue(loan["vence_em"], loan["devolvido_em"]),
+            }
+            for loan in loans
+        ]
+        self.student_library_requests = [
+            {
+                "id": request["id"],
+                "titulo": title_names.get(
+                    request["titulo_id"], f"Título #{request['titulo_id']}"
+                ),
+                "estado": _request_status_label(request["estado"]),
+                "solicitada_em": _format_timestamp(
+                    request.get("solicitada_em")
+                ),
+            }
+            for request in requests
+            if not (
+                request["estado"] == "em_reserva"
+                and request.get("reserva_id") in reservation_ids
+            )
+        ]
+        self.student_library_reservations = [
+            {
+                "id": reservation["id"],
+                "titulo": title_names.get(
+                    reservation["titulo_id"],
+                    f"Título #{reservation['titulo_id']}",
+                ),
+                "estado": _reservation_status_label(reservation["estado"]),
+                "prazo": _format_sao_paulo_deadline(
+                    reservation["expira_em_sao_paulo"]
+                ),
+            }
+            for reservation in reservations
+        ]
+        self.student_library_pending = False
 
     def _sync_catalog_progress(self) -> None:
         self.catalog_categories_pending = bool(
@@ -598,6 +773,11 @@ def site_header() -> rx.Component:
                 State.is_authenticated,
                 rx.fragment(
                     rx.cond(
+                        State.is_student,
+                        rx.link("Minha biblioteca", href="/minha-biblioteca"),
+                        rx.fragment(),
+                    ),
+                    rx.cond(
                         State.is_librarian,
                         rx.link("Cadastrar livro", href="/admin/acervo"),
                         rx.fragment(),
@@ -630,6 +810,65 @@ def _catalog_search_key(value: str) -> str:
     )
 
 
+def _as_utc_datetime(value: object) -> datetime | None:
+    if type(value) in {int, float}:
+        try:
+            return datetime.fromtimestamp(value, tz=timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _format_timestamp(value: object) -> str:
+    parsed = _as_utc_datetime(value)
+    if parsed is None:
+        return "Não informado"
+    return parsed.strftime("%d/%m/%Y %H:%M UTC")
+
+
+def _format_sao_paulo_deadline(value: str | None) -> str:
+    if not value:
+        return "Sem prazo de retirada"
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return value
+    return parsed.strftime("%d/%m/%Y %H:%M")
+
+
+def _is_overdue(vence_em: object, devolvido_em: object) -> bool:
+    if devolvido_em not in (None, 0):
+        return False
+    due = _as_utc_datetime(vence_em)
+    return due is not None and due < datetime.now(timezone.utc)
+
+
+def _request_status_label(status: str) -> str:
+    return {
+        "pendente": "Aguardando confirmação da retirada",
+        "em_reserva": "Vinculada a uma reserva",
+        "atendida": "Atendida",
+        "recusada": "Recusada",
+    }.get(status, status)
+
+
+def _reservation_status_label(status: str) -> str:
+    return {
+        "aguardando": "Aguardando na fila",
+        "ofertada": "Disponível para retirada",
+        "retirada": "Retirada",
+        "expirada": "Oferta expirada",
+    }.get(status, status)
+
+
 def public_catalog_category_option(
     category: rx.Var[dict[str, Any]],
 ) -> rx.Component:
@@ -646,6 +885,48 @@ def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
             title["exemplares_disponiveis"],
         ),
         rx.link("Ver detalhes", href=title["href"], class_name="catalog-card-link"),
+        class_name="catalog-card",
+    )
+
+
+def student_loan_card(loan: rx.Var[dict[str, Any]]) -> rx.Component:
+    return rx.el.article(
+        rx.el.h3(f"Empréstimo #{loan['id']}", class_name="catalog-card-heading"),
+        rx.text("Exemplar: ", loan["exemplar_id"]),
+        rx.text("Retirada: ", loan["retirado_em"]),
+        rx.text("Vencimento: ", loan["vence_em"]),
+        rx.cond(
+            loan["devolvido"],
+            rx.text("Devolvido"),
+            rx.cond(
+                loan["em_atraso"],
+                rx.el.p(
+                    "Em atraso. Procure a equipe da biblioteca; novas solicitações "
+                    "e reservas podem ser bloqueadas.",
+                    role="alert",
+                    class_name="signup-feedback signup-feedback-error",
+                ),
+                rx.text("Em andamento"),
+            ),
+        ),
+        class_name="catalog-card",
+    )
+
+
+def student_request_card(request: rx.Var[dict[str, Any]]) -> rx.Component:
+    return rx.el.article(
+        rx.el.h3(request["titulo"], class_name="catalog-card-heading"),
+        rx.text("Solicitação: ", request["estado"]),
+        rx.text("Enviada em: ", request["solicitada_em"]),
+        class_name="catalog-card",
+    )
+
+
+def student_reservation_card(reservation: rx.Var[dict[str, Any]]) -> rx.Component:
+    return rx.el.article(
+        rx.el.h3(reservation["titulo"], class_name="catalog-card-heading"),
+        rx.text("Reserva: ", reservation["estado"]),
+        rx.text("Prazo: ", reservation["prazo"]),
         class_name="catalog-card",
     )
 
@@ -868,9 +1149,143 @@ def public_catalog_detail() -> rx.Component:
                     ),
                     rx.fragment(),
                 ),
+                rx.cond(
+                    State.is_student,
+                    rx.vstack(
+                        rx.el.p(
+                            State.student_request_message,
+                            role=rx.cond(
+                                State.student_request_has_error,
+                                "alert",
+                                "status",
+                            ),
+                            aria_live="polite",
+                            class_name=rx.cond(
+                                State.student_request_has_error,
+                                "signup-feedback signup-feedback-error",
+                                "signup-feedback signup-feedback-success",
+                            ),
+                        ),
+                        rx.button(
+                            rx.cond(
+                                State.public_catalog_has_available_copies,
+                                "Solicitar empréstimo",
+                                "Entrar na fila de reserva",
+                            ),
+                            type="button",
+                            disabled=State.student_request_pending,
+                            on_click=State.request_catalog_title(
+                                State.public_catalog_detail["id"]
+                            ),
+                            class_name="focus-demo-button",
+                        ),
+                        rx.link("Acompanhar em Minha biblioteca", href="/minha-biblioteca"),
+                        align="start",
+                        width="100%",
+                    ),
+                    rx.cond(
+                        State.is_authenticated,
+                        rx.fragment(),
+                        rx.link(
+                            "Entre como estudante para solicitar este título",
+                            href="/login",
+                        ),
+                    ),
+                ),
                 rx.link("Voltar ao catálogo", href="/catalogo"),
                 id="conteudo-detalhe",
                 class_name="content-section catalog-section",
+            ),
+            class_name="main-content",
+        ),
+        rx.el.footer(rx.text("Biblioteca escolar"), class_name="site-footer"),
+        class_name="app-shell",
+    )
+
+
+def student_library() -> rx.Component:
+    return rx.box(
+        rx.link(
+            "Pular para o conteúdo",
+            href="#conteudo-minha-biblioteca",
+            class_name="skip-link",
+        ),
+        site_header(),
+        rx.el.main(
+            rx.el.section(
+                rx.heading("Minha biblioteca", size="7"),
+                rx.text(
+                    "Consulte seus empréstimos, solicitações, reservas e prazos."
+                ),
+                rx.cond(
+                    State.student_library_pending,
+                    rx.text("Carregando seus registros…", role="status"),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.student_library_has_error,
+                    rx.el.p(
+                        State.student_library_message,
+                        role="alert",
+                        aria_live="polite",
+                        class_name="signup-feedback signup-feedback-error",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.el.section(
+                    rx.heading("Empréstimos", size="5"),
+                    rx.cond(
+                        State.has_student_library_loans,
+                        rx.box(
+                            rx.foreach(State.student_library_loans, student_loan_card),
+                            class_name="catalog-grid",
+                        ),
+                        rx.text(
+                            "Você ainda não possui empréstimos.",
+                            role="status",
+                        ),
+                    ),
+                    class_name="student-library-section",
+                    aria_label="Meus empréstimos",
+                ),
+                rx.el.section(
+                    rx.heading("Solicitações", size="5"),
+                    rx.cond(
+                        State.has_student_library_requests,
+                        rx.box(
+                            rx.foreach(
+                                State.student_library_requests,
+                                student_request_card,
+                            ),
+                            class_name="catalog-grid",
+                        ),
+                        rx.text(
+                            "Você não possui solicitações pendentes ou recentes.",
+                            role="status",
+                        ),
+                    ),
+                    class_name="student-library-section",
+                    aria_label="Minhas solicitações",
+                ),
+                rx.el.section(
+                    rx.heading("Reservas", size="5"),
+                    rx.cond(
+                        State.has_student_library_reservations,
+                        rx.box(
+                            rx.foreach(
+                                State.student_library_reservations,
+                                student_reservation_card,
+                            ),
+                            class_name="catalog-grid",
+                        ),
+                        rx.text("Você ainda não possui reservas.", role="status"),
+                    ),
+                    class_name="student-library-section",
+                    aria_label="Minhas reservas",
+                ),
+                rx.link("Voltar ao catálogo", href="/catalogo"),
+                id="conteudo-minha-biblioteca",
+                class_name="content-section",
             ),
             class_name="main-content",
         ),
@@ -1416,6 +1831,16 @@ app = rx.App(
             "max_width": "72rem",
             "margin": "1rem auto",
         },
+        ".student-library-section": {
+            "display": "flex",
+            "flex_direction": "column",
+            "gap": "1rem",
+            "width": "100%",
+            "padding": "1rem",
+            "border": "1px solid var(--gray-6)",
+            "border_radius": "0.75rem",
+            "background_color": "var(--gray-1)",
+        },
         ".catalog-controls": {
             "display": "grid",
             "grid_template_columns": "repeat(auto-fit, minmax(min(100%, 12rem), 1fr))",
@@ -1628,6 +2053,12 @@ app.add_page(
     route="/catalogo/[titulo_id]",
     title="Detalhes do título",
     on_load=State.load_public_catalog_detail,
+)
+app.add_page(
+    student_library,
+    route="/minha-biblioteca",
+    title="Minha biblioteca",
+    on_load=State.load_student_library,
 )
 app.add_page(
     catalog_admin,

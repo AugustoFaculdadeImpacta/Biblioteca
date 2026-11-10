@@ -117,3 +117,52 @@ A interface MUST permitir criar uma quantidade solicitada de exemplares para um 
 #### Scenario: Resposta não contém identificador ou código esperado
 - **WHEN** uma resposta bem-sucedida de criação não contém os campos necessários definidos pela implementação local
 - **THEN** a interface informa que o resultado precisa ser conferido, não presume sucesso completo e não repete automaticamente a escrita
+
+### Requirement: Interface pública apresenta títulos e disponibilidade
+A interface MUST permitir que visitantes e estudantes consultem o catálogo público por lista e detalhe, sem autenticação, exibindo a quantidade de exemplares disponíveis informada pelo serviço.
+
+#### Scenario: Consultar títulos públicos
+- **WHEN** visitante ou estudante abre o catálogo
+- **THEN** a interface apresenta os títulos retornados pela consulta pública em cards e permite abrir o detalhe de um título
+
+#### Scenario: Consultar disponibilidade no detalhe
+- **WHEN** visitante ou estudante abre o detalhe de um título
+- **THEN** a interface apresenta a quantidade de exemplares disponíveis retornada pelo serviço, sem expor dados pessoais de estudantes
+
+### Requirement: Busca, filtros e ordenação do catálogo são aplicados em memória
+A interface MUST permitir refinar os títulos carregados sem enviar filtros ou ordenações adicionais ao backend.
+
+#### Scenario: Buscar por texto
+- **WHEN** pessoa informa um texto no campo de busca
+- **THEN** a lista em memória é filtrada pelos campos de título e autoria retornados pelo catálogo
+
+#### Scenario: Filtrar por categoria e disponibilidade
+- **WHEN** pessoa seleciona uma categoria ou ativa "Somente disponíveis"
+- **THEN** a lista em memória contém somente títulos associados à categoria selecionada e, quando aplicável, com quantidade disponível maior que zero
+
+#### Scenario: Ordenar alfabeticamente
+- **WHEN** pessoa seleciona A-Z ou Z-A
+- **THEN** os títulos visíveis são ordenados em memória pelo título, respeitando a direção selecionada
+
+#### Scenario: Catálogo sem resultados
+- **WHEN** a busca ou os filtros não correspondem a nenhum título
+- **THEN** a interface informa claramente que nenhum título corresponde aos critérios atuais
+
+### Requirement: Estudante inicia solicitação a partir do catálogo
+A interface MUST permitir que estudante autenticado inicie o fluxo de empréstimo ou reserva de um título do catálogo, submetendo a decisão final de disponibilidade e elegibilidade ao backend.
+
+#### Scenario: Há exemplar disponível no catálogo
+- **WHEN** estudante autenticado abre o detalhe de título que informa exemplares disponíveis
+- **THEN** a interface oferece solicitar empréstimo e envia a solicitação autenticada ao backend
+
+#### Scenario: Não há exemplar disponível no catálogo
+- **WHEN** estudante autenticado abre o detalhe de título sem exemplares disponíveis
+- **THEN** a interface oferece entrar na fila de reserva pelo fluxo de solicitação autenticado
+
+#### Scenario: Disponibilidade muda antes do envio
+- **WHEN** disponibilidade ou elegibilidade muda entre a consulta do catálogo e o envio
+- **THEN** a interface apresenta o resultado retornado pelo backend e não presume que a contagem previamente exibida ainda seja válida
+
+#### Scenario: Visitante ou bibliotecário tenta iniciar o fluxo de estudante
+- **WHEN** pessoa sem perfil estudante tenta enviar uma solicitação pelo catálogo
+- **THEN** a interface bloqueia a ação e o backend continua responsável por recusar a operação não autorizada
