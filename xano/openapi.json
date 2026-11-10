@@ -56,7 +56,7 @@
       "post": {
         "operationId": "login",
         "summary": "Autenticar por email e senha",
-        "description": "Publico. Aplica trim e lowercase ao email e rejeita espaco interno. Mantem a senha exatamente como recebida. Mensagem de falha nao revela qual credencial divergiu.",
+        "description": "Publico. Aplica trim e lowercase ao email e rejeita espaco interno. Mantem a senha exatamente como recebida. Recusa contas com ativo=false usando a mesma mensagem generica para falha de credenciais.",
         "requestBody": {
           "required": true,
           "content": {
@@ -130,7 +130,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Somente bibliotecario. titulo e autores obrigatorios; ISBN, editora, edicao, ano e descricao opcionais.",
+        "description": "Bibliotecario ou admin. titulo e autores obrigatorios; ISBN, editora, edicao, ano e descricao opcionais.",
         "requestBody": {
           "required": true,
           "content": {
@@ -176,7 +176,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Somente bibliotecario. Nao oferece exclusao ou arquivamento.",
+        "description": "Bibliotecario ou admin. Nao oferece exclusao ou arquivamento.",
         "requestBody": {
           "required": true,
           "content": {
@@ -213,7 +213,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Somente bibliotecario.",
+        "description": "Bibliotecario ou admin.",
         "requestBody": {
           "required": true,
           "content": {
@@ -270,7 +270,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Somente bibliotecario. Nao oferece exclusao ou arquivamento.",
+        "description": "Bibliotecario ou admin. Nao oferece exclusao ou arquivamento.",
         "requestBody": {
           "required": true,
           "content": {
@@ -335,7 +335,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Somente bibliotecario. Valida ambas as referencias. Repetir a mesma associacao nao cria duplicata.",
+        "description": "Bibliotecario ou admin. Valida ambas as referencias. Repetir a mesma associacao nao cria duplicata.",
         "requestBody": {
           "required": true,
           "content": {
@@ -376,7 +376,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Somente bibliotecario. Servidor gera codigo de tombo EX-000001, unico e imutavel; cliente nao envia o codigo.",
+        "description": "Bibliotecario ou admin. Servidor gera codigo de tombo EX-000001, unico e imutavel; cliente nao envia o codigo.",
         "requestBody": {
           "required": true,
           "content": {
@@ -502,7 +502,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Somente bibliotecario. Revalida elegibilidade e disponibilidade; registra retirada fisica e vencimento 14 dias corridos depois. Deve impedir dois emprestimos ativos por estudante e exemplar.",
+        "description": "Bibliotecario ou admin. Revalida elegibilidade e disponibilidade; registra retirada fisica e vencimento 14 dias corridos depois. Deve impedir dois emprestimos ativos por estudante e exemplar.",
         "responses": {
           "201": {
             "description": "Emprestimo ativo criado"
@@ -535,7 +535,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Somente bibliotecario. Confirma a retirada fisica de exemplar associado a oferta vigente, revalida elegibilidade e encerra a reserva como retirada. Registra vencimento 14 dias corridos depois.",
+        "description": "Bibliotecario ou admin. Confirma a retirada fisica de exemplar associado a oferta vigente, revalida elegibilidade e encerra a reserva como retirada. Registra vencimento 14 dias corridos depois.",
         "responses": {
           "201": {
             "description": "Emprestimo criado a partir de reserva ofertada"
@@ -568,7 +568,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Somente bibliotecario; encerra emprestimo ativo, preserva historico e, se existir reserva elegivel, oferece o exemplar ao proximo da fila FIFO por 48 horas.",
+        "description": "Bibliotecario ou admin; encerra emprestimo ativo, preserva historico e, se existir reserva elegivel, oferece o exemplar ao proximo da fila FIFO por 48 horas.",
         "responses": {
           "200": {
             "description": "Devolucao registrada"
@@ -668,7 +668,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Fila FIFO e estado operacional para bibliotecario"
+            "description": "Fila FIFO e estado operacional para bibliotecario ou admin"
           },
           "403": {
             "$ref": "#/components/responses/PerfilInsuficiente"
@@ -684,7 +684,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Somente bibliotecario. Escolhe a primeira reserva elegivel e exemplar livre; associa ambos e registra oferta UTC com expira_em = ofertada_em + 48 horas.",
+        "description": "Bibliotecario ou admin. Escolhe a primeira reserva elegivel e exemplar livre; associa ambos e registra oferta UTC com expira_em = ofertada_em + 48 horas.",
         "requestBody": {
           "required": true,
           "content": {
@@ -730,7 +730,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Somente bibliotecario. Marca ofertas vencidas como expiradas, libera exemplares e tenta ofertar cada exemplar ao proximo estudante elegivel da fila. O disparo automatico periodico precisa de mecanismo Xano fora do escopo de tabelas/endpoints e permanece bloqueado ate verificacao tecnica.",
+        "description": "Bibliotecario ou admin. Marca ofertas vencidas como expiradas, libera exemplares e tenta ofertar cada exemplar ao proximo estudante elegivel da fila. O disparo automatico periodico precisa de mecanismo Xano fora do escopo de tabelas/endpoints e permanece bloqueado ate verificacao tecnica.",
         "responses": {
           "200": {
             "description": "Expiracoes processadas"
@@ -760,7 +760,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Somente bibliotecario. Registra dano ou perda com observacao; exemplar fica indisponivel. Nao existe reativacao nesta Change.",
+        "description": "Bibliotecario ou admin. Registra dano ou perda com observacao; exemplar fica indisponivel. Nao existe reativacao nesta Change.",
         "requestBody": {
           "required": true,
           "content": {
@@ -806,10 +806,120 @@
         ],
         "responses": {
           "200": {
-            "description": "Historico visivel somente a bibliotecario"
+            "description": "Historico visivel somente a bibliotecario ou admin"
           },
           "403": {
             "$ref": "#/components/responses/PerfilInsuficiente"
+          }
+        }
+      }
+    },
+    "/admin/usuarios": {
+      "get": {
+        "operationId": "listarBibliotecarios",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Somente admin. Retorna id, nome, email e ativo de contas com perfil bibliotecario; nunca inclui senha, hash ou token.",
+        "responses": {
+          "200": {
+            "description": "Contas bibliotecarias",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BibliotecarioAdmin"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          }
+        }
+      },
+      "post": {
+        "operationId": "criarBibliotecario",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Somente admin. Normaliza e valida email unico; define perfil bibliotecario e ativo true no servidor. Nunca retorna senha, hash ou token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CriarBibliotecario"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Conta bibliotecaria criada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BibliotecarioAdmin"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflito"
+          }
+        }
+      }
+    },
+    "/admin/usuarios/{usuarioId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/UsuarioId"
+        }
+      ],
+      "patch": {
+        "operationId": "alterarAtivacaoBibliotecario",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Somente admin. Altera somente ativo de uma conta bibliotecaria; nao permite alterar a propria conta nem contas admin. Nunca retorna senha, hash ou token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AtivacaoBibliotecario"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Situacao da conta alterada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BibliotecarioAdmin"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          },
+          "404": {
+            "$ref": "#/components/responses/NaoEncontrado"
           }
         }
       }
@@ -825,6 +935,15 @@
     "parameters": {
       "TituloId": {
         "name": "tituloId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "UsuarioId": {
+        "name": "usuarioId",
         "in": "path",
         "required": true,
         "schema": {
@@ -913,10 +1032,72 @@
             "type": "string",
             "enum": [
               "estudante",
-              "bibliotecario"
+              "bibliotecario",
+              "admin"
             ]
           }
         }
+      },
+      "BibliotecarioAdmin": {
+        "type": "object",
+        "required": [
+          "id",
+          "nome",
+          "email",
+          "ativo"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "nome": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "ativo": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CriarBibliotecario": {
+        "type": "object",
+        "required": [
+          "nome",
+          "email",
+          "senha"
+        ],
+        "properties": {
+          "nome": {
+            "type": "string",
+            "minLength": 1
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "senha": {
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AtivacaoBibliotecario": {
+        "type": "object",
+        "required": [
+          "ativo"
+        ],
+        "properties": {
+          "ativo": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
       },
       "TituloEntrada": {
         "type": "object",

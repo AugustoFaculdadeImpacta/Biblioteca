@@ -32,7 +32,7 @@ def input_fields(source):
         end += 1
     return set(
         re.findall(
-            r"^\s*(?:int|text|email|password|enum)\s+([A-Za-z_]\w*)",
+            r"^\s*(?:int|text|email|password|bool|enum)\s+([A-Za-z_]\w*)",
             source[start : end - 1],
             re.MULTILINE,
         )
@@ -74,21 +74,75 @@ class TestCandidateContracts(unittest.TestCase):
 
         self.assertIn('type: "btree|unique", field: [{name: "email"', user)
         self.assertIn('enum perfil', user)
+        self.assertIn('values = ["estudante", "bibliotecario", "admin"]', user)
+        self.assertIn("bool ativo?=true", user)
         self.assertIn('perfil : "estudante"', signup)
         self.assertIn('contains:" "', signup)
         self.assertIn('contains:" "', login)
         self.assertIn("password senha", signup)
+        self.assertIn('$usuario.ativo != false', login)
         self.assertIn("text titulo filters=trim", title)
         self.assertIn("text autores filters=trim", title)
         self.assertIn('type: "btree|unique", field: [{name: "codigo_tombo"', copy)
 
     def test_admin_xanoscript_endpoints_require_auth_and_role(self):
-        admin_files = list((APIS / "admin").glob("*.xs"))
-        self.assertGreaterEqual(len(admin_files), 3)
-        for path in admin_files:
+        guarded_files = []
+        for path in APIS.rglob("*.xs"):
+            source = path.read_text(encoding="utf-8")
+            if '$usuario.perfil == "bibliotecario"' in source:
+                guarded_files.append((path, source))
+                self.assertIn('auth = "usuario"', source, path.name)
+                self.assertIn(
+                    '$usuario.perfil == "bibliotecario" || $usuario.perfil == "admin"',
+                    source,
+                    path.name,
+                )
+                self.assertIn('$usuario.ativo != false', source, path.name)
+
+        self.assertEqual(15, len(guarded_files))
+
+        for path in [
+            APIS / "admin" / "usuarios_GET.xs",
+            APIS / "admin" / "usuarios_POST.xs",
+            APIS / "admin" / "usuarios_id_PATCH.xs",
+        ]:
             source = path.read_text(encoding="utf-8")
             self.assertIn('auth = "usuario"', source, path.name)
-            self.assertIn('$usuario.perfil == "bibliotecario"', source, path.name)
+            self.assertIn('$administrador.perfil == "admin"', source, path.name)
+            if "POST" in path.name:
+                self.assertIn("senha:", source)
+            self.assertNotIn("$authToken", source)
+
+    def test_user_management_candidates_are_admin_only_and_return_safe_fields(self):
+        list_users = (APIS / "admin" / "usuarios_GET.xs").read_text(
+            encoding="utf-8"
+        )
+        create_user = (APIS / "admin" / "usuarios_POST.xs").read_text(
+            encoding="utf-8"
+        )
+        update_user = (APIS / "admin" / "usuarios_id_PATCH.xs").read_text(
+            encoding="utf-8"
+        )
+
+        for source in (list_users, create_user, update_user):
+            self.assertIn('$administrador.perfil == "admin"', source)
+            self.assertIn("$administrador.ativo != false", source)
+            self.assertNotIn("$authToken", source)
+
+        self.assertIn('$db.usuario.perfil == "bibliotecario"', list_users)
+        for field in ("id", "nome", "email", "ativo"):
+            self.assertIn(f"{field}: $bibliotecario.{field}", list_users)
+
+        self.assertNotIn("perfil", input_fields(create_user))
+        self.assertIn('perfil: "bibliotecario"', create_user)
+        self.assertIn("ativo: true", create_user)
+        self.assertIn("email: $novo_bibliotecario.email", create_user)
+        self.assertNotIn("senha:", create_user.split("response =", 1)[-1])
+
+        self.assertIn("$input.usuario_id != $auth.id", update_user)
+        self.assertIn('$bibliotecario.perfil == "bibliotecario"', update_user)
+        self.assertIn("data = {ativo: $input.ativo}", update_user)
+        self.assertNotIn("senha:", update_user.split("response =", 1)[-1])
 
     def test_xanoscript_candidate_delimiters_are_balanced(self):
         for path in ROOT.rglob("*.xs"):
@@ -148,7 +202,7 @@ class TestCandidateContracts(unittest.TestCase):
             for route, method in API_DECLARATION.findall(source):
                 candidates.append((method, "/" + route, path, source))
 
-        self.assertEqual(len(operations), 28)
+        self.assertEqual(len(operations), 31)
         self.assertEqual(len(candidates), len(operations))
 
         for method, path, operation in operations:
@@ -166,7 +220,11 @@ class TestCandidateContracts(unittest.TestCase):
             _, _, candidate_path, source = matches[0]
             if operation.get("security"):
                 self.assertIn('auth = "usuario"', source, candidate_path.name)
-            if path.startswith("/admin/") or (
+            if path in {"/admin/usuarios", "/admin/usuarios/{usuarioId}"}:
+                self.assertIn('$administrador.perfil == "admin"', source)
+                if method == "PATCH":
+                    self.assertIn('$bibliotecario.perfil == "bibliotecario"', source)
+            elif path.startswith("/admin/") or (
                 path in {"/catalogo/titulos", "/catalogo/categorias"}
                 and method == "POST"
             ) or (
@@ -174,7 +232,7 @@ class TestCandidateContracts(unittest.TestCase):
                 and method == "PATCH"
             ):
                 self.assertIn(
-                    '$usuario.perfil == "bibliotecario"',
+                    '$usuario.perfil == "bibliotecario" || $usuario.perfil == "admin"',
                     source,
                     candidate_path.name,
                 )

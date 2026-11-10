@@ -9,12 +9,17 @@ query "admin/solicitacoes" verb=GET {
     db.get usuario {
       field_name = "id"
       field_value = $auth.id
-      output = ["id", "perfil"]
+      output = ["id", "perfil", "ativo"]
     } as $usuario
 
-    precondition ($usuario.perfil == "bibliotecario") {
+    precondition ($usuario.ativo != false) {
       error_type = "accessdenied"
-      error = "Perfil bibliotecario necessario."
+      error = "Conta desativada."
+    }
+
+    precondition ($usuario.perfil == "bibliotecario" || $usuario.perfil == "admin") {
+      error_type = "accessdenied"
+      error = "Perfil bibliotecario ou admin necessario."
     }
 
     db.query solicitacao_emprestimo {
