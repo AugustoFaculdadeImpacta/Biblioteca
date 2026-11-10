@@ -8,12 +8,22 @@ No PowerShell, na raiz do projeto:
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+pip install -r requirements.txt
+Copy-Item .env.example .env
+# Edite .env e preencha XANO_API_BASE_URL com a URL do seu ambiente Xano.
 reflex run
 ```
 
-Configure `XANO_API_BASE_URL` no `.env` local conforme a seção abaixo. O
-comando padrão abre `http://localhost:3000`.
+Não inclua valores reais de URL ou credenciais neste README nem em arquivos
+versionados. O comando padrão abre `http://localhost:3000`.
+
+## Estado atual
+
+Catálogo, cadastro e login estão integrados à API Xano, mas o funcionamento
+contra o Xano real ainda não foi verificado nesta validação; acessibilidade foi
+verificada localmente. Acervo do bibliotecário, reserva por estudante e gestão
+de bibliotecários estão implementados e testados com dados simulados, aguardando
+a publicação dos endpoints correspondentes no Xano.
 
 ## Preparar o ambiente no Windows PowerShell
 
