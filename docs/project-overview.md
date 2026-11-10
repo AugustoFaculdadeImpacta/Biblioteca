@@ -39,9 +39,8 @@ Autocadastro nunca concede perfil de bibliotecário. O método seguro de provisi
 
 - Backend e fonte de dados: Xano, integrado por API REST e XanoScript versionado quando exigido pela Change.
 - Frontend: Reflex é a tecnologia adotada e exclusiva. Qualquer outra tecnologia de frontend exige uma mudança arquitetural aprovada.
-- Pendências obrigatórias para liberar funcionalidades e deploy: a adoção do Reflex não autoriza implementar funcionalidades de produto nem fazer deploy até que as duas mitigações estejam concluídas:
-  1. Implementar o indicador visual `:focus-visible` na busca e verificar seu funcionamento antes de iniciar funcionalidades de produto.
-  2. Escolher e validar o ambiente acadêmico antes de qualquer deploy; manter segredos somente no backend e inspecionar os logs antes do deploy.
+- Mitigação 1 cumprida: o indicador visual `:focus-visible` da busca está implementado e coberto por testes; a verificação Playwright está registrada na Change arquivada `catalogo-publico`.
+- O Reflex não autoriza deploy antes de escolher e validar o ambiente acadêmico, manter segredos somente no backend e inspecionar os logs.
 - Especificação e histórico: OpenSpec com schema `spec-driven`; Git versiona código, documentação, changes ativas, specs consolidadas e arquivo.
 - Idioma do produto e documentação: português do Brasil.
 

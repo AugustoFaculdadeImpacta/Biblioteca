@@ -381,6 +381,7 @@ def test_public_catalog_filters_accented_search_category_availability_and_sort()
             state.public_catalog_categories = [
                 {"id": 7, "nome": "Literatura"},
                 {"id": 8, "nome": "História"},
+                {"id": 9, "nome": "Sem títulos"},
             ]
             state.public_catalog_entries = [
                 {
@@ -397,37 +398,72 @@ def test_public_catalog_filters_accented_search_category_availability_and_sort()
                     ],
                     "exemplares_disponiveis": 2,
                 },
+                {
+                    "titulo": {"id": 3, "titulo": "Ação recente", "autores": "Caio"},
+                    "categorias": [
+                        {"id": 12, "titulo_id": 3, "categoria_id": 7},
+                    ],
+                    "exemplares_disponiveis": 1,
+                },
             ]
 
             assert [
                 item["titulo"] for item in state.filtered_public_catalog
-            ] == ["Ação e memória", "Ética antiga"]
+            ] == ["Ação e memória", "Ação recente", "Ética antiga"]
 
             state.public_catalog_search = "acao"
             assert [
                 item["titulo"] for item in state.filtered_public_catalog
-            ] == ["Ação e memória"]
+            ] == ["Ação e memória", "Ação recente"]
 
             state.public_catalog_search = ""
             state.set_public_catalog_category("7")
             assert [
                 item["titulo"] for item in state.filtered_public_catalog
-            ] == ["Ação e memória"]
+            ] == ["Ação e memória", "Ação recente"]
 
             state.set_public_catalog_category("")
             state.public_catalog_only_available = True
             assert [
                 item["titulo"] for item in state.filtered_public_catalog
-            ] == ["Ação e memória"]
+            ] == ["Ação e memória", "Ação recente"]
 
             state.public_catalog_only_available = False
             state.public_catalog_sort = "desc"
             assert [
                 item["titulo"] for item in state.filtered_public_catalog
-            ] == ["Ética antiga", "Ação e memória"]
+            ] == ["Ética antiga", "Ação recente", "Ação e memória"]
 
             state.public_catalog_search = "sem resultados"
             assert state.filtered_public_catalog == []
+            assert state.public_catalog_message == ""
+            empty_state = next(
+                component
+                for component in _components(frontend.public_catalog())
+                if component.alias == "RadixThemesText"
+                and any(
+                    getattr(child.contents, "_var_value", None)
+                    == "Nenhum título corresponde aos critérios atuais."
+                    for child in component.children
+                    if hasattr(child, "contents")
+                )
+            )
+            assert empty_state.role._var_value == "status"
+
+            state.public_catalog_search = "acao"
+            state.set_public_catalog_category("9")
+            state.public_catalog_only_available = True
+            state.public_catalog_sort = "desc"
+            assert state.filtered_public_catalog == []
+
+            state.set_public_catalog_category("")
+            assert [
+                item["titulo"] for item in state.filtered_public_catalog
+            ] == ["Ação recente", "Ação e memória"]
+            state.public_catalog_sort = "asc"
+            assert [
+                item["titulo"] for item in state.filtered_public_catalog
+            ] == ["Ação e memória", "Ação recente"]
 
     asyncio.run(verify_filters())
 

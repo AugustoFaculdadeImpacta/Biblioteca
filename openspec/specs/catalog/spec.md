@@ -148,6 +148,18 @@ A interface MUST permitir refinar os títulos carregados sem enviar filtros ou o
 - **WHEN** a busca ou os filtros não correspondem a nenhum título
 - **THEN** a interface informa claramente que nenhum título corresponde aos critérios atuais
 
+#### Scenario: Filtros combinados
+- **WHEN** pessoa informa texto, seleciona uma categoria, ativa somente disponíveis e escolhe ordenação A-Z ou Z-A
+- **THEN** a lista em memória contém somente títulos que atendem simultaneamente aos filtros e os ordena pelo título
+
+#### Scenario: Categoria sem títulos correspondentes
+- **WHEN** visitante seleciona uma categoria existente sem títulos correspondentes
+- **THEN** a interface não exibe títulos, mantém os outros filtros utilizáveis e informa que nenhum título corresponde aos critérios atuais
+
+#### Scenario: Remover filtro de categoria
+- **WHEN** visitante seleciona novamente todas as categorias
+- **THEN** a interface remove apenas o filtro de categoria e preserva busca, disponibilidade e ordenação
+
 ### Requirement: Estudante inicia solicitação a partir do catálogo
 A interface MUST permitir que estudante autenticado inicie o fluxo de empréstimo ou reserva de um título do catálogo, submetendo a decisão final de disponibilidade e elegibilidade ao backend.
 
