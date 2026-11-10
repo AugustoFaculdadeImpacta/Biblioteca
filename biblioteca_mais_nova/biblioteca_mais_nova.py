@@ -1,5 +1,6 @@
 """Estrutura inicial da interface da Biblioteca."""
 
+import unicodedata
 from typing import Any
 
 import reflex as rx
@@ -24,7 +25,9 @@ from biblioteca_mais_nova.catalog import (
     category_contains_title,
     create_copy,
     create_title,
+    get_public_title,
     list_categories,
+    list_public_titles,
 )
 from biblioteca_mais_nova.xano_client import (
     XanoConfigurationError,
@@ -55,6 +58,20 @@ class State(rx.State):
     _uncertain_category_ids: list[int] = []
     _catalog_title_uncertain: bool = False
     _catalog_copy_uncertain: bool = False
+    public_catalog_entries: list[dict[str, Any]] = []
+    public_catalog_categories: list[dict[str, Any]] = []
+    public_catalog_message: str = ""
+    public_catalog_has_error: bool = False
+    public_catalog_pending: bool = False
+    public_catalog_search: str = ""
+    public_catalog_category_id: str = ""
+    public_catalog_only_available: bool = False
+    public_catalog_sort: str = "asc"
+    public_catalog_detail: dict[str, Any] = {}
+    public_catalog_detail_message: str = ""
+    public_catalog_detail_has_error: bool = False
+    public_catalog_detail_not_found: bool = False
+    public_catalog_detail_pending: bool = False
 
     def _store_session_token(self, token: str) -> None:
         if not token:
@@ -82,6 +99,71 @@ class State(rx.State):
     @rx.var
     def is_librarian(self) -> bool:
         return self._is_librarian()
+
+    @rx.var
+    def filtered_public_catalog(self) -> list[dict[str, Any]]:
+        category_names = {
+            category["id"]: category["nome"]
+            for category in self.public_catalog_categories
+        }
+        search_key = _catalog_search_key(self.public_catalog_search.strip())
+        visible: list[dict[str, Any]] = []
+        for entry in self.public_catalog_entries:
+            title = entry["titulo"]
+            category_ids = {
+                association["categoria_id"]
+                for association in entry["categorias"]
+            }
+            if (
+                self.public_catalog_category_id
+                and int(self.public_catalog_category_id) not in category_ids
+            ):
+                continue
+            available = entry["exemplares_disponiveis"]
+            if self.public_catalog_only_available and available <= 0:
+                continue
+            if search_key and search_key not in _catalog_search_key(
+                f"{title['titulo']} {title['autores']}"
+            ):
+                continue
+            visible.append(
+                {
+                    "id": title["id"],
+                    "titulo": title["titulo"],
+                    "autores": title["autores"],
+                    "categorias": ", ".join(
+                        category_names[category_id]
+                        for category_id in sorted(category_ids)
+                        if category_id in category_names
+                    )
+                    or "Sem categoria",
+                    "exemplares_disponiveis": available,
+                    "href": f"/catalogo/{title['id']}",
+                }
+            )
+        return sorted(
+            visible,
+            key=lambda item: _catalog_search_key(item["titulo"]),
+            reverse=self.public_catalog_sort == "desc",
+        )
+
+    @rx.var
+    def public_catalog_detail_categories(self) -> str:
+        category_names = {
+            category["id"]: category["nome"]
+            for category in self.public_catalog_categories
+        }
+        return ", ".join(
+            category_names[category_id]
+            for category_id in self.public_catalog_detail.get(
+                "categoria_ids", []
+            )
+            if category_id in category_names
+        ) or "Sem categoria"
+
+    @rx.var
+    def has_public_catalog_detail(self) -> bool:
+        return bool(self.public_catalog_detail)
 
     def _redirect_non_librarian(self):
         if not self._session_token:
@@ -114,6 +196,100 @@ class State(rx.State):
     @rx.event
     def dismiss_signup_confirmation(self):
         self.signup_success_message = ""
+
+    @rx.event
+    def set_public_catalog_search(self, value: str):
+        self.public_catalog_search = value
+
+    @rx.event
+    def set_public_catalog_category(self, value: str):
+        if not value:
+            self.public_catalog_category_id = ""
+        elif value.isdecimal() and any(
+            str(category["id"]) == value
+            for category in self.public_catalog_categories
+        ):
+            self.public_catalog_category_id = value
+
+    @rx.event
+    def set_public_catalog_only_available(self, value: bool):
+        self.public_catalog_only_available = value
+
+    @rx.event
+    def set_public_catalog_sort(self, value: str):
+        if value in {"asc", "desc"}:
+            self.public_catalog_sort = value
+
+    @rx.event
+    async def load_public_catalog(self):
+        self.public_catalog_pending = True
+        self.public_catalog_message = ""
+        self.public_catalog_has_error = False
+        try:
+            titles = await list_public_titles()
+            categories = await list_categories()
+        except (XanoConfigurationError, XanoRequestError, XanoResponseError) as error:
+            self.public_catalog_message = catalog_error_message(error)
+            self.public_catalog_has_error = True
+            self.public_catalog_pending = False
+            return
+
+        self.public_catalog_entries = titles
+        self.public_catalog_categories = categories
+        self.public_catalog_pending = False
+
+    @rx.event
+    async def load_public_catalog_detail(self):
+        self.public_catalog_detail = {}
+        self.public_catalog_detail_message = ""
+        self.public_catalog_detail_has_error = False
+        self.public_catalog_detail_not_found = False
+        self.public_catalog_detail_pending = True
+
+        raw_title_id = self.router.page.params.get("titulo_id", "")
+        if not raw_title_id.isdecimal() or int(raw_title_id) < 1:
+            self.public_catalog_detail_not_found = True
+            self.public_catalog_detail_pending = False
+            return
+
+        try:
+            entry = await get_public_title(int(raw_title_id))
+            categories = await list_categories()
+        except XanoResponseError as error:
+            self.public_catalog_detail_pending = False
+            if error.status_code == 404:
+                self.public_catalog_detail_not_found = True
+                return
+            self.public_catalog_detail_message = catalog_error_message(error)
+            self.public_catalog_detail_has_error = True
+            return
+        except (XanoConfigurationError, XanoRequestError) as error:
+            self.public_catalog_detail_message = catalog_error_message(error)
+            self.public_catalog_detail_has_error = True
+            self.public_catalog_detail_pending = False
+            return
+
+        self.public_catalog_categories = categories
+        self.public_catalog_detail = {
+            "id": entry["titulo"]["id"],
+            "titulo": entry["titulo"]["titulo"],
+            "autores": entry["titulo"]["autores"],
+            "isbn": entry["titulo"].get("isbn") or "",
+            "editora": entry["titulo"].get("editora") or "",
+            "edicao": entry["titulo"].get("edicao") or "",
+            "ano_publicacao": (
+                str(entry["titulo"]["ano_publicacao"])
+                if entry["titulo"].get("ano_publicacao") is not None
+                else ""
+            ),
+            "descricao": entry["titulo"].get("descricao") or "",
+            "categoria_ids": [
+                association["categoria_id"]
+                for association in entry["categorias"]
+            ],
+            "exemplares_disponiveis": entry["exemplares_disponiveis"],
+        }
+        self.public_catalog_detail_pending = False
 
     def _sync_catalog_progress(self) -> None:
         self.catalog_categories_pending = bool(
@@ -417,6 +593,7 @@ def site_header() -> rx.Component:
         ),
         rx.el.nav(
             rx.link("Início", href="/"),
+            rx.link("Catálogo", href="/catalogo"),
             rx.cond(
                 State.is_authenticated,
                 rx.fragment(
@@ -441,6 +618,264 @@ def site_header() -> rx.Component:
             class_name="site-nav",
         ),
         class_name="site-header",
+    )
+
+
+def _catalog_search_key(value: str) -> str:
+    decomposed = unicodedata.normalize("NFD", value.casefold())
+    return "".join(
+        character
+        for character in decomposed
+        if not unicodedata.combining(character)
+    )
+
+
+def public_catalog_category_option(
+    category: rx.Var[dict[str, Any]],
+) -> rx.Component:
+    return rx.el.option(category["nome"], value=category["id"])
+
+
+def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
+    return rx.el.article(
+        rx.el.h2(title["titulo"], class_name="catalog-card-heading"),
+        rx.text("Autoria: ", title["autores"]),
+        rx.text("Categorias: ", title["categorias"]),
+        rx.text(
+            "Exemplares disponíveis: ",
+            title["exemplares_disponiveis"],
+        ),
+        rx.link("Ver detalhes", href=title["href"], class_name="catalog-card-link"),
+        class_name="catalog-card",
+    )
+
+
+def public_catalog() -> rx.Component:
+    return rx.box(
+        rx.link(
+            "Pular para o conteúdo",
+            href="#conteudo-catalogo",
+            class_name="skip-link",
+        ),
+        site_header(),
+        rx.el.main(
+            rx.el.section(
+                rx.heading("Catálogo", size="7"),
+                rx.text(
+                    "Consulte os títulos e a quantidade de exemplares disponíveis."
+                ),
+                rx.el.div(
+                    rx.el.div(
+                        rx.el.label(
+                            "Buscar por título ou autoria",
+                            html_for="catalog-search",
+                            class_name="signup-label",
+                        ),
+                        rx.input(
+                            id="catalog-search",
+                            type="search",
+                            value=State.public_catalog_search,
+                            on_change=State.set_public_catalog_search,
+                            aria_label="Buscar por título ou autoria",
+                            class_name="signup-input",
+                        ),
+                        class_name="catalog-filter",
+                    ),
+                    rx.el.div(
+                        rx.el.label(
+                            "Categoria",
+                            html_for="catalog-category",
+                            class_name="signup-label",
+                        ),
+                        rx.el.select(
+                            rx.el.option("Todas as categorias", value=""),
+                            rx.foreach(
+                                State.public_catalog_categories,
+                                public_catalog_category_option,
+                            ),
+                            id="catalog-category",
+                            value=State.public_catalog_category_id,
+                            on_change=State.set_public_catalog_category,
+                            class_name="signup-input",
+                        ),
+                        class_name="catalog-filter",
+                    ),
+                    rx.el.div(
+                        rx.el.label(
+                            "Ordenação",
+                            html_for="catalog-sort",
+                            class_name="signup-label",
+                        ),
+                        rx.el.select(
+                            rx.el.option("A-Z", value="asc"),
+                            rx.el.option("Z-A", value="desc"),
+                            id="catalog-sort",
+                            value=State.public_catalog_sort,
+                            on_change=State.set_public_catalog_sort,
+                            class_name="signup-input",
+                        ),
+                        class_name="catalog-filter",
+                    ),
+                    rx.checkbox(
+                        text="Somente disponíveis",
+                        checked=State.public_catalog_only_available,
+                        on_change=State.set_public_catalog_only_available,
+                    ),
+                    class_name="catalog-controls",
+                ),
+                rx.cond(
+                    State.public_catalog_pending,
+                    rx.text("Carregando catálogo…", role="status"),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.public_catalog_message != "",
+                    rx.el.p(
+                        State.public_catalog_message,
+                        role=rx.cond(
+                            State.public_catalog_has_error,
+                            "alert",
+                            "status",
+                        ),
+                        aria_live="polite",
+                        class_name="signup-feedback signup-feedback-error",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    (~State.public_catalog_pending)
+                    & (State.public_catalog_message == "")
+                    & (State.filtered_public_catalog.length() == 0),
+                    rx.text(
+                        "Nenhum título corresponde aos critérios atuais.",
+                        role="status",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.filtered_public_catalog.length() > 0,
+                    rx.el.div(
+                        rx.foreach(
+                            State.filtered_public_catalog,
+                            public_catalog_card,
+                        ),
+                        class_name="catalog-grid",
+                    ),
+                    rx.fragment(),
+                ),
+                id="conteudo-catalogo",
+                class_name="content-section catalog-section",
+            ),
+            class_name="main-content",
+        ),
+        rx.el.footer(rx.text("Biblioteca escolar"), class_name="site-footer"),
+        class_name="app-shell",
+    )
+
+
+def public_catalog_detail() -> rx.Component:
+    return rx.box(
+        rx.link(
+            "Pular para o conteúdo",
+            href="#conteudo-detalhe",
+            class_name="skip-link",
+        ),
+        site_header(),
+        rx.el.main(
+            rx.el.section(
+                rx.heading("Detalhes do título", size="7"),
+                rx.cond(
+                    State.public_catalog_detail_pending,
+                    rx.text("Carregando título…", role="status"),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.public_catalog_detail_message != "",
+                    rx.el.p(
+                        State.public_catalog_detail_message,
+                        role="alert",
+                        aria_live="polite",
+                        class_name="signup-feedback signup-feedback-error",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.public_catalog_detail_not_found,
+                    rx.vstack(
+                        rx.text("O título não foi encontrado.", role="status"),
+                        rx.link("Voltar ao catálogo", href="/catalogo"),
+                        align="start",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.has_public_catalog_detail,
+                    rx.el.article(
+                        rx.el.h2(
+                            State.public_catalog_detail["titulo"],
+                            class_name="catalog-detail-heading",
+                        ),
+                        rx.text(
+                            "Autoria: ",
+                            State.public_catalog_detail["autores"],
+                        ),
+                        rx.text(
+                            "Categorias: ",
+                            State.public_catalog_detail_categories,
+                        ),
+                        rx.text(
+                            "Exemplares disponíveis: ",
+                            State.public_catalog_detail["exemplares_disponiveis"],
+                        ),
+                        rx.cond(
+                            State.public_catalog_detail["isbn"] != "",
+                            rx.text("ISBN: ", State.public_catalog_detail["isbn"]),
+                            rx.fragment(),
+                        ),
+                        rx.cond(
+                            State.public_catalog_detail["editora"] != "",
+                            rx.text(
+                                "Editora: ",
+                                State.public_catalog_detail["editora"],
+                            ),
+                            rx.fragment(),
+                        ),
+                        rx.cond(
+                            State.public_catalog_detail["edicao"] != "",
+                            rx.text(
+                                "Edição: ",
+                                State.public_catalog_detail["edicao"],
+                            ),
+                            rx.fragment(),
+                        ),
+                        rx.cond(
+                            State.public_catalog_detail["ano_publicacao"] != "",
+                            rx.text(
+                                "Ano de publicação: ",
+                                State.public_catalog_detail["ano_publicacao"],
+                            ),
+                            rx.fragment(),
+                        ),
+                        rx.cond(
+                            State.public_catalog_detail["descricao"] != "",
+                            rx.text(
+                                State.public_catalog_detail["descricao"],
+                                class_name="catalog-description",
+                            ),
+                            rx.fragment(),
+                        ),
+                        class_name="catalog-detail-card",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.link("Voltar ao catálogo", href="/catalogo"),
+                id="conteudo-detalhe",
+                class_name="content-section catalog-section",
+            ),
+            class_name="main-content",
+        ),
+        rx.el.footer(rx.text("Biblioteca escolar"), class_name="site-footer"),
+        class_name="app-shell",
     )
 
 
@@ -976,6 +1411,57 @@ app = rx.App(
             "gap": "1rem",
             "padding": "2rem 1rem",
         },
+        ".catalog-section": {
+            "width": "100%",
+            "max_width": "72rem",
+            "margin": "1rem auto",
+        },
+        ".catalog-controls": {
+            "display": "grid",
+            "grid_template_columns": "repeat(auto-fit, minmax(min(100%, 12rem), 1fr))",
+            "align_items": "end",
+            "gap": "1rem",
+            "width": "100%",
+            "padding": "1rem",
+            "border": "1px solid var(--gray-6)",
+            "border_radius": "0.75rem",
+            "background_color": "var(--gray-1)",
+        },
+        ".catalog-filter": {
+            "display": "flex",
+            "flex_direction": "column",
+            "gap": "0.4rem",
+            "min_width": "0",
+        },
+        ".catalog-grid": {
+            "display": "grid",
+            "grid_template_columns": "repeat(auto-fit, minmax(min(100%, 16rem), 1fr))",
+            "gap": "1rem",
+            "width": "100%",
+        },
+        ".catalog-card, .catalog-detail-card": {
+            "display": "flex",
+            "flex_direction": "column",
+            "align_items": "flex-start",
+            "gap": "0.75rem",
+            "min_width": "0",
+            "padding": "1.25rem",
+            "border": "1px solid var(--gray-6)",
+            "border_radius": "0.75rem",
+            "background_color": "var(--gray-1)",
+            "box_shadow": "0 0.5rem 1.5rem rgba(0, 0, 0, 0.08)",
+        },
+        ".catalog-card-heading, .catalog-detail-heading": {
+            "overflow_wrap": "anywhere",
+        },
+        ".catalog-card-link": {
+            "font_weight": "700",
+        },
+        ".catalog-description": {
+            "max_width": "100%",
+            "white_space": "pre-wrap",
+            "overflow_wrap": "anywhere",
+        },
         ".signup-section": {
             "width": "min(100%, 34rem)",
             "margin": "2rem auto",
@@ -1131,6 +1617,18 @@ app = rx.App(
 app.add_page(index, title="Biblioteca escolar")
 app.add_page(student_signup, route="/cadastro", title="Cadastro de estudante")
 app.add_page(login_page, route="/login", title="Entrar")
+app.add_page(
+    public_catalog,
+    route="/catalogo",
+    title="Catálogo",
+    on_load=State.load_public_catalog,
+)
+app.add_page(
+    public_catalog_detail,
+    route="/catalogo/[titulo_id]",
+    title="Detalhes do título",
+    on_load=State.load_public_catalog_detail,
+)
 app.add_page(
     catalog_admin,
     route="/admin/acervo",

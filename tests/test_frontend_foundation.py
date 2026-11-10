@@ -28,8 +28,9 @@ def test_index_renders_navigable_application_shell():
     )
 
     assert nav.custom_attrs["aria-label"] == "Navegação principal"
-    assert len(links) == 2
+    assert len(links) == 3
     nav_content = repr(links)
+    assert "/catalogo" in nav_content
     assert "/cadastro" in nav_content
     assert "/login" in nav_content
     assert "/admin/acervo" in nav_content

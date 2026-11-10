@@ -5,6 +5,7 @@ from uuid import uuid4
 import httpx
 import pytest
 import reflex as rx
+from reflex.istate.data import PageData
 from reflex.istate.manager.token import BaseStateToken
 
 import biblioteca_mais_nova.biblioteca_mais_nova as frontend
@@ -15,7 +16,9 @@ from biblioteca_mais_nova.catalog import (
     category_contains_title,
     create_copy,
     create_title,
+    get_public_title,
     list_categories,
+    list_public_titles,
 )
 from biblioteca_mais_nova.xano_client import XanoRequestError, XanoResponseError
 
@@ -242,6 +245,257 @@ def test_catalog_services_reject_missing_ids_and_codes(monkeypatch):
                     ),
                 )
             )
+
+
+def test_public_catalog_services_validate_list_and_detail_without_auth(
+    monkeypatch,
+):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test/grupo")
+    entry = {
+        "titulo": {
+            "id": 81,
+            "titulo": "Ação e memória",
+            "autores": "Ana Exemplo",
+            "isbn": None,
+            "editora": "Editora",
+            "edicao": "2",
+            "ano_publicacao": 2024,
+            "descricao": "Uma descrição",
+        },
+        "categorias": [
+            {"id": 9, "titulo_id": 81, "categoria_id": 7},
+        ],
+        "exemplares_disponiveis": 2,
+    }
+    requests: list[httpx.Request] = []
+
+    def handle_request(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path.endswith("/catalogo/titulos/81"):
+            return httpx.Response(200, json=entry)
+        if request.url.path.endswith("/catalogo/titulos"):
+            return httpx.Response(200, json=[entry])
+        raise AssertionError(f"Chamada não esperada: {request.method} {request.url}")
+
+    transport = httpx.MockTransport(handle_request)
+    assert asyncio.run(list_public_titles(transport=transport)) == [entry]
+    assert asyncio.run(get_public_title(81, transport=transport)) == entry
+    assert [request.method for request in requests] == ["GET", "GET"]
+    assert [request.url.path for request in requests] == [
+        "/grupo/catalogo/titulos",
+        "/grupo/catalogo/titulos/81",
+    ]
+    assert all("Authorization" not in request.headers for request in requests)
+
+
+@pytest.mark.parametrize(
+    "response_body",
+    [
+        {"titulo": {}, "categorias": [], "exemplares_disponiveis": 0},
+        {
+            "titulo": {"id": 81, "titulo": "Livro", "autores": "Autoria"},
+            "categorias": [],
+            "exemplares_disponiveis": -1,
+        },
+        {
+            "titulo": {"id": 81, "titulo": "Livro", "autores": "Autoria"},
+            "categorias": [
+                {"id": 9, "titulo_id": 999, "categoria_id": 7},
+            ],
+            "exemplares_disponiveis": 1,
+        },
+    ],
+)
+def test_public_catalog_services_reject_malformed_entries(
+    monkeypatch,
+    response_body,
+):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(200, json=[response_body])
+        if request.url.path.endswith("/catalogo/titulos")
+        else httpx.Response(200, json=response_body)
+    )
+    with pytest.raises(XanoRequestError):
+        asyncio.run(list_public_titles(transport=transport))
+
+    with pytest.raises(XanoRequestError):
+        asyncio.run(get_public_title(81, transport=transport))
+
+
+def test_public_catalog_detail_not_found_is_preserved(monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+
+    with pytest.raises(XanoResponseError) as error:
+        asyncio.run(
+            get_public_title(
+                999,
+                transport=httpx.MockTransport(
+                    lambda request: httpx.Response(404, json={"message": "Not found"})
+                ),
+            )
+        )
+
+    assert error.value.status_code == 404
+
+
+def test_public_catalog_state_loads_data_without_exposing_session(monkeypatch):
+    async def mocked_titles():
+        return [
+            {
+                "titulo": {"id": 81, "titulo": "Ação", "autores": "Ana"},
+                "categorias": [{"id": 9, "titulo_id": 81, "categoria_id": 7}],
+                "exemplares_disponiveis": 1,
+            },
+        ]
+
+    async def mocked_categories():
+        return [{"id": 7, "nome": "Literatura"}]
+
+    monkeypatch.setattr(frontend, "list_public_titles", mocked_titles)
+    monkeypatch.setattr(frontend, "list_categories", mocked_categories)
+
+    async def verify_state():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"public-catalog-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-privado-de-teste", "estudante")
+            await state.load_public_catalog()
+            serialized_state = json.dumps(state.dict(), default=str)
+            assert state.public_catalog_pending is False
+            assert len(state.filtered_public_catalog) == 1
+            assert state.filtered_public_catalog[0]["categorias"] == "Literatura"
+            assert "token-privado-de-teste" not in serialized_state
+            assert "_session_token" not in serialized_state
+
+    asyncio.run(verify_state())
+
+
+def test_public_catalog_filters_accented_search_category_availability_and_sort():
+    async def verify_filters():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"public-filters-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state.public_catalog_categories = [
+                {"id": 7, "nome": "Literatura"},
+                {"id": 8, "nome": "História"},
+            ]
+            state.public_catalog_entries = [
+                {
+                    "titulo": {"id": 2, "titulo": "Ética antiga", "autores": "Bia"},
+                    "categorias": [
+                        {"id": 10, "titulo_id": 2, "categoria_id": 8},
+                    ],
+                    "exemplares_disponiveis": 0,
+                },
+                {
+                    "titulo": {"id": 1, "titulo": "Ação e memória", "autores": "Ana"},
+                    "categorias": [
+                        {"id": 11, "titulo_id": 1, "categoria_id": 7},
+                    ],
+                    "exemplares_disponiveis": 2,
+                },
+            ]
+
+            assert [
+                item["titulo"] for item in state.filtered_public_catalog
+            ] == ["Ação e memória", "Ética antiga"]
+
+            state.public_catalog_search = "acao"
+            assert [
+                item["titulo"] for item in state.filtered_public_catalog
+            ] == ["Ação e memória"]
+
+            state.public_catalog_search = ""
+            state.set_public_catalog_category("7")
+            assert [
+                item["titulo"] for item in state.filtered_public_catalog
+            ] == ["Ação e memória"]
+
+            state.set_public_catalog_category("")
+            state.public_catalog_only_available = True
+            assert [
+                item["titulo"] for item in state.filtered_public_catalog
+            ] == ["Ação e memória"]
+
+            state.public_catalog_only_available = False
+            state.public_catalog_sort = "desc"
+            assert [
+                item["titulo"] for item in state.filtered_public_catalog
+            ] == ["Ética antiga", "Ação e memória"]
+
+            state.public_catalog_search = "sem resultados"
+            assert state.filtered_public_catalog == []
+
+    asyncio.run(verify_filters())
+
+
+def test_public_catalog_detail_loads_route_and_handles_invalid_ids(monkeypatch):
+    async def mocked_title(title_id):
+        assert title_id == 81
+        return {
+            "titulo": {
+                "id": 81,
+                "titulo": "Ação e memória",
+                "autores": "Ana",
+                "descricao": "Descrição pública",
+            },
+            "categorias": [{"id": 9, "titulo_id": 81, "categoria_id": 7}],
+            "exemplares_disponiveis": 3,
+        }
+
+    async def mocked_categories():
+        return [{"id": 7, "nome": "Literatura"}]
+
+    monkeypatch.setattr(frontend, "get_public_title", mocked_title)
+    monkeypatch.setattr(frontend, "list_categories", mocked_categories)
+
+    async def verify_detail():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"public-detail-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state.rx_router_page = PageData(params={"titulo_id": "81"})
+            await state.load_public_catalog_detail()
+            assert state.has_public_catalog_detail is True
+            assert state.public_catalog_detail["titulo"] == "Ação e memória"
+            assert state.public_catalog_detail["exemplares_disponiveis"] == 3
+            assert state.public_catalog_detail_categories == "Literatura"
+
+            state.rx_router_page = PageData(params={"titulo_id": "invalido"})
+            await state.load_public_catalog_detail()
+            assert state.public_catalog_detail_not_found is True
+            assert state.has_public_catalog_detail is False
+
+    asyncio.run(verify_detail())
+
+
+def test_public_catalog_routes_have_labeled_controls_and_return_links():
+    assert "catalogo" in frontend.app._unevaluated_pages
+    assert "catalogo/[titulo_id]" in frontend.app._unevaluated_pages
+
+    listing = list(_components(frontend.public_catalog()))
+    labels = [
+        component
+        for component in listing
+        if type(component).__name__ == "Label"
+    ]
+    assert [label.html_for._var_value for label in labels] == [
+        "catalog-search",
+        "catalog-category",
+        "catalog-sort",
+    ]
+    assert any(
+        component.id == "catalog-search"
+        for component in listing
+    )
+    assert "/catalogo" in repr(frontend.site_header())
+
+    detail = frontend.public_catalog_detail()
+    assert "Voltar" in repr(detail)
+    assert "#conteudo-detalhe" in repr(detail)
 
 
 def test_admin_events_block_visitors_and_students_before_writes(monkeypatch):

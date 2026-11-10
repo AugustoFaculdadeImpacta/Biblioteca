@@ -1,7 +1,7 @@
 """Operações de catálogo conforme os endpoints locais do Xano."""
 
 import json
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 import httpx
 
@@ -15,6 +15,23 @@ from biblioteca_mais_nova.xano_client import (
 class Category(TypedDict):
     id: int
     nome: str
+
+
+class PublicTitleFields(TypedDict):
+    id: int
+    titulo: str
+    autores: str
+    isbn: NotRequired[str | None]
+    editora: NotRequired[str | None]
+    edicao: NotRequired[str | None]
+    ano_publicacao: NotRequired[int | None]
+    descricao: NotRequired[str | None]
+
+
+class PublicCatalogEntry(TypedDict):
+    titulo: PublicTitleFields
+    categorias: list["TitleCategory"]
+    exemplares_disponiveis: int
 
 
 class TitlePayload(TypedDict, total=False):
@@ -108,6 +125,91 @@ async def list_categories(
             raise _response_error()
         parsed.append({"id": category["id"], "nome": category["nome"]})
     return parsed
+
+
+def _parse_public_catalog_entry(value: object) -> PublicCatalogEntry:
+    if not isinstance(value, dict):
+        raise _response_error()
+
+    title = value.get("titulo")
+    categories = value.get("categorias")
+    available = value.get("exemplares_disponiveis")
+    if (
+        not isinstance(title, dict)
+        or type(title.get("id")) is not int
+        or not isinstance(title.get("titulo"), str)
+        or not isinstance(title.get("autores"), str)
+        or not isinstance(categories, list)
+        or type(available) is not int
+        or available < 0
+    ):
+        raise _response_error()
+
+    parsed_title: PublicTitleFields = {
+        "id": title["id"],
+        "titulo": title["titulo"],
+        "autores": title["autores"],
+    }
+    for field in ("isbn", "editora", "edicao", "descricao"):
+        field_value = title.get(field)
+        if field_value is not None and not isinstance(field_value, str):
+            raise _response_error()
+        if field in title:
+            parsed_title[field] = field_value
+
+    year = title.get("ano_publicacao")
+    if year is not None and type(year) is not int:
+        raise _response_error()
+    if "ano_publicacao" in title:
+        parsed_title["ano_publicacao"] = year
+
+    parsed_categories: list[TitleCategory] = []
+    for category in categories:
+        if (
+            not isinstance(category, dict)
+            or type(category.get("id")) is not int
+            or category.get("titulo_id") != title["id"]
+            or type(category.get("titulo_id")) is not int
+            or type(category.get("categoria_id")) is not int
+        ):
+            raise _response_error()
+        parsed_categories.append(
+            {
+                "id": category["id"],
+                "titulo_id": category["titulo_id"],
+                "categoria_id": category["categoria_id"],
+            }
+        )
+
+    return {
+        "titulo": parsed_title,
+        "categorias": parsed_categories,
+        "exemplares_disponiveis": available,
+    }
+
+
+async def list_public_titles(
+    *,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> list[PublicCatalogEntry]:
+    client = XanoClient.from_environment(transport=transport)
+    response = await client.request("GET", "/catalogo/titulos")
+    titles = _response_json(response)
+    if not isinstance(titles, list):
+        raise _response_error()
+    return [_parse_public_catalog_entry(title) for title in titles]
+
+
+async def get_public_title(
+    title_id: int,
+    *,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> PublicCatalogEntry:
+    if type(title_id) is not int or title_id < 1:
+        raise _response_error()
+    client = XanoClient.from_environment(transport=transport)
+    response = await client.request("GET", f"/catalogo/titulos/{title_id}")
+    return _parse_public_catalog_entry(_response_json(response))
 
 
 async def create_title(
