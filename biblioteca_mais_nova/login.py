@@ -97,7 +97,11 @@ async def submit_login(
 def login_error_message(error: Exception) -> str:
     if isinstance(error, LoginValidationError):
         return str(error)
-    if isinstance(error, XanoResponseError) and error.status_code in {400, 401}:
+    if isinstance(error, XanoResponseError) and error.status_code in {
+        400,
+        401,
+        403,
+    }:
         return "Não foi possível autenticar. Confira os dados e tente novamente."
     if isinstance(error, XanoConfigurationError):
         return "O login está temporariamente indisponível. Tente novamente mais tarde."

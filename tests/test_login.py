@@ -137,7 +137,7 @@ def test_login_posts_only_contract_fields_through_mock_transport(
     }
 
 
-@pytest.mark.parametrize("status_code", [400, 401])
+@pytest.mark.parametrize("status_code", [400, 401, 403])
 def test_login_rejections_have_safe_message_and_hide_response(
     monkeypatch, caplog, status_code
 ):

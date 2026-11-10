@@ -36,6 +36,14 @@ from biblioteca_mais_nova.circulation import (
     list_my_reservations,
     request_title_loan,
 )
+from biblioteca_mais_nova.user_admin import (
+    UserAdminValidationError,
+    build_librarian_payload,
+    create_librarian,
+    list_librarians,
+    set_librarian_active,
+    user_admin_error_message,
+)
 from biblioteca_mais_nova.xano_client import (
     XanoConfigurationError,
     XanoRequestError,
@@ -88,6 +96,11 @@ class State(rx.State):
     student_request_pending: bool = False
     student_request_message: str = ""
     student_request_has_error: bool = False
+    librarian_management_pending: bool = False
+    librarian_management_message: str = ""
+    librarian_management_has_error: bool = False
+    librarian_management_success: bool = False
+    managed_librarians: list[dict[str, Any]] = []
 
     def _store_session_token(self, token: str) -> None:
         if not token:
@@ -115,9 +128,16 @@ class State(rx.State):
             "admin",
         }
 
+    def _is_admin(self) -> bool:
+        return bool(self._session_token) and self._session_profile == "admin"
+
     @rx.var
     def is_librarian(self) -> bool:
         return self._is_librarian()
+
+    @rx.var
+    def can_manage_librarians(self) -> bool:
+        return self._is_admin()
 
     @rx.var
     def is_student(self) -> bool:
@@ -209,6 +229,11 @@ class State(rx.State):
             return rx.redirect("/login")
         return rx.redirect("/")
 
+    def _redirect_non_admin(self):
+        if not self._session_token:
+            return rx.redirect("/login")
+        return rx.redirect("/")
+
     @rx.event
     def logout(self):
         self._clear_session_token()
@@ -226,6 +251,11 @@ class State(rx.State):
         self.student_library_reservations = []
         self.student_request_message = ""
         self.student_request_has_error = False
+        self.librarian_management_pending = False
+        self.librarian_management_message = ""
+        self.librarian_management_has_error = False
+        self.librarian_management_success = False
+        self.managed_librarians = []
         self.catalog_categories = []
         self.selected_category_ids = []
         self.catalog_categories_pending = False
@@ -522,6 +552,118 @@ class State(rx.State):
         return rx.redirect("/")
 
     @rx.event
+    async def load_librarians(self):
+        if not self._is_admin():
+            return self._redirect_non_admin()
+
+        self.librarian_management_pending = True
+        self.librarian_management_message = ""
+        self.librarian_management_has_error = False
+        try:
+            self.managed_librarians = await list_librarians(
+                self._session_token
+            )
+        except (
+            UserAdminValidationError,
+            XanoConfigurationError,
+            XanoRequestError,
+            XanoResponseError,
+        ) as error:
+            self.librarian_management_message = user_admin_error_message(error)
+            self.librarian_management_has_error = True
+        finally:
+            self.librarian_management_pending = False
+
+    @rx.event
+    async def submit_librarian(self, form_data: dict[str, Any]):
+        if not self._is_admin():
+            return self._redirect_non_admin()
+
+        self.librarian_management_pending = True
+        self.librarian_management_message = ""
+        self.librarian_management_has_error = False
+        self.librarian_management_success = False
+        try:
+            payload = build_librarian_payload(
+                {
+                    "nome": str(form_data.get("nome", "")),
+                    "email": str(form_data.get("email", "")),
+                    "senha": str(form_data.get("senha", "")),
+                }
+            )
+            librarian = await create_librarian(
+                payload,
+                self._session_token,
+            )
+        except (
+            UserAdminValidationError,
+            XanoConfigurationError,
+            XanoRequestError,
+            XanoResponseError,
+        ) as error:
+            self.librarian_management_message = user_admin_error_message(error)
+            self.librarian_management_has_error = True
+            return
+        finally:
+            self.librarian_management_pending = False
+
+        self.managed_librarians = [
+            item
+            for item in self.managed_librarians
+            if item["id"] != librarian["id"]
+        ]
+        self.managed_librarians.append(librarian)
+        self.librarian_management_message = "Bibliotecário cadastrado."
+        self.librarian_management_success = True
+        return rx.call_script(
+            "document.getElementById('form-cadastro-bibliotecario')?.reset()"
+        )
+
+    @rx.event
+    async def set_librarian_active(self, librarian_id: int, active: bool):
+        if not self._is_admin():
+            return self._redirect_non_admin()
+        if type(librarian_id) is not int or librarian_id < 1:
+            self.librarian_management_message = (
+                "Não foi possível identificar o bibliotecário."
+            )
+            self.librarian_management_has_error = True
+            return
+
+        self.librarian_management_pending = True
+        self.librarian_management_message = ""
+        self.librarian_management_has_error = False
+        self.librarian_management_success = False
+        try:
+            librarian = await set_librarian_active(
+                librarian_id,
+                active,
+                self._session_token,
+            )
+        except (
+            UserAdminValidationError,
+            XanoConfigurationError,
+            XanoRequestError,
+            XanoResponseError,
+        ) as error:
+            self.librarian_management_message = user_admin_error_message(error)
+            self.librarian_management_has_error = True
+            return
+        finally:
+            self.librarian_management_pending = False
+
+        self.managed_librarians = [
+            librarian if item["id"] == librarian_id else item
+            for item in self.managed_librarians
+        ]
+        self.librarian_management_message = (
+            "Bibliotecário reativado."
+            if active
+            else "Bibliotecário desativado."
+        )
+        self.librarian_management_success = True
+
+    @rx.event
     async def load_catalog_categories(self):
         if not self._is_librarian():
             return self._redirect_non_librarian()
@@ -783,6 +925,14 @@ def site_header() -> rx.Component:
                     rx.cond(
                         State.is_librarian,
                         rx.link("Cadastrar livro", href="/admin/acervo"),
+                        rx.fragment(),
+                    ),
+                    rx.cond(
+                        State.can_manage_librarians,
+                        rx.link(
+                            "Bibliotecários",
+                            href="/admin/bibliotecarios",
+                        ),
                         rx.fragment(),
                     ),
                     rx.button(
@@ -1768,6 +1918,161 @@ def catalog_admin() -> rx.Component:
     )
 
 
+def librarian_card(librarian: rx.Var[dict[str, Any]]) -> rx.Component:
+    return rx.el.article(
+        rx.heading(librarian["nome"], size="4"),
+        rx.text(librarian["email"]),
+        rx.text(
+            rx.cond(librarian["ativo"], "Ativo", "Desativado"),
+            role="status",
+        ),
+        rx.cond(
+            librarian["ativo"],
+            rx.button(
+                "Desativar",
+                type="button",
+                on_click=State.set_librarian_active(librarian["id"], False),
+                disabled=State.librarian_management_pending,
+                class_name="nav-logout",
+            ),
+            rx.button(
+                "Reativar",
+                type="button",
+                on_click=State.set_librarian_active(librarian["id"], True),
+                disabled=State.librarian_management_pending,
+                class_name="focus-demo-button",
+            ),
+        ),
+        class_name="librarian-card",
+    )
+
+
+def librarian_management() -> rx.Component:
+    return rx.box(
+        rx.link(
+            "Pular para o conteúdo",
+            href="#conteudo-bibliotecarios",
+            class_name="skip-link",
+        ),
+        site_header(),
+        rx.el.main(
+            rx.el.section(
+                rx.heading("Gestão de bibliotecários", size="7"),
+                rx.text(
+                    "Somente administradores podem cadastrar, desativar e "
+                    "reativar contas bibliotecárias."
+                ),
+                rx.cond(
+                    State.librarian_management_message != "",
+                    rx.el.p(
+                        State.librarian_management_message,
+                        role=rx.cond(
+                            State.librarian_management_has_error,
+                            "alert",
+                            "status",
+                        ),
+                        aria_live="polite",
+                        class_name=rx.cond(
+                            State.librarian_management_has_error,
+                            "signup-feedback signup-feedback-error",
+                            "signup-feedback signup-feedback-success",
+                        ),
+                    ),
+                    rx.fragment(),
+                ),
+                rx.form(
+                    rx.el.label(
+                        "Nome",
+                        html_for="bibliotecario-nome",
+                        class_name="signup-label",
+                    ),
+                    rx.input(
+                        id="bibliotecario-nome",
+                        name="nome",
+                        type="text",
+                        required=True,
+                        aria_label="Nome do bibliotecário",
+                        class_name="signup-input",
+                    ),
+                    rx.el.label(
+                        "E-mail",
+                        html_for="bibliotecario-email",
+                        class_name="signup-label",
+                    ),
+                    rx.input(
+                        id="bibliotecario-email",
+                        name="email",
+                        type="email",
+                        required=True,
+                        aria_label="E-mail do bibliotecário",
+                        class_name="signup-input",
+                    ),
+                    rx.el.label(
+                        "Senha inicial",
+                        html_for="bibliotecario-senha",
+                        class_name="signup-label",
+                    ),
+                    rx.input(
+                        id="bibliotecario-senha",
+                        name="senha",
+                        type="password",
+                        required=True,
+                        aria_label="Senha inicial do bibliotecário",
+                        class_name="signup-input",
+                    ),
+                    rx.button(
+                        "Cadastrar bibliotecário",
+                        type="submit",
+                        disabled=State.librarian_management_pending,
+                        class_name="focus-demo-button",
+                    ),
+                    id="form-cadastro-bibliotecario",
+                    on_submit=State.submit_librarian,
+                    reset_on_submit=False,
+                    class_name="signup-form librarian-form",
+                ),
+                rx.heading("Contas bibliotecárias", size="5"),
+                rx.cond(
+                    State.librarian_management_pending,
+                    rx.text("Carregando bibliotecários…", role="status"),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.managed_librarians.length() > 0,
+                    rx.el.div(
+                        rx.foreach(State.managed_librarians, librarian_card),
+                        class_name="librarian-list",
+                    ),
+                    rx.cond(
+                        State.librarian_management_pending,
+                        rx.fragment(),
+                        rx.cond(
+                            State.librarian_management_has_error,
+                            rx.fragment(),
+                            rx.text(
+                                "Nenhum bibliotecário cadastrado.",
+                                role="status",
+                            ),
+                        ),
+                    ),
+                ),
+                rx.button(
+                    "Atualizar lista",
+                    type="button",
+                    on_click=State.load_librarians,
+                    disabled=State.librarian_management_pending,
+                    class_name="nav-logout",
+                ),
+                id="conteudo-bibliotecarios",
+                class_name="content-section librarian-management-section",
+            ),
+            class_name="main-content",
+        ),
+        rx.el.footer(rx.text("Biblioteca escolar"), class_name="site-footer"),
+        class_name="app-shell",
+    )
+
+
 app = rx.App(
     style={
         "font_family": "system-ui, sans-serif",
@@ -1899,6 +2204,31 @@ app = rx.App(
             "border_radius": "1rem",
             "background_color": "var(--gray-1)",
             "box_shadow": "0 1rem 2.5rem rgba(0, 0, 0, 0.12)",
+        },
+        ".librarian-management-section": {
+            "width": "min(100%, 72rem)",
+            "margin": "1rem auto",
+        },
+        ".librarian-form": {
+            "width": "min(100%, 34rem)",
+        },
+        ".librarian-list": {
+            "display": "grid",
+            "grid_template_columns": "repeat(auto-fit, minmax(min(100%, 18rem), 1fr))",
+            "gap": "1rem",
+            "width": "100%",
+        },
+        ".librarian-card": {
+            "display": "flex",
+            "flex_direction": "column",
+            "align_items": "flex-start",
+            "gap": "0.75rem",
+            "min_width": "0",
+            "padding": "1rem",
+            "border": "1px solid var(--gray-6)",
+            "border_radius": "0.75rem",
+            "background_color": "var(--gray-1)",
+            "overflow_wrap": "anywhere",
         },
         ".signup-form": {
             "display": "flex",
@@ -2039,6 +2369,9 @@ app = rx.App(
                 "margin": "1rem auto",
                 "padding": "1.25rem 1rem",
             },
+            ".librarian-card": {
+                "width": "100%",
+            },
         },
     }
 )
@@ -2068,4 +2401,10 @@ app.add_page(
     route="/admin/acervo",
     title="Cadastro de acervo",
     on_load=State.load_catalog_categories,
+)
+app.add_page(
+    librarian_management,
+    route="/admin/bibliotecarios",
+    title="Gestão de bibliotecários",
+    on_load=State.load_librarians,
 )
