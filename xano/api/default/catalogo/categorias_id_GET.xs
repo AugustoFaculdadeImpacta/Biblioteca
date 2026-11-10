@@ -21,8 +21,12 @@ query "catalogo/categorias/{categoria_id}" verb=GET {
       return = {type: "list"}
     } as $associacoes
 
+    array.map ($associacoes) {
+      by = $this.titulo_id
+    } as $titulo_ids
+
     db.query titulo {
-      where = $db.titulo.id in ($associacoes|pluck:"titulo_id")
+      where = $db.titulo.id in ($titulo_ids)
       return = {type: "list"}
     } as $titulos
   }

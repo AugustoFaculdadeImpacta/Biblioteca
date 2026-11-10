@@ -85,6 +85,18 @@ class TestCandidateContracts(unittest.TestCase):
         self.assertIn("text autores filters=trim", title)
         self.assertIn('type: "btree|unique", field: [{name: "codigo_tombo"', copy)
 
+    def test_category_title_queries_map_association_ids_without_unknown_pluck(self):
+        for filename in ("categorias_id_GET.xs", "categorias_titulos_GET.xs"):
+            source = (APIS / "catalogo" / filename).read_text(encoding="utf-8")
+            self.assertIn(
+                "array.map ($associacoes)",
+                source,
+                filename,
+            )
+            self.assertIn("by = $this.titulo_id", source, filename)
+            self.assertIn("$db.titulo.id in ($titulo_ids)", source, filename)
+            self.assertNotIn("|pluck:", source, filename)
+
     def test_admin_xanoscript_endpoints_require_auth_and_role(self):
         guarded_files = []
         for path in APIS.rglob("*.xs"):
