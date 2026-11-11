@@ -30,7 +30,7 @@
 
 - [x] 5.1 Distinguir timeout e resposta inválida de falha de transporte no cliente e parsers pessoais; verificar com testes `httpx.MockTransport` em `tests/test_xano_client.py` e `tests/test_student_area.py` (47 passaram entre cliente, área pessoal e catálogo).
 - [x] 5.2 Mapear 401, 403, 404, 5xx e falhas de transporte para mensagens específicas em português, sem incluir corpo/URL/token; verificar cada status com testes mockados em `tests/test_student_area.py` e `tests/test_catalog.py` (45 passaram).
-- [ ] 5.3 Ao receber 401 em Minha biblioteca, limpar a sessão local e oferecer link acessível para login, preservando alerta, estados vazios e demais dados; verificar com testes Reflex existentes.
+- [x] 5.3 Ao receber 401 em Minha biblioteca, limpar a sessão local e oferecer link acessível para login, preservando alerta, estados vazios e demais dados; verificar com testes Reflex existentes em área pessoal, navegação e catálogo (53 passaram).
 - [ ] 5.4 Executar `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation` e `openspec validate acervo-bibliotecario --strict`; registrar evidências no relatório autopilot.
 
 ## Bloqueio de publicação

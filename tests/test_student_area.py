@@ -299,6 +299,48 @@ def test_student_library_route_guards_before_any_personal_get(monkeypatch):
     asyncio.run(verify())
 
 
+def test_student_library_401_clears_session_and_offers_login(monkeypatch):
+    async def expired_session(token):
+        assert token == "token-expirado"
+        raise XanoResponseError(401)
+
+    async def unexpected_call(*args, **kwargs):
+        raise AssertionError("A carga deve parar no primeiro 401")
+
+    monkeypatch.setattr(frontend, "list_my_loans", expired_session)
+    monkeypatch.setattr(frontend, "list_my_requests", unexpected_call)
+    monkeypatch.setattr(frontend, "list_my_reservations", unexpected_call)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"student-expired-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-expirado", "estudante")
+
+            await state.load_student_library()
+
+            assert state._session_token == ""
+            assert state.is_authenticated is False
+            assert state.student_library_requires_login is True
+            assert state.student_library_has_error is True
+            assert state.student_library_pending is False
+            assert "Entre novamente" in state.student_library_message
+            assert state.student_library_loans == []
+            assert state.student_library_requests == []
+            assert state.student_library_reservations == []
+
+    asyncio.run(verify())
+
+    page = json.dumps(
+        json.loads(repr(frontend.student_library())),
+        ensure_ascii=False,
+    )
+    assert "Entrar novamente" in page
+    assert "/login" in page
+    assert "role" in page and "alert" in page
+
+
 def test_student_library_loads_only_session_data_and_deduplicates_linked_reserve(
     monkeypatch,
 ):

@@ -116,6 +116,7 @@ class State(rx.State):
     student_library_pending: bool = False
     student_library_message: str = ""
     student_library_has_error: bool = False
+    student_library_requires_login: bool = False
     student_library_loans: list[dict[str, Any]] = []
     student_library_requests: list[dict[str, Any]] = []
     student_library_reservations: list[dict[str, Any]] = []
@@ -599,6 +600,7 @@ class State(rx.State):
         self.student_library_pending = True
         self.student_library_message = ""
         self.student_library_has_error = False
+        self.student_library_requires_login = False
         try:
             loans = await list_my_loans(self._session_token)
             requests = await list_my_requests(self._session_token)
@@ -607,6 +609,9 @@ class State(rx.State):
         except (XanoConfigurationError, XanoRequestError, XanoResponseError) as error:
             self.student_library_message = catalog_error_message(error)
             self.student_library_has_error = True
+            if isinstance(error, XanoResponseError) and error.status_code == 401:
+                self._clear_session_token()
+                self.student_library_requires_login = True
             self.student_library_pending = False
             return
 
@@ -2000,6 +2005,60 @@ def public_catalog_detail() -> rx.Component:
 
 
 def student_library() -> rx.Component:
+    records = rx.fragment(
+        rx.el.section(
+            rx.heading("Empréstimos", size="5"),
+            rx.cond(
+                State.has_student_library_loans,
+                rx.box(
+                    rx.foreach(State.student_library_loans, student_loan_card),
+                    class_name="catalog-grid",
+                ),
+                rx.text(
+                    "Você ainda não possui empréstimos.",
+                    role="status",
+                ),
+            ),
+            class_name="student-library-section",
+            aria_label="Meus empréstimos",
+        ),
+        rx.el.section(
+            rx.heading("Solicitações", size="5"),
+            rx.cond(
+                State.has_student_library_requests,
+                rx.box(
+                    rx.foreach(
+                        State.student_library_requests,
+                        student_request_card,
+                    ),
+                    class_name="catalog-grid",
+                ),
+                rx.text(
+                    "Você não possui solicitações pendentes ou recentes.",
+                    role="status",
+                ),
+            ),
+            class_name="student-library-section",
+            aria_label="Minhas solicitações",
+        ),
+        rx.el.section(
+            rx.heading("Reservas", size="5"),
+            rx.cond(
+                State.has_student_library_reservations,
+                rx.box(
+                    rx.foreach(
+                        State.student_library_reservations,
+                        student_reservation_card,
+                    ),
+                    class_name="catalog-grid",
+                ),
+                rx.text("Você ainda não possui reservas.", role="status"),
+            ),
+            class_name="student-library-section",
+            aria_label="Minhas reservas",
+        ),
+    )
+
     return rx.box(
         rx.link(
             "Pular para o conteúdo",
@@ -2020,64 +2079,23 @@ def student_library() -> rx.Component:
                 ),
                 rx.cond(
                     State.student_library_has_error,
-                    rx.el.p(
-                        State.student_library_message,
+                    rx.el.div(
+                        rx.el.p(State.student_library_message),
+                        rx.cond(
+                            State.student_library_requires_login,
+                            rx.link("Entrar novamente", href="/login"),
+                            rx.fragment(),
+                        ),
                         role="alert",
                         aria_live="polite",
                         class_name="signup-feedback signup-feedback-error",
                     ),
                     rx.fragment(),
                 ),
-                rx.el.section(
-                    rx.heading("Empréstimos", size="5"),
-                    rx.cond(
-                        State.has_student_library_loans,
-                        rx.box(
-                            rx.foreach(State.student_library_loans, student_loan_card),
-                            class_name="catalog-grid",
-                        ),
-                        rx.text(
-                            "Você ainda não possui empréstimos.",
-                            role="status",
-                        ),
-                    ),
-                    class_name="student-library-section",
-                    aria_label="Meus empréstimos",
-                ),
-                rx.el.section(
-                    rx.heading("Solicitações", size="5"),
-                    rx.cond(
-                        State.has_student_library_requests,
-                        rx.box(
-                            rx.foreach(
-                                State.student_library_requests,
-                                student_request_card,
-                            ),
-                            class_name="catalog-grid",
-                        ),
-                        rx.text(
-                            "Você não possui solicitações pendentes ou recentes.",
-                            role="status",
-                        ),
-                    ),
-                    class_name="student-library-section",
-                    aria_label="Minhas solicitações",
-                ),
-                rx.el.section(
-                    rx.heading("Reservas", size="5"),
-                    rx.cond(
-                        State.has_student_library_reservations,
-                        rx.box(
-                            rx.foreach(
-                                State.student_library_reservations,
-                                student_reservation_card,
-                            ),
-                            class_name="catalog-grid",
-                        ),
-                        rx.text("Você ainda não possui reservas.", role="status"),
-                    ),
-                    class_name="student-library-section",
-                    aria_label="Minhas reservas",
+                rx.cond(
+                    State.student_library_has_error,
+                    rx.fragment(),
+                    records,
                 ),
                 rx.link("Voltar ao catálogo", href="/catalogo"),
                 id="conteudo-minha-biblioteca",
