@@ -47,6 +47,11 @@
   401 sem token — são evidências fornecidas pelo usuário, não foram repetidos
   nesta sessão. Não foi feita chamada autenticada nem tentativa de validar o
   token real.
+- A primeira tentativa de executar pytest pelo Python global 3.12 não encontrou
+  o módulo pytest; o ambiente `.venv` existente foi usado sem instalar pacotes.
+- O primeiro commit do relatório falhou porque não havia identidade Git
+  configurada. O commit foi feito com identidade apenas na invocação, sem mudar
+  a configuração do repositório ou do usuário.
 
 ### Regras de domínio encontradas
 
@@ -91,8 +96,31 @@
 - `openspec validate perfil-admin-xano --strict`
 - `openspec validate reserva-pelo-bibliotecario --strict`
 
+## P1 — Correção de Minha biblioteca
+
+**Status: concluído localmente; causa da sessão real ainda não confirmada.**
+
+- Confirmado no código: chamadas `GET /minhas/*` já recebem
+  `Authorization: Bearer <token>` e exigem perfil estudante no XanoScript.
+  Portanto, não foi alterado o header nem criado fallback para a API demo.
+- O tratamento agora diferencia HTTP 401, 403, 404, 5xx, timeout, falha de
+  comunicação e resposta/payload inválido, sempre sem expor corpo, URL ou token.
+  Mensagens de negócio previamente permitidas continuam preservadas.
+- Em 401, o cliente limpa a sessão local, mantém um alerta acessível com link
+  para login e não apresenta estados vazios como se a consulta tivesse sucesso.
+  Estados vazios amigáveis permanecem para consultas válidas sem registros.
+- Verificação local/simulada: `.\.venv\Scripts\python.exe -m pytest
+  --ignore=evaluation` — **156 passaram**; `openspec validate
+  acervo-bibliotecario --strict` — **válida**. Cobertura usa transporte mockado;
+  não valida o token nem o comportamento autenticado no Xano real.
+- Uma expectativa inicial do teste de mensagem de negócio usou o texto Xano
+  não traduzido; foi corrigida para conferir a mensagem permitida sanitizada.
+  A suíte direcionada e a suíte completa passaram depois do ajuste.
+- Não há tarefa de publicação de Xano decorrente de P1: a mudança é somente no
+  cliente Reflex e no parser. A causa remota provável continua sendo sessão/
+  token rejeitado, mas não foi afirmada como confirmada.
+
 ### Próximos itens
 
-P1: mensagens específicas e fluxo recuperável para falhas de sessão/serviço na
-área Minha biblioteca. P2: corrigir a validação estrita da Change de perfil.
-As demais prioridades serão documentadas após cada item.
+P2: preservar os cenários do requisito de navegação e validar
+`perfil-admin-xano`. P3–P6 serão registrados após cada item.

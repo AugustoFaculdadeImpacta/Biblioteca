@@ -47,6 +47,9 @@ Segundo as evidências fornecidas pelo usuário, `/minhas/emprestimos`,
 pendente dessas rotas identificada neste diagnóstico; o erro observado após
 login requer tratamento local da sessão e verificação posterior autorizada.
 
+P1 alterou somente o cliente Reflex, parsers e mensagens locais; não adicionou
+nem modificou contratos Xano e não requer publicação.
+
 ## Estado da verificação
 
 - Validação local de sintaxe MCP: três rotas pessoais válidas.
