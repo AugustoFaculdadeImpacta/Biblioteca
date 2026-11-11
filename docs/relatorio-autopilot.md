@@ -213,3 +213,34 @@ P5–P6 serão registrados após cada item.
 
 P4: revisar e concluir as tarefas locais ainda pendentes das três Changes.
 Tarefas remotas continuam abertas e não serão marcadas como concluídas.
+
+## P4.1 — Detalhes do título na área pessoal
+
+**Status: concluído localmente.**
+
+- Títulos exibidos nas solicitações e reservas do estudante agora são links
+  para `/catalogo/{titulo_id}`. O estado da solicitação/reserva e o prazo
+  continuam visíveis e os dados permanecem limitados à sessão autenticada.
+- Verificação: `.\.venv\Scripts\python.exe -m pytest
+  tests\test_student_area.py -q` — **24 passaram**;
+  `openspec validate acervo-bibliotecario --strict` — válida.
+- Nenhum endpoint ou dado remoto foi alterado.
+
+### Decisões tomadas
+
+- Reutilizar a rota pública existente de detalhes e o `titulo_id` retornado
+  pelos endpoints pessoais; não adicionar dados nem permissões ao backend.
+- Manter o nome do título apresentado caso o catálogo público não exponha mais
+  o detalhe (por exemplo, título desativado); o link continua sujeito à
+  política pública vigente.
+
+### Como verificar
+
+- `.\.venv\Scripts\python.exe -m pytest tests\test_student_area.py -q`
+- `openspec validate acervo-bibliotecario --strict`
+
+### Próximos itens
+
+P4.2: operações de bibliotecária para fila de solicitações, retirada,
+recusa/devolução, atrasos e resumo. P4.3: alternância de visualização somente
+na interface para admin.

@@ -386,7 +386,9 @@ def test_student_library_loads_only_session_data_and_deduplicates_linked_reserve
             assert state.student_library_loans[0]["em_atraso"] is True
             assert len(state.student_library_requests) == 1
             assert state.student_library_requests[0]["id"] == 32
+            assert state.student_library_requests[0]["href"] == "/catalogo/14"
             assert state.student_library_reservations[0]["titulo"] == "Livro público"
+            assert state.student_library_reservations[0]["href"] == "/catalogo/14"
             assert state.student_library_reservations[0]["prazo"] == (
                 "12/11/2026 09:00"
             )

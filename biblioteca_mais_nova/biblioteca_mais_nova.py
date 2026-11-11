@@ -638,6 +638,7 @@ class State(rx.State):
                 "titulo": title_names.get(
                     request["titulo_id"], f"Título #{request['titulo_id']}"
                 ),
+                "href": f"/catalogo/{request['titulo_id']}",
                 "estado": _request_status_label(request["estado"]),
                 "solicitada_em": _format_timestamp(
                     request.get("solicitada_em")
@@ -656,6 +657,7 @@ class State(rx.State):
                     reservation["titulo_id"],
                     f"Título #{reservation['titulo_id']}",
                 ),
+                "href": f"/catalogo/{reservation['titulo_id']}",
                 "estado": _reservation_status_label(reservation["estado"]),
                 "prazo": _format_sao_paulo_deadline(
                     reservation["expira_em_sao_paulo"]
@@ -1716,7 +1718,10 @@ def student_loan_card(loan: rx.Var[dict[str, Any]]) -> rx.Component:
 
 def student_request_card(request: rx.Var[dict[str, Any]]) -> rx.Component:
     return rx.el.article(
-        rx.el.h3(request["titulo"], class_name="catalog-card-heading"),
+        rx.el.h3(
+            rx.link(request["titulo"], href=request["href"]),
+            class_name="catalog-card-heading",
+        ),
         rx.text("Solicitação: ", request["estado"]),
         rx.text("Enviada em: ", request["solicitada_em"]),
         class_name="catalog-card",
@@ -1725,7 +1730,10 @@ def student_request_card(request: rx.Var[dict[str, Any]]) -> rx.Component:
 
 def student_reservation_card(reservation: rx.Var[dict[str, Any]]) -> rx.Component:
     return rx.el.article(
-        rx.el.h3(reservation["titulo"], class_name="catalog-card-heading"),
+        rx.el.h3(
+            rx.link(reservation["titulo"], href=reservation["href"]),
+            class_name="catalog-card-heading",
+        ),
         rx.text("Reserva: ", reservation["estado"]),
         rx.text("Prazo: ", reservation["prazo"]),
         class_name="catalog-card",

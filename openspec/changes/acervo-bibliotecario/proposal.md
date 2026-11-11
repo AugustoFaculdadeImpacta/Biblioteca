@@ -14,6 +14,7 @@ Bibliotecários precisam consultar e manter o acervo completo, inclusive exempla
 - Preservar histórico e nunca excluir fisicamente título, exemplar, empréstimo ou reserva por esta capability.
 - Na área pessoal, distinguir falhas de sessão, permissão, rota, serviço e resposta inválida, com ação para entrar novamente quando a sessão expirar.
 - Preparar dados idempotentes de demonstração na API simulada e um script local de seed do catálogo Xano, sem executá-lo.
+- Facilitar a abertura dos detalhes públicos do título a partir das solicitações e reservas da área pessoal do estudante.
 
 ## Capabilities
 
@@ -27,6 +28,7 @@ Bibliotecários precisam consultar e manter o acervo completo, inclusive exempla
 ## Impact
 
 - Reflex: área administrativa para listar, cadastrar, editar, adicionar exemplares, desativar e reativar títulos.
+- Reflex: vincular os títulos das solicitações e reservas pessoais à página pública de detalhes, preservando estados e prazos exibidos.
 - API simulada: cerca de 30 títulos reais com autor, categoria e quantidades variadas, pelo menos seis categorias e contas de teste `@example.invalid`; o seed Xano cobre somente catálogo e exemplares, sem provisionar contas.
 - Script Xano: usar contratos locais existentes, obter endereço e token do ambiente de execução, iniciar em modo de prévia e exigir opção explícita para escritas; não executar nesta Change.
 - Xano: schema do título e operações de leitura/escrita necessárias; o contrato existente confirma `PATCH /catalogo/titulos/{tituloId}`, `POST /catalogo/titulos`, associações de categoria e criação de exemplares. `GET /admin/acervo` é um endpoint candidato aprovado para implementação local, ainda não confirmado no workspace remoto. Não haverá sincronização remota nesta Change local.

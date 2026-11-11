@@ -38,6 +38,10 @@
 - [x] 6.1 Popular a API simulada com 30 títulos reais contendo somente metadados bibliográficos, sete categorias, quantidades variadas de exemplares e três contas de teste `@example.invalid`; comprovar idempotência em `tests/test_demo_api_seed.py` (4 testes aprovados).
 - [x] 6.2 Escrever `scripts/seed_xano_demo.py` para categorias, títulos, associações e exemplares, com endereço/token somente por variáveis de ambiente, prévia por padrão e confirmação explícita do destino e da escrita; verificar idempotência com transporte simulado e modo de prévia. NÃO EXECUTADO no Xano real; é Python, portanto validação de XanoScript pelo MCP não se aplica.
 
+## 7. Acesso do estudante aos detalhes
+
+- [x] 7.1 Vincular os títulos das solicitações e reservas pessoais à rota pública de detalhes; `tests/test_student_area.py` confirma o `titulo_id` nos links e preserva estado/prazo (24 testes aprovados), com `openspec validate acervo-bibliotecario --strict` válido.
+
 ## Bloqueio de publicação
 
 O Apply é local. O workspace `151966`, branch `v1` (live), não recebeu alterações. Os contratos candidatos locais ainda precisam de publicação e testes reais autorizados antes de considerar o backend verificado; não arquivar esta Change enquanto a tarefa 2.5 estiver NÃO EXECUTADA.

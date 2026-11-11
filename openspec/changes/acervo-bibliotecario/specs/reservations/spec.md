@@ -16,3 +16,12 @@ O sistema MUST verificar autenticação, perfil estudante, situação ativa do t
 #### Scenario: Título desativado
 - **WHEN** estudante tenta criar reserva para título inativo
 - **THEN** o backend recusa a operação sem adicionar ou alterar itens da fila
+
+## ADDED Requirements
+
+### Requirement: Estudante abre detalhes do título reservado
+A área pessoal MUST permitir que estudante abra os detalhes públicos do título associado à própria solicitação ou reserva, sem alterar o estado ou o prazo.
+
+#### Scenario: Abrir detalhes de uma solicitação ou reserva
+- **WHEN** estudante seleciona o título exibido em uma solicitação ou reserva própria
+- **THEN** a interface abre a rota pública de detalhes do mesmo `titulo_id` e preserva o estado e o prazo apresentados na área pessoal

@@ -59,6 +59,10 @@ O script Xano é separado e limitado a categorias, títulos, vínculos e exempla
 
 **Alternativa considerada:** criar contas de teste Xano pelo seed; rejeitada por não haver contrato aprovado para provisionar uma conta admin e por não ser requisito desta massa remota.
 
+### Acesso aos detalhes pelo histórico pessoal
+
+Os títulos das solicitações e reservas pessoais apontam para a rota pública de detalhes usando o `titulo_id` recebido na consulta autenticada. O link não altera a autorização nem solicita dados de outra conta; se o título estiver inativo, a rota pública pode continuar indisponível e a interface mantém o nome retornado na área pessoal.
+
 ### Operação e validação Xano
 
 O CLI confirmou workspace `151966`, branch `v1` live, grupo Biblioteca e `allow_push=false`; sandbox push não oferece filtro unitário `-i`. O pull somente de definições desta sessão contém 57 documentos em uma pasta temporária fora do repositório. Nenhuma escrita será enviada ao Xano. Não alterar `allow_push`, não usar sandbox push nem sincronizar `xano/`. O Xano Developer MCP valida sintaxe local e informa documentação, mas não garante execução, concorrência ou publicação no workspace; contratos não encontrados no pull permanecem candidatos locais. Antes de qualquer operação remota futura, repetir a identificação do destino, obter pull isolado e rollback fora do repositório, e exigir dry-run unitário de um único CREATE/UPDATE para cada arquivo.
