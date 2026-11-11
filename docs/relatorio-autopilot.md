@@ -120,7 +120,43 @@
   cliente Reflex e no parser. A causa remota provável continua sendo sessão/
   token rejeitado, mas não foi afirmada como confirmada.
 
+## P2 — Validação estrita de perfil-admin-xano
+
+**Status: concluído localmente.**
+
+- A validação estrita apontava que a delta da Change havia omitido dois
+  cenários ainda vigentes do requisito consolidado de navegação:
+  “Usuário autenticado navega na aplicação” e
+  “Administrador autenticado navega na aplicação”.
+- A correção mínima restaurou esses dois cenários em
+  `openspec/changes/perfil-admin-xano/specs/frontend-foundation/spec.md`,
+  preservando os cenários novos da Change.
+- Verificação: `openspec validate perfil-admin-xano --strict` válida;
+  `openspec validate acervo-bibliotecario --strict` válida;
+  `openspec validate reserva-pelo-bibliotecario --strict` válida;
+  `openspec validate --specs --strict` — 6 válidas, 0 inválidas.
+- Suíte local: `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation` —
+  **156 passaram**. Nenhum pacote foi instalado e nenhuma operação remota foi
+  executada.
+
+### Decisões tomadas
+
+- Manter os dois cenários preexistentes com seus nomes e comportamentos
+  consolidados, sem remover nem reescrever os cenários novos da Change.
+- Não alterar código nem contratos Xano: P2 era uma correção de consistência
+  dos artefatos OpenSpec.
+- Manter `docs/publicacao-xano-pendente.md` sem alteração; P2 não adicionou
+  trabalho que precise ser publicado no Xano real.
+
+### Como verificar
+
+- `openspec validate perfil-admin-xano --strict`
+- `openspec validate --specs --strict`
+- `openspec validate acervo-bibliotecario --strict`
+- `openspec validate reserva-pelo-bibliotecario --strict`
+- `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation`
+
 ### Próximos itens
 
-P2: preservar os cenários do requisito de navegação e validar
-`perfil-admin-xano`. P3–P6 serão registrados após cada item.
+P3: povoamento idempotente da API simulada e preparação do script de seed Xano
+sem execução. P4–P6 serão registrados após cada item.
