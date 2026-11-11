@@ -13,6 +13,7 @@ Bibliotecários precisam consultar e manter o acervo completo, inclusive exempla
 - Exigir autenticação e autorização de bibliotecário ou admin no backend para operações administrativas; a interface não substitui essa validação.
 - Preservar histórico e nunca excluir fisicamente título, exemplar, empréstimo ou reserva por esta capability.
 - Na área pessoal, distinguir falhas de sessão, permissão, rota, serviço e resposta inválida, com ação para entrar novamente quando a sessão expirar.
+- Preparar dados idempotentes de demonstração na API simulada e um script local de seed do catálogo Xano, sem executá-lo.
 
 ## Capabilities
 
@@ -26,6 +27,8 @@ Bibliotecários precisam consultar e manter o acervo completo, inclusive exempla
 ## Impact
 
 - Reflex: área administrativa para listar, cadastrar, editar, adicionar exemplares, desativar e reativar títulos.
+- API simulada: cerca de 30 títulos reais com autor, categoria e quantidades variadas, pelo menos seis categorias e contas de teste `@example.invalid`; o seed Xano cobre somente catálogo e exemplares, sem provisionar contas.
+- Script Xano: usar contratos locais existentes, obter endereço e token do ambiente de execução, iniciar em modo de prévia e exigir opção explícita para escritas; não executar nesta Change.
 - Xano: schema do título e operações de leitura/escrita necessárias; o contrato existente confirma `PATCH /catalogo/titulos/{tituloId}`, `POST /catalogo/titulos`, associações de categoria e criação de exemplares. `GET /admin/acervo` é um endpoint candidato aprovado para implementação local, ainda não confirmado no workspace remoto. Não haverá sincronização remota nesta Change local.
 - Testes pytest com transportes mockados, validação OpenSpec estrita e compilação Reflex.
 - A alteração de autorização para admin depende da conclusão da Change `perfil-admin-xano`; até lá, somente a autorização de bibliotecário existente pode ser considerada confirmada.

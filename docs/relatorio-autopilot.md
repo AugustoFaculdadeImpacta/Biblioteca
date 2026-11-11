@@ -158,5 +158,58 @@
 
 ### Próximos itens
 
-P3: povoamento idempotente da API simulada e preparação do script de seed Xano
-sem execução. P4–P6 serão registrados após cada item.
+P3 foi executado e está registrado na seção seguinte. P4 é a próxima etapa;
+P5–P6 serão registrados após cada item.
+
+## P3 — Povoamento idempotente
+
+**Status: concluído localmente; seed remoto não executado.**
+
+- A API simulada agora inicia com **30 títulos reais**, usando somente título,
+  autor e categorias; possui sete categorias, exemplares em quantidades
+  variadas e contas de bibliotecário, estudante e admin com e-mails
+  `@example.invalid`.
+- O seed local reutiliza categorias, títulos, vínculos e contas existentes por
+  chaves naturais normalizadas e completa exemplares faltantes sem apagar ou
+  sobrescrever registros. Duas chamadas consecutivas foram testadas sem
+  duplicações.
+- Foi criado `scripts/seed_xano_demo.py` para categorias, títulos,
+  associações e exemplares. O script usa `XANO_BASE_URL` e `XANO_ADMIN_TOKEN`
+  somente do ambiente de execução, inicia em prévia sem chamadas e exige
+  `--apply` e confirmação explícita do destino. Sua idempotência foi testada
+  com transporte simulado; o modo de prévia foi executado localmente.
+- O script Xano não provisiona contas. O contrato disponível não oferece uma
+  operação aprovada para criar uma conta admin de teste, e a necessidade de
+  contas de teste desta tarefa é atendida pela API simulada. A execução futura
+  do seed de catálogo depende de confirmar/publicar `GET /admin/acervo`, que
+  permanece candidato local.
+- Nenhum comando Xano, chamada remota ou escrita foi realizada. O artefato é
+  Python, não XanoScript; validação de sintaxe pelo Xano Developer MCP não se
+  aplica.
+- Testes locais: `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation` —
+  **160 passaram**; `openspec validate` de cada uma das três Changes — todas
+  válidas; `openspec validate --specs --strict` — **6 válidas, 0 inválidas**.
+
+### Decisões tomadas
+
+- Manter exatamente 30 títulos na massa simulada, preservar o empréstimo e os
+  estados demonstrativos iniciais e usar sete categorias.
+- Limitar o script Xano ao catálogo porque a criação de conta admin não tem
+  contrato aprovado; não inventar um endpoint de provisionamento.
+- Não executar nem conectar o script ao Xano; registrar `/admin/acervo` como
+  dependência remota pendente.
+
+### Como verificar
+
+- `.\.venv\Scripts\python.exe -m pytest tests\test_demo_api_seed.py -q`
+- `.\.venv\Scripts\python.exe -m scripts.seed_xano_demo`
+- `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation`
+- `openspec validate acervo-bibliotecario --strict`
+- `openspec validate perfil-admin-xano --strict`
+- `openspec validate reserva-pelo-bibliotecario --strict`
+- `openspec validate --specs --strict`
+
+### Próximos itens
+
+P4: revisar e concluir as tarefas locais ainda pendentes das três Changes.
+Tarefas remotas continuam abertas e não serão marcadas como concluídas.

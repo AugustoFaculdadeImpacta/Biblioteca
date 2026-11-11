@@ -128,3 +128,18 @@ O sistema MUST usar o estado `ativo` do título para remoção lógica e reativa
 #### Scenario: Perfil sem privilégio tenta desativar ou reativar
 - **WHEN** estudante ou visitante solicita desativação ou reativação
 - **THEN** o backend recusa a operação sem alterar o título
+
+### Requirement: Dados de demonstração são idempotentes
+A API simulada MUST oferecer um catálogo de demonstração com metadados bibliográficos, categorias, exemplares e contas de teste, sem texto de obras, e repetir o seed não pode duplicar registros.
+
+#### Scenario: Inicializar catálogo de demonstração
+- **WHEN** a API simulada é inicializada ou o seed local é chamado
+- **THEN** existem cerca de 30 títulos reais com título, autor e pelo menos uma categoria, quantidades variadas de exemplares, pelo menos seis categorias e contas de teste de estudante, bibliotecário e admin com e-mails `@example.invalid`
+
+#### Scenario: Repetir seed local
+- **WHEN** o seed da API simulada é executado mais de uma vez
+- **THEN** títulos, categorias, vínculos, exemplares e contas existentes não são duplicados nem sobrescritos
+
+#### Scenario: Preparar seed Xano
+- **WHEN** o script de seed Xano é preparado para execução futura
+- **THEN** ele usa contratos existentes de catálogo, lê endereço/token do ambiente de execução, inicia sem escritas e não é executado durante esta Change

@@ -32,9 +32,13 @@ permissões e diff unitário. Este documento não autoriza operações remotas.
 5. **Conferir fluxos de reserva e circulação alterados localmente.** Validar
    fila, disponibilidade, retirada, devolução e autorização antes de qualquer
    publicação.
-6. **Preparar e revisar o seed Xano sem executá-lo.** O script deve ser
-   idempotente e obter senhas somente de variáveis de ambiente em tempo de
-   execução; nenhuma senha ou URL poderá ser gravada no repositório.
+6. **Revisar e, após autorização, executar o seed do catálogo Xano.** O script
+   local `scripts/seed_xano_demo.py` cobre categorias, títulos, vínculos e
+   exemplares, obtém endereço/token somente do ambiente de execução, inicia em
+   prévia e exige `--apply` mais confirmação do destino. Ele depende de
+   `GET /admin/acervo`, contrato candidato ainda não confirmado no Xano remoto.
+   O script não provisiona contas: não há contrato aprovado para criar uma
+   conta admin de teste. Nenhuma escrita foi executada.
 7. **Executar testes remotos somente após autorização e destino confirmado.**
    Inclui testes de autorização, concorrência/FIFO e limpeza individual de
    registros sintéticos `@example.invalid`, sem exclusão global.
@@ -58,3 +62,6 @@ nem modificou contratos Xano e não requer publicação.
   fora dos limites desta execução.
 - Publicação, seed e testes autenticados no Xano real: pendentes e não
   executados.
+- O seed local foi verificado somente com transporte simulado e modo de prévia;
+  não houve chamada ao Xano real. Como o script é Python e não contém
+  XanoScript, validação de sintaxe pelo Xano Developer MCP não se aplica.

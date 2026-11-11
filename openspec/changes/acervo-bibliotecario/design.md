@@ -51,6 +51,14 @@ As chamadas pessoais preservam o token em estado privado e o enviam como `Author
 
 **Alternativa considerada:** trocar o token ou usar a API demo automaticamente após erro; rejeitada porque não há evidência da causa e isso ocultaria falhas de configuração/autorização.
 
+### Povoamento idempotente de demonstração
+
+A API simulada deve iniciar com um catálogo fixo e realista, categorias e três perfis de teste com e-mails `@example.invalid`. Um helper de seed reutiliza os registros por chaves naturais normalizadas e garante a quantidade de exemplares sem duplicar registros quando chamado repetidamente; não remove nem sobrescreve alterações existentes. A fixture inclui somente metadados bibliográficos, nunca texto das obras.
+
+O script Xano é separado e limitado a categorias, títulos, vínculos e exemplares. Deve consultar o estado antes de cada criação, usar exclusivamente variáveis de ambiente em tempo de execução para endereço/token e começar em modo de prévia; escrita exige opção explícita. O script não provisiona contas porque o contrato local disponível não permite criar um admin de teste, e não será executado nesta Change. `GET /admin/acervo` ainda é candidato local, portanto a execução futura depende de confirmar/publicar esse contrato e o destino.
+
+**Alternativa considerada:** criar contas de teste Xano pelo seed; rejeitada por não haver contrato aprovado para provisionar uma conta admin e por não ser requisito desta massa remota.
+
 ### Operação e validação Xano
 
 O CLI confirmou workspace `151966`, branch `v1` live, grupo Biblioteca e `allow_push=false`; sandbox push não oferece filtro unitário `-i`. O pull somente de definições desta sessão contém 57 documentos em uma pasta temporária fora do repositório. Nenhuma escrita será enviada ao Xano. Não alterar `allow_push`, não usar sandbox push nem sincronizar `xano/`. O Xano Developer MCP valida sintaxe local e informa documentação, mas não garante execução, concorrência ou publicação no workspace; contratos não encontrados no pull permanecem candidatos locais. Antes de qualquer operação remota futura, repetir a identificação do destino, obter pull isolado e rollback fora do repositório, e exigir dry-run unitário de um único CREATE/UPDATE para cada arquivo.

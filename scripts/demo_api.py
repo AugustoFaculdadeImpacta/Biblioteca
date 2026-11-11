@@ -9,12 +9,15 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlsplit
 
+if __package__:
+    from .demo_seed_data import CATEGORY_NAMES, DEMO_USERS, SEED_TITLES
+else:
+    from demo_seed_data import CATEGORY_NAMES, DEMO_USERS, SEED_TITLES
+
 
 HOST = "127.0.0.1"
 PORT = 8765
 PASSWORD = "demo123"
-TOKEN_LIBRARIAN = "demo-token-bibliotecario"
-TOKEN_STUDENT = "demo-token-estudante"
 
 
 class ApiError(Exception):
@@ -64,71 +67,12 @@ def _copy(copy_id: int, title_id: int, state: str) -> dict[str, object]:
 class DemoData:
     def __init__(self) -> None:
         self.lock = threading.RLock()
-        self.categories = [
-            {"id": 1, "nome": "Literatura", "created_at": _now()},
-            {"id": 2, "nome": "Ciências", "created_at": _now()},
-            {"id": 3, "nome": "História", "created_at": _now()},
-            {"id": 4, "nome": "Infantojuvenil", "created_at": _now()},
-        ]
-        self.titles = [
-            _title(1, "O Pequeno Príncipe", "Antoine de Saint-Exupéry"),
-            _title(
-                2,
-                "Uma Breve História do Tempo",
-                "Stephen Hawking",
-                isbn="9780553380163",
-                editora="Bantam",
-                ano_publicacao=1988,
-            ),
-            _title(3, "Brasil: Uma Biografia", "Lilia Schwarcz e Heloisa Starling"),
-            _title(4, "A Bolsa Amarela", "Lygia Bojunga"),
-            _title(5, "Atlas do Espaço", "Equipe Demo", active=False),
-        ]
-        self.title_categories = [
-            {"id": 1, "titulo_id": 1, "categoria_id": 1, "created_at": _now()},
-            {"id": 2, "titulo_id": 1, "categoria_id": 4, "created_at": _now()},
-            {"id": 3, "titulo_id": 2, "categoria_id": 2, "created_at": _now()},
-            {"id": 4, "titulo_id": 3, "categoria_id": 3, "created_at": _now()},
-            {"id": 5, "titulo_id": 4, "categoria_id": 4, "created_at": _now()},
-            {"id": 6, "titulo_id": 5, "categoria_id": 2, "created_at": _now()},
-        ]
-        self.copies = [
-            _copy(1, 1, "disponivel"),
-            _copy(2, 1, "disponivel"),
-            _copy(3, 2, "disponivel"),
-            _copy(4, 2, "emprestado"),
-            _copy(5, 3, "indisponivel"),
-            _copy(6, 3, "disponivel"),
-            _copy(7, 4, "reservado"),
-            _copy(8, 5, "disponivel"),
-        ]
-        self.students = [
-            {
-                "id": 101,
-                "nome": "Estudante Demonstração",
-                "email": "demo.estudante@example.invalid",
-                "perfil": "estudante",
-                "ativo": True,
-            }
-        ]
-        self.users = {
-            "demo.bibliotecario@example.invalid": {
-                "id": 1,
-                "nome": "Bibliotecário Demonstração",
-                "email": "demo.bibliotecario@example.invalid",
-                "perfil": "bibliotecario",
-                "ativo": True,
-                "token": TOKEN_LIBRARIAN,
-            },
-            "demo.estudante@example.invalid": {
-                "id": 101,
-                "nome": "Estudante Demonstração",
-                "email": "demo.estudante@example.invalid",
-                "perfil": "estudante",
-                "ativo": True,
-                "token": TOKEN_STUDENT,
-            },
-        }
+        self.categories: list[dict[str, object]] = []
+        self.titles: list[dict[str, object]] = []
+        self.title_categories: list[dict[str, object]] = []
+        self.copies: list[dict[str, object]] = []
+        self.students: list[dict[str, object]] = []
+        self.users: dict[str, dict[str, object]] = {}
         self.reservations: list[dict[str, object]] = []
         self.loans = [
             {
@@ -138,10 +82,12 @@ class DemoData:
                 "vence_em": "2099-12-31T23:59:59Z",
             }
         ]
-        self.next_title_id = 6
-        self.next_copy_id = 9
-        self.next_category_link_id = 7
+        self.next_title_id = 1
+        self.next_copy_id = 1
+        self.next_category_link_id = 1
         self.next_reservation_id = 1
+
+        seed_demo_data(self)
 
     def categories_for(self, title_id: int) -> list[dict[str, object]]:
         return [
@@ -171,6 +117,116 @@ class DemoData:
             if item["titulo_id"] == title["id"]
         ]
         return entry
+
+
+def _normalized(value: str) -> str:
+    return " ".join(value.strip().casefold().split())
+
+
+def seed_demo_data(data: DemoData) -> None:
+    with data.lock:
+        category_ids = {
+            _normalized(str(item["nome"])): int(item["id"])
+            for item in data.categories
+        }
+        next_category_id = max(category_ids.values(), default=0) + 1
+        for name in CATEGORY_NAMES:
+            key = _normalized(name)
+            if key not in category_ids:
+                category_ids[key] = next_category_id
+                data.categories.append(
+                    {"id": next_category_id, "nome": name, "created_at": _now()}
+                )
+                next_category_id += 1
+
+        title_ids = {
+            (_normalized(str(item["titulo"])), _normalized(str(item["autores"]))): int(
+                item["id"]
+            )
+            for item in data.titles
+        }
+        for seed in SEED_TITLES:
+            identity = (_normalized(seed.title), _normalized(seed.author))
+            title_id = title_ids.get(identity)
+            if title_id is None:
+                title_id = max(
+                    (int(item["id"]) for item in data.titles), default=0
+                ) + 1
+                data.titles.append(
+                    _title(
+                        title_id,
+                        seed.title,
+                        seed.author,
+                        active=seed.active,
+                    )
+                )
+                title_ids[identity] = title_id
+
+            for category_name in seed.categories:
+                category_id = category_ids[_normalized(category_name)]
+                if not any(
+                    int(link["titulo_id"]) == title_id
+                    and int(link["categoria_id"]) == category_id
+                    for link in data.title_categories
+                ):
+                    link_id = max(
+                        (int(link["id"]) for link in data.title_categories),
+                        default=0,
+                    ) + 1
+                    data.title_categories.append(
+                        {
+                            "id": link_id,
+                            "titulo_id": title_id,
+                            "categoria_id": category_id,
+                            "created_at": _now(),
+                        }
+                    )
+
+            current_copies = [
+                item for item in data.copies if int(item["titulo_id"]) == title_id
+            ]
+            for index in range(len(current_copies), seed.copies):
+                copy_id = max(
+                    (int(item["id"]) for item in data.copies), default=0
+                ) + 1
+                state = (
+                    seed.initial_copy_states[index]
+                    if index < len(seed.initial_copy_states)
+                    else "disponivel"
+                )
+                data.copies.append(_copy(copy_id, title_id, state))
+
+        existing_emails = {_normalized(email) for email in data.users}
+        for seed_user in DEMO_USERS:
+            email = str(seed_user["email"])
+            if _normalized(email) in existing_emails:
+                continue
+            user = {
+                **seed_user,
+                "ativo": True,
+            }
+            data.users[email] = user
+            if seed_user["perfil"] == "estudante" and not any(
+                _normalized(str(student["email"])) == _normalized(email)
+                for student in data.students
+            ):
+                data.students.append(
+                    {
+                        key: user[key]
+                        for key in ("id", "nome", "email", "perfil", "ativo")
+                    }
+                )
+            existing_emails.add(_normalized(email))
+
+        data.next_title_id = max(
+            (int(item["id"]) for item in data.titles), default=0
+        ) + 1
+        data.next_copy_id = max(
+            (int(item["id"]) for item in data.copies), default=0
+        ) + 1
+        data.next_category_link_id = max(
+            (int(item["id"]) for item in data.title_categories), default=0
+        ) + 1
 
 
 DATA = DemoData()
