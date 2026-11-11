@@ -1,4 +1,4 @@
-// Login de estudante ou de bibliotecário provisionado.
+// Login de estudante, bibliotecário ou administrador ativo.
 query "auth/login" verb=POST {
   api_group = "Biblioteca"
 
@@ -16,10 +16,15 @@ query "auth/login" verb=POST {
     db.get usuario {
       field_name = "email"
       field_value = $input.email
-      output = ["id", "nome", "email", "senha", "perfil"]
+      output = ["id", "nome", "email", "senha", "perfil", "ativo"]
     } as $usuario
 
     precondition ($usuario != null) {
+      error = "Credenciais inválidas."
+    }
+
+    precondition ($usuario.ativo != false) {
+      error_type = "accessdenied"
       error = "Credenciais inválidas."
     }
 

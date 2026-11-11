@@ -32,7 +32,7 @@ def input_fields(source):
         end += 1
     return set(
         re.findall(
-            r"^\s*(?:int|text|email|password|enum)\s+([A-Za-z_]\w*)",
+            r"^\s*(?:int|text|email|password|bool|enum)\s+([A-Za-z_]\w*)",
             source[start : end - 1],
             re.MULTILINE,
         )
@@ -74,21 +74,191 @@ class TestCandidateContracts(unittest.TestCase):
 
         self.assertIn('type: "btree|unique", field: [{name: "email"', user)
         self.assertIn('enum perfil', user)
+        self.assertIn('values = ["estudante", "bibliotecario", "admin"]', user)
+        self.assertIn("bool ativo?=true", user)
         self.assertIn('perfil : "estudante"', signup)
         self.assertIn('contains:" "', signup)
         self.assertIn('contains:" "', login)
         self.assertIn("password senha", signup)
+        self.assertIn('$usuario.ativo != false', login)
         self.assertIn("text titulo filters=trim", title)
         self.assertIn("text autores filters=trim", title)
+        self.assertIn("bool ativo?=true", title)
         self.assertIn('type: "btree|unique", field: [{name: "codigo_tombo"', copy)
 
+    def test_category_title_queries_map_association_ids_without_unknown_pluck(self):
+        for filename in ("categorias_id_GET.xs", "categorias_titulos_GET.xs"):
+            source = (APIS / "catalogo" / filename).read_text(encoding="utf-8")
+            self.assertIn(
+                "array.map ($associacoes)",
+                source,
+                filename,
+            )
+            self.assertIn("by = $this.titulo_id", source, filename)
+            self.assertIn("$db.titulo.id in ($titulo_ids)", source, filename)
+            self.assertNotIn("|pluck:", source, filename)
+
     def test_admin_xanoscript_endpoints_require_auth_and_role(self):
-        admin_files = list((APIS / "admin").glob("*.xs"))
-        self.assertGreaterEqual(len(admin_files), 3)
-        for path in admin_files:
+        guarded_files = []
+        for path in APIS.rglob("*.xs"):
+            source = path.read_text(encoding="utf-8")
+            if '$usuario.perfil == "bibliotecario"' in source:
+                guarded_files.append((path, source))
+                self.assertIn('auth = "usuario"', source, path.name)
+                self.assertIn(
+                    '$usuario.perfil == "bibliotecario" || $usuario.perfil == "admin"',
+                    source,
+                    path.name,
+                )
+                self.assertIn('$usuario.ativo != false', source, path.name)
+
+        self.assertEqual(18, len(guarded_files))
+
+        for path in [
+            APIS / "admin" / "usuarios_GET.xs",
+            APIS / "admin" / "usuarios_POST.xs",
+            APIS / "admin" / "usuarios_id_PATCH.xs",
+        ]:
             source = path.read_text(encoding="utf-8")
             self.assertIn('auth = "usuario"', source, path.name)
-            self.assertIn('$usuario.perfil == "bibliotecario"', source, path.name)
+            self.assertIn('$administrador.perfil == "admin"', source, path.name)
+            if "POST" in path.name:
+                self.assertIn("senha:", source)
+            self.assertNotIn("$authToken", source)
+
+    def test_user_management_candidates_are_admin_only_and_return_safe_fields(self):
+        list_users = (APIS / "admin" / "usuarios_GET.xs").read_text(
+            encoding="utf-8"
+        )
+        create_user = (APIS / "admin" / "usuarios_POST.xs").read_text(
+            encoding="utf-8"
+        )
+        update_user = (APIS / "admin" / "usuarios_id_PATCH.xs").read_text(
+            encoding="utf-8"
+        )
+
+        for source in (list_users, create_user, update_user):
+            self.assertIn('$administrador.perfil == "admin"', source)
+            self.assertIn("$administrador.ativo != false", source)
+            self.assertNotIn("$authToken", source)
+
+        self.assertIn('$db.usuario.perfil == "bibliotecario"', list_users)
+        for field in ("id", "nome", "email", "ativo"):
+            self.assertIn(f"{field}: $bibliotecario.{field}", list_users)
+
+        self.assertNotIn("perfil", input_fields(create_user))
+        self.assertIn('perfil: "bibliotecario"', create_user)
+        self.assertIn("ativo: true", create_user)
+        self.assertIn("email: $novo_bibliotecario.email", create_user)
+        self.assertNotIn("senha:", create_user.split("response =", 1)[-1])
+
+        self.assertIn("$input.usuario_id != $auth.id", update_user)
+        self.assertIn('$bibliotecario.perfil == "bibliotecario"', update_user)
+        self.assertIn("data = {ativo: $input.ativo}", update_user)
+        self.assertNotIn("senha:", update_user.split("response =", 1)[-1])
+
+    def test_title_active_state_is_filtered_publicly_and_guarded_for_writes(self):
+        public_list = (APIS / "catalogo" / "titulos_GET.xs").read_text(
+            encoding="utf-8"
+        )
+        public_detail = (APIS / "catalogo" / "titulos_id_GET.xs").read_text(
+            encoding="utf-8"
+        )
+        category_titles = (
+            APIS / "catalogo" / "categorias_titulos_GET.xs"
+        ).read_text(encoding="utf-8")
+        title_patch = (APIS / "catalogo" / "titulos_id_PATCH.xs").read_text(
+            encoding="utf-8"
+        )
+        loan_request = (
+            APIS / "emprestimos" / "solicitacoes_POST.xs"
+        ).read_text(encoding="utf-8")
+        reservation = (APIS / "reservas" / "reservas_POST.xs").read_text(
+            encoding="utf-8"
+        )
+        admin_catalog = (APIS / "admin" / "acervo_GET.xs").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("$titulo.ativo != false", public_list)
+        self.assertIn("$titulo.ativo != false", public_detail)
+        self.assertIn("$db.titulo.ativo != false", category_titles)
+        self.assertIn("$input.ativo == false", title_patch)
+        self.assertIn("db.transaction", title_patch)
+        self.assertIn("$emprestimos_ativos == 0", title_patch)
+        self.assertIn("$reservas_ativas == 0", title_patch)
+        self.assertIn("devolvido_em == null", title_patch)
+        self.assertIn("devolvido_em == 0", title_patch)
+
+        for source in (loan_request, reservation):
+            self.assertIn("$titulo.ativo != false", source)
+            self.assertLess(
+                source.index("$titulo.ativo != false"),
+                source.index("db.add "),
+            )
+
+        self.assertIn('query "admin/acervo" verb=GET', admin_catalog)
+        self.assertIn('auth = "usuario"', admin_catalog)
+        self.assertIn('$usuario.perfil == "bibliotecario" || $usuario.perfil == "admin"', admin_catalog)
+        self.assertIn("exemplares: $exemplares", admin_catalog)
+        self.assertIn("exemplares_disponiveis: $disponiveis", admin_catalog)
+        self.assertNotIn("senha", admin_catalog)
+
+    def test_staff_reservation_endpoints_enforce_identity_and_fifo_rules(self):
+        search_student = (APIS / "admin" / "estudantes_GET.xs").read_text(
+            encoding="utf-8"
+        )
+        create_reservation = (APIS / "admin" / "reservas_POST.xs").read_text(
+            encoding="utf-8"
+        )
+        document = json.loads(OPENAPI.read_text(encoding="utf-8"))
+        paths = document["paths"]
+
+        self.assertIn('query "admin/estudantes" verb=GET', search_student)
+        self.assertIn("email", input_fields(search_student))
+        self.assertIn('$usuario.perfil == "bibliotecario" || $usuario.perfil == "admin"', search_student)
+        self.assertIn('$usuario.ativo != false', search_student)
+        self.assertIn('$db.usuario.email == $input.email', search_student)
+        self.assertIn('$db.usuario.perfil == "estudante"', search_student)
+        self.assertIn('$db.usuario.ativo != false', search_student)
+        self.assertIn("id: $estudante.id", search_student)
+        self.assertIn("nome: $estudante.nome", search_student)
+        self.assertNotIn("$estudante.email", search_student)
+        self.assertNotIn("senha", search_student)
+        self.assertNotIn("hash", search_student)
+        self.assertNotIn("token", search_student)
+
+        self.assertIn('query "admin/reservas" verb=POST', create_reservation)
+        self.assertEqual({"usuario_id", "titulo_id"}, input_fields(create_reservation))
+        self.assertIn('$usuario.perfil == "bibliotecario" || $usuario.perfil == "admin"', create_reservation)
+        self.assertIn('$estudante.perfil == "estudante"', create_reservation)
+        self.assertIn("$estudante.ativo != false", create_reservation)
+        self.assertIn("$titulo.ativo != false", create_reservation)
+        self.assertIn("$emprestimos_atrasados == 0", create_reservation)
+        self.assertIn("$emprestimos_do_titulo == 0", create_reservation)
+        self.assertIn("$reservas_ativas == 0", create_reservation)
+        self.assertIn("db.transaction", create_reservation)
+        self.assertIn("estado: \"aguardando\"", create_reservation)
+        self.assertNotIn("prioridade", create_reservation)
+        self.assertNotIn("posicao", create_reservation)
+        self.assertNotIn("senha", create_reservation)
+        self.assertNotIn("hash", create_reservation)
+        self.assertNotIn("token", create_reservation)
+
+        search = paths["/admin/estudantes"]["get"]
+        email_parameter = next(
+            parameter
+            for parameter in search["parameters"]
+            if parameter["name"] == "email"
+        )
+        self.assertEqual("query", email_parameter["in"])
+        self.assertTrue(email_parameter["required"])
+        self.assertEqual(["id", "nome"], search["responses"]["200"]["content"]["application/json"]["schema"]["items"]["required"])
+        reservation = paths["/admin/reservas"]["post"]
+        body = reservation["requestBody"]["content"]["application/json"]["schema"]
+        self.assertEqual({"usuario_id", "titulo_id"}, set(body["properties"]))
+        self.assertEqual({"usuario_id", "titulo_id"}, set(body["required"]))
+        self.assertTrue(body["additionalProperties"] is False)
 
     def test_xanoscript_candidate_delimiters_are_balanced(self):
         for path in ROOT.rglob("*.xs"):
@@ -113,6 +283,8 @@ class TestCandidateContracts(unittest.TestCase):
             "/solicitacoes-emprestimo",
             "/reservas",
             "/admin/reservas/processar-expiradas",
+            "/admin/estudantes",
+            "/admin/reservas",
             "/admin/exemplares/{exemplarId}/condicoes",
         }
         self.assertLessEqual(required_paths, set(paths))
@@ -148,7 +320,7 @@ class TestCandidateContracts(unittest.TestCase):
             for route, method in API_DECLARATION.findall(source):
                 candidates.append((method, "/" + route, path, source))
 
-        self.assertEqual(len(operations), 28)
+        self.assertEqual(len(operations), 34)
         self.assertEqual(len(candidates), len(operations))
 
         for method, path, operation in operations:
@@ -166,7 +338,11 @@ class TestCandidateContracts(unittest.TestCase):
             _, _, candidate_path, source = matches[0]
             if operation.get("security"):
                 self.assertIn('auth = "usuario"', source, candidate_path.name)
-            if path.startswith("/admin/") or (
+            if path in {"/admin/usuarios", "/admin/usuarios/{usuarioId}"}:
+                self.assertIn('$administrador.perfil == "admin"', source)
+                if method == "PATCH":
+                    self.assertIn('$bibliotecario.perfil == "bibliotecario"', source)
+            elif path.startswith("/admin/") or (
                 path in {"/catalogo/titulos", "/catalogo/categorias"}
                 and method == "POST"
             ) or (
@@ -174,7 +350,7 @@ class TestCandidateContracts(unittest.TestCase):
                 and method == "PATCH"
             ):
                 self.assertIn(
-                    '$usuario.perfil == "bibliotecario"',
+                    '$usuario.perfil == "bibliotecario" || $usuario.perfil == "admin"',
                     source,
                     candidate_path.name,
                 )
@@ -266,6 +442,16 @@ class TestCandidateContracts(unittest.TestCase):
         pickup = (APIS / "emprestimos" / "retirada_POST.xs").read_text(
             encoding="utf-8"
         )
+        return_loan = (APIS / "emprestimos" / "devolucao_POST.xs").read_text(
+            encoding="utf-8"
+        )
+        reservations = (APIS / "reservas" / "reservas_POST.xs").read_text(
+            encoding="utf-8"
+        )
+        reservation_pickup = (APIS / "reservas" / "retirada_POST.xs").read_text(
+            encoding="utf-8"
+        )
+        queue = (APIS / "reservas" / "fila_GET.xs").read_text(encoding="utf-8")
         offer = (APIS / "reservas" / "ofertar_proxima_POST.xs").read_text(
             encoding="utf-8"
         )
@@ -277,6 +463,24 @@ class TestCandidateContracts(unittest.TestCase):
         )
         signup = (APIS / "auth" / "signup_POST.xs").read_text(encoding="utf-8")
 
+        active_loan_sentinel = (
+            "($db.emprestimo.devolvido_em == null || "
+            "$db.emprestimo.devolvido_em == 0)"
+        )
+        self.assertEqual(2, requests.count(active_loan_sentinel))
+        self.assertEqual(2, pickup.count(active_loan_sentinel))
+        self.assertIn(
+            "($emprestimo.devolvido_em == null || $emprestimo.devolvido_em == 0)",
+            return_loan,
+        )
+        self.assertEqual(2, return_loan.count(active_loan_sentinel))
+        self.assertEqual(2, reservations.count(active_loan_sentinel))
+        self.assertEqual(2, reservation_pickup.count(active_loan_sentinel))
+        self.assertEqual(2, offer.count(active_loan_sentinel))
+        self.assertEqual(2, expiry.count(active_loan_sentinel))
+        self.assertIn('value = "now"|to_timestamp', return_loan)
+        self.assertIn('|set:"devolvido_em":$agora', return_loan)
+
         self.assertIn('estado == "aguardando"', requests)
         self.assertIn("vence_em < $agora", requests)
         self.assertIn('perfil : "estudante"', signup)
@@ -286,10 +490,31 @@ class TestCandidateContracts(unittest.TestCase):
         self.assertIn("$emprestimos_ativos == 0", pickup)
         self.assertIn("$agora|add_secs_to_timestamp:1209600", pickup)
 
-        self.assertIn("criada_em: \"asc\"", offer)
-        self.assertIn("reserva.id: \"asc\"", offer)
+        self.assertNotRegex(offer, r"(?m)^\s*sort\s*=")
+        self.assertIn(
+            'value = $fila|sort:"id":"number":true|sort:"criada_em":"number":true',
+            offer,
+        )
+        self.assertIn('value = "now"|to_timestamp', offer)
+        self.assertIn("$db.emprestimo.vence_em < $agora", offer)
+        self.assertNotIn('$db.emprestimo.vence_em < ("now"|to_timestamp)', offer)
         self.assertIn("$ofertada_em|add_secs_to_timestamp:172800", offer)
         self.assertIn("$atrasados == 0 && $emprestimos_do_titulo == 0", offer)
+        self.assertNotRegex(queue, r"(?m)^\s*sort\s*=")
+        self.assertIn(
+            'value = $fila|sort:"id":"number":true|sort:"criada_em":"number":true',
+            queue,
+        )
+        self.assertIn("response = $fila_ordenada", queue)
+        self.assertNotRegex(expiry, r"(?m)^\s*sort\s*=")
+        self.assertIn(
+            'value = $expiradas|sort:"id":"number":true|sort:"expira_em":"number":true',
+            expiry,
+        )
+        self.assertIn(
+            'value = $fila|sort:"id":"number":true|sort:"criada_em":"number":true',
+            expiry,
+        )
 
         self.assertIn('$db.reserva.estado == "ofertada"', expiry)
         self.assertIn('data = {estado: "expirada"}', expiry)

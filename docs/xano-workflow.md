@@ -1,0 +1,137 @@
+# Fluxo de trabalho Xano pelo VS Code
+
+## Primeiro administrador
+
+O primeiro administrador deve ser provisionado manualmente pelo dono do workspace correto, fora do cadastro público. Confirme workspace `151966`, branch `v1` e grupo `Biblioteca` antes de agir. Use a interface ou o fluxo de gerenciamento de usuários oficialmente suportado pelo Xano para criar um registro em `usuario` com os campos existentes `nome`, `email`, `senha`, `perfil=admin` e `ativo=true`; forneça a senha somente pelo mecanismo seguro do Xano e não a consulte, copie, registre ou inclua em comandos, logs, `.env` ou Git. Não use o grupo `Authentication` e não habilite `allow_push` para realizar esse provisionamento. Se o Xano não oferecer um fluxo seguro e suportado para definir o campo `senha`, interrompa e valide o procedimento com a documentação oficial antes de criar a conta.
+
+## Destino confirmado para esta prova
+
+- CLI local: `@xano/cli 1.3.4`.
+- Perfil padrão: `default`, no workspace `151966` (`Augusto's Workspace`).
+- Instância: `x8ki-letl-twmt.n7.xano.io`.
+- Branch: `v1`, única branch listada e marcada como live.
+- API do app: usar o grupo `Biblioteca` no workspace acima; a URL base verificada para o grupo é `https://x8ki-letl-twmt.n7.xano.io/api:MNu77wNi`, configurada pelo Reflex via `XANO_API_BASE_URL` no `.env` (ignorado pelo Git). O valor também está no `.env.example`; não usar o grupo `Authentication`.
+- A sessão do painel/CLI Xano não autentica o usuário no app. O login do app usa uma conta da tabela `usuario` pelo endpoint `/auth/login`; `reflex run` apenas inicia o frontend e não cria contas nem transfere sessões do navegador.
+- `workspace get` retornou `preferences.allow_push = false`. A documentação oficial da CLI diz que, em planos pagos, o push por sandbox é o padrão/obrigatório até habilitar **Allow Direct Workspace Push**. Não habilite essa preferência automaticamente; verifique o resultado do dry-run e pare se o push delimitado não estiver permitido.
+- A documentação da CLI também informa que `xano sandbox push` não aceita filtros `-i/--include`; portanto, se o push direto for recusado por `allow_push = false`, não substitua por sandbox nem altere a preferência sem nova autorização.
+- A credencial padrão é `~/.xano/credentials.yaml`, fora do repositório. Não copie nem imprima seu conteúdo, não o inclua em Git, logs ou documentação. O `.env` do Reflex não precisa armazenar o token Metadata API.
+
+## Comandos reais da CLI
+
+Ajuda consultada na instalação:
+
+```powershell
+xano --help
+xano workspace pull --help
+xano workspace push --help
+xano workspace get --help
+xano workspace create --help
+xano profile --help
+xano profile use --help
+xano branch --help
+```
+
+`xano workspace pull` e `xano workspace push` existem. A CLI não oferece comandos `xano table` nem `xano api` (`xano api --help` retorna “Command api not found”). A CLI pode criar/atualizar documentos `.xs` por push filtrado; a Metadata API oferece operações individuais documentadas para recursos. `xano workspace create` cria um workspace inteiro, não uma tabela.
+
+Pull validado sem `--records`, `--env`, `--draft` ou `--sync-state`:
+
+```powershell
+xano workspace pull -w 151966 -b v1 -d "$env:TEMP\biblioteca-xano-reference-151966-v1"
+```
+
+O CLI informou 57 documentos. A documentação oficial confirma que o pull padrão exporta definições publicadas, excluindo registros, variáveis de ambiente e versões draft. Mantenha essa referência fora do repositório e compare-a com o checkout antes de qualquer push:
+
+```powershell
+git --no-pager diff --no-index -- xano/ "$env:TEMP\biblioteca-xano-reference-151966-v1"
+git status --short -- xano/
+```
+
+`git diff --no-index` retorna código diferente de zero quando encontra diferenças; isso não significa falha de execução. Inspecione e relate a diferença, não copie o pull inteiro para `xano/`.
+
+### Pull e comparação observados
+
+Na leitura de 2026-11-05, o pull continha 57 arquivos/documentos e `xano/` tinha 41 arquivos. O remoto continha 11 tabelas e 36 endpoints; o checkout tinha 9 tabelas e 28 endpoints, além de OpenAPI, README e testes locais. As nove definições de tabela com nomes em comum tinham conteúdo diferente: `categoria`, `condicao_exemplar`, `emprestimo`, `exemplar`, `reserva`, `solicitacao_emprestimo`, `titulo`, `titulo_categoria` e `usuario`. Por exemplo, o `titulo.xs` remoto declara `auth = false`, ausente no Git.
+
+Também há recursos remotos adicionais de `Authentication` e `Event Logs`, e as rotas/grupos de API remotos estão organizados de forma diferente da árvore `api/default/` local. São divergências preexistentes; não sincronize recursos existentes. O push desta prova deve incluir exclusivamente os arquivos `zz_teste_*`.
+
+## Push delimitado e remoção
+
+O CLI aceita `-i/--include`, `-b/--branch`, `-w/--workspace` e `--dry-run`. Faça uma prévia por cada conjunto exato de arquivos e confira a lista antes de qualquer escrita. Para uma tabela de teste:
+
+```powershell
+xano workspace push -d .\xano -w 151966 -b v1 -i "table/zz_teste_nota.xs" --dry-run
+xano workspace push -d .\xano -w 151966 -b v1 -i "table/zz_teste_nota.xs"
+```
+
+Para endpoints, inclua somente o arquivo de grupo e os endpoints descartáveis correspondentes, cada um com `-i` próprio. Se a prévia listar qualquer recurso fora do prefixo `zz_teste_*`, não confirme o push. O comando de push sem `--sync` é parcial; `--sync` envia todos os arquivos. `--delete` só funciona junto com `--sync` e exclui objetos remotos ausentes do conjunto enviado. **Não use `push --delete --sync` nesta Change.**
+
+### Criar e alterar `zz_teste_nota`
+
+O documento local `xano/table/zz_teste_nota.xs` define `id`, `texto`, `criado_em` e, após a alteração, `prioridade`. Para criar ou alterar somente essa tabela:
+
+```powershell
+xano workspace get -w 151966 --output json
+xano branch list -w 151966
+xano workspace push -d .\xano -w 151966 -b v1 -i "table/zz_teste_nota.xs" --dry-run
+```
+
+Revise toda a prévia: ela deve mostrar somente a criação ou atualização de `zz_teste_nota`. Somente depois dessa revisão, a execução delimitada aprovada é:
+
+```powershell
+xano workspace push -d .\xano -w 151966 -b v1 -i "table/zz_teste_nota.xs" --force
+```
+
+Para acrescentar `prioridade`, edite o mesmo documento `.xs`, repita a prévia acima e confirme que ela mostra somente a alteração dessa tabela; depois, use novamente o push delimitado acima. Nesta Change, `--force` só pode seguir uma prévia revisada que liste exclusivamente recursos `zz_teste_*`. Se o servidor recusar o push porque `preferences.allow_push = false`, pare; não habilite nem altere essa preferência sem autorização.
+
+Após cada push, confirme o schema pelo GET individual da Metadata API e/ou por um pull somente de definições. A tabela desta prova foi identificada como ID `912722`; sempre confira o ID e o nome juntos antes de uma operação individual. Não inclua token, cabeçalho de autorização ou resposta que contenha segredo na documentação ou nos logs.
+
+O pull/push pelo CLI manipula documentos XanoScript multidoc. A Metadata API também documenta `GET` e `POST /workspace/{workspace_id}/multidoc`, mas o POST aplica conteúdo multidoc ao workspace; não o use como operação pontual de exclusão.
+
+### Evidências desta prova (2026-11-08)
+
+- Workspace confirmado: `151966`; branch `v1` live. `workspace get` retornou `preferences.allow_push = false`; essa preferência não foi alterada.
+- A tabela `zz_teste_nota`, ID `912722`, foi criada e alterada para incluir `prioridade`. As prévias delimitadas registradas para essas operações listaram somente a tabela de teste.
+- Antes da exclusão, a Metadata API confirmou conjuntamente o ID `912722` e o nome `zz_teste_nota`. O DELETE individual retornou HTTP 200; o GET seguinte da mesma tabela retornou 404.
+- O GET de grupos não encontrou recursos com prefixo `zz_teste_*`. O pull somente de definições trouxe 57 documentos e nenhum arquivo `zz_teste_*`.
+- O arquivo local `xano/table/zz_teste_nota.xs` foi removido. Como já era rastreado, `git status --short -- xano/` mostra apenas `D xano/table/zz_teste_nota.xs`; `git diff -- xano/` mostra somente essa exclusão.
+- Não foram criados nem chamados endpoints temporários, não foi testada a validação de POST e não foi implementado ou executado teste pytest/Reflex com `httpx.MockTransport`. Esse ciclo ficou fora do escopo por decisão aprovada, diante de `allow_push = false`.
+
+Para operações individuais, a Metadata API oficial documenta:
+
+- Tabelas: `GET`/`POST /workspace/{workspace_id}/table`; atualizar o schema inteiro com `PUT /workspace/{workspace_id}/table/{table_id}/schema`; excluir somente a tabela escolhida com `DELETE /workspace/{workspace_id}/table/{table_id}`.
+- Grupos: `GET`/`POST /workspace/{workspace_id}/apigroup`; excluir um grupo descartável com `DELETE /workspace/{workspace_id}/apigroup/{apigroup_id}` (remove os endpoints desse grupo).
+- Endpoints: `GET`/`POST /workspace/{workspace_id}/apigroup/{apigroup_id}/api`; alterar com `PUT /workspace/{workspace_id}/apigroup/{apigroup_id}/api/{api_id}`; excluir um endpoint específico com `DELETE /workspace/{workspace_id}/apigroup/{apigroup_id}/api/{api_id}`.
+
+As operações de escrita acima são destrutivas ou mutáveis e exigem os IDs retornados/consultados no próprio workspace e branch. Confirme nome e prefixo antes de cada DELETE. A autenticação da Metadata API usa token bearer da CLI; nunca o exponha em comandos registrados, saída, arquivos ou documentação.
+
+Referências oficiais:
+
+- [Xano CLI: Push & Pull](https://docs.xano.com/xano-cli/push-pull)
+- [XanoScript Multidoc](https://docs.xano.com/xanoscript/multidoc)
+- [Metadata API](https://docs.xano.com/xano-features/metadata-api)
+- [Metadata API: instâncias, tabelas, grupos e endpoints](https://docs.xano.com/xano-features/metadata-api/instanceapi)
+
+## Criar uma tabela/endpoint e consumir no Reflex
+
+1. Confirme workspace, branch e ambiente com `xano workspace get -w 151966 --output json` e `xano branch list -w 151966`; consulte o perfil sem usar a opção de detalhes que exibe metadados de credenciais.
+2. Faça pull somente de definições e compare com `git diff --no-index` antes de editar. Não use `--records` ou `--env`.
+3. Crie o `.xs` sob `xano/table/` sem `guid` para uma tabela nova. Crie os documentos de API/grupo sob `xano/api/`, com um grupo exclusivo `zz_teste_*`. Faça primeiro `push --dry-run` com `-i` restrito aos documentos novos; revise a prévia; só então execute o mesmo push delimitado.
+4. Para modificar um documento existente de teste, altere apenas o `.xs` correspondente e repita `--dry-run` + revisão + `-i`. Para criar endpoints, inclua somente os arquivos novos do grupo de prova.
+5. Teste o endpoint Xano com HTTP real somente quando houver credencial de usuário de teste autorizada. Para teste do cliente Reflex, injete `httpx.MockTransport` ao `XanoClient`; valide método, caminho e resposta sem conexão real nem POST de escrita pelo app.
+6. Obtenha IDs por GET da Metadata API ou pela resposta de criação. Remova individualmente os endpoints e a tabela/grupo de teste; nunca use exclusão global. Confirme ausência por GET/404, remova somente os arquivos locais temporários e verifique `git status --short -- xano/`.
+
+As etapas de endpoint e cliente acima são orientações gerais, não resultados desta Change. Nesta execução não houve endpoint para chamar nem teste de cliente para rodar. Não declare validação XanoScript pelo Developer MCP: esse servidor MCP não está disponível nesta sessão; para a tabela, a referência foi a documentação oficial e o pull/GET observado.
+
+## Reconciliação do snapshot live (2026-11-08)
+
+O workspace `151966`, branch live `v1`, foi consultado pela CLI Xano 1.3.4. O pull de definições foi feito fora do repositório, sem registros, variáveis ou drafts. O snapshot tinha 57 documentos: 11 tabelas, 36 endpoints em três grupos, 3 funções quick-start, 1 addon, 2 recursos AI e metadados do workspace. O Git contém 9 tabelas e 28 endpoints da biblioteca. Não há tabelas ou endpoints somente locais.
+
+### Decisões por divergência
+
+- **(a) Importado no Git:** foram adicionados retornos explícitos de lista em `GET /catalogo/categorias`, `GET /catalogo/categorias/{categoria_id}`, `GET /catalogo/categorias/{categoria_id}/titulos` e `GET /catalogo/titulos/{titulo_id}`. Nenhuma outra parte das definições remotas foi copiada.
+- **(a) Plataforma fora do escopo, documentada sem importação:** grupos `Authentication` e `Event Logs`, tabelas `user` e `event_log`, 3 funções quick-start, 1 addon, 2 recursos AI e metadados do workspace.
+- **(b) Git mantido; remoto divergente da FIFO:** `GET /admin/titulos/{titulo_id}/fila-reservas`, `POST /admin/reservas/ofertar-proxima`, `POST /admin/reservas/processar-expiradas` e `POST /admin/emprestimos/{emprestimo_id}/devolucao` não preservam no remoto todas as ordenações FIFO exigidas pelas specs. Não foi feito push.
+- **(c) Segurança, sem importação:** `auth = false` remoto em `categoria`, `condicao_exemplar`, `emprestimo`, `exemplar`, `reserva`, `solicitacao_emprestimo`, `titulo`, `titulo_categoria` e `event_log`. A tabela local `usuario` coincide; as diferenças adicionais nos schemas das outras oito tabelas também não foram importadas.
+- **(c) Sem equivalência comprovada:** diferenças de ordenação/serialização em consultas administrativas e pessoais; reescrita de append em `GET /catalogo/titulos`; formato de resposta em `GET /catalogo/titulos/{titulo_id}`; conversão de fuso e resposta em `GET /minhas/reservas`; diferenças nos fluxos de autenticação entre `user` e `usuario`; e diferenças de consulta, validação, autorização, resposta ou prazo nos demais endpoints divergentes. A lista por recurso está em `design.md` da Change arquivada `reconciliar-xano-com-git`.
+
+O campo `swagger.token` do grupo Biblioteca foi tratado como exposto e deve ser rotacionado pelo operador no painel. O valor foi removido da cópia temporária do pull antes de inspeções posteriores e não foi incorporado a arquivos versionados, documentação ou relatórios. `allow_push = false` permaneceu inalterado; não houve push nem commit Git.

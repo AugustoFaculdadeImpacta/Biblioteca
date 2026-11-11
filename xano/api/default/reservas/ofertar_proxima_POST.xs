@@ -11,12 +11,17 @@ query "admin/reservas/ofertar-proxima" verb=POST {
     db.get usuario {
       field_name = "id"
       field_value = $auth.id
-      output = ["id", "perfil"]
+      output = ["id", "perfil", "ativo"]
     } as $usuario
 
-    precondition ($usuario.perfil == "bibliotecario") {
+    precondition ($usuario.ativo != false) {
       error_type = "accessdenied"
-      error = "Perfil bibliotecario necessario."
+      error = "Conta desativada."
+    }
+
+    precondition ($usuario.perfil == "bibliotecario" || $usuario.perfil == "admin") {
+      error_type = "accessdenied"
+      error = "Perfil bibliotecario ou admin necessario."
     }
 
     db.get exemplar {
@@ -29,21 +34,28 @@ query "admin/reservas/ofertar-proxima" verb=POST {
       error = "Exemplar disponivel do titulo informado necessario."
     }
 
+    var $agora {
+      value = "now"|to_timestamp
+    }
+
     db.query reserva {
       where = $db.reserva.titulo_id == $input.titulo_id && $db.reserva.estado == "aguardando"
-      sort = {reserva.criada_em: "asc", reserva.id: "asc"}
     } as $fila
+
+    var $fila_ordenada {
+      value = $fila|sort:"id":"number":true|sort:"criada_em":"number":true
+    }
 
     var $reserva_escolhida {
       value = null
     }
 
-    foreach ($fila) {
+    foreach ($fila_ordenada) {
       each as $item {
         conditional {
           if ($reserva_escolhida == null) {
             db.query emprestimo {
-              where = $db.emprestimo.usuario_id == $item.usuario_id && $db.emprestimo.devolvido_em == null && $db.emprestimo.vence_em < ("now"|to_timestamp)
+              where = $db.emprestimo.usuario_id == $item.usuario_id && ($db.emprestimo.devolvido_em == null || $db.emprestimo.devolvido_em == 0) && $db.emprestimo.vence_em < $agora
               return = {type: "count"}
             } as $atrasados
 
@@ -54,7 +66,7 @@ query "admin/reservas/ofertar-proxima" verb=POST {
                   where: $db.emprestimo.exemplar_id == $db.exemplar.id
                 }
               }
-              where = $db.emprestimo.usuario_id == $item.usuario_id && $db.emprestimo.devolvido_em == null && $db.exemplar.titulo_id == $input.titulo_id
+              where = $db.emprestimo.usuario_id == $item.usuario_id && ($db.emprestimo.devolvido_em == null || $db.emprestimo.devolvido_em == 0) && $db.exemplar.titulo_id == $input.titulo_id
               return = {type: "count"}
             } as $emprestimos_do_titulo
 

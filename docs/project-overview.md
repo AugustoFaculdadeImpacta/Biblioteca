@@ -11,8 +11,9 @@ O projeto é acadêmico e será desenvolvido incrementalmente com OpenSpec. Cada
 - **Visitante:** consulta pública do catálogo e disponibilidade agregada.
 - **Estudante:** autocadastra-se e recebe acesso imediatamente, sem confirmação de e-mail; solicita empréstimos e reservas se estiver elegível.
 - **Bibliotecário:** administra títulos, categorias e exemplares; confirma fisicamente retiradas e devoluções; registra condições dos exemplares.
+- **Administrador:** tem as permissões do bibliotecário e pode gerir contas bibliotecárias; não pode desativar a própria conta nem outra conta administradora.
 
-Autocadastro nunca concede perfil de bibliotecário. O método seguro de provisionamento de bibliotecários ainda precisa ser especificado.
+Autocadastro nunca concede perfil privilegiado. A primeira conta admin é provisionada manualmente pelo dono do workspace Xano; somente admin autenticado cria e ativa/desativa bibliotecários.
 
 ## Escopo funcional
 
@@ -39,9 +40,8 @@ Autocadastro nunca concede perfil de bibliotecário. O método seguro de provisi
 
 - Backend e fonte de dados: Xano, integrado por API REST e XanoScript versionado quando exigido pela Change.
 - Frontend: Reflex é a tecnologia adotada e exclusiva. Qualquer outra tecnologia de frontend exige uma mudança arquitetural aprovada.
-- Pendências obrigatórias para liberar funcionalidades e deploy: a adoção do Reflex não autoriza implementar funcionalidades de produto nem fazer deploy até que as duas mitigações estejam concluídas:
-  1. Implementar o indicador visual `:focus-visible` na busca e verificar seu funcionamento antes de iniciar funcionalidades de produto.
-  2. Escolher e validar o ambiente acadêmico antes de qualquer deploy; manter segredos somente no backend e inspecionar os logs antes do deploy.
+- Mitigação 1 cumprida: o indicador visual `:focus-visible` da busca está implementado e coberto por testes; a verificação Playwright está registrada na Change arquivada `catalogo-publico`.
+- O Reflex não autoriza deploy antes de escolher e validar o ambiente acadêmico, manter segredos somente no backend e inspecionar os logs.
 - Especificação e histórico: OpenSpec com schema `spec-driven`; Git versiona código, documentação, changes ativas, specs consolidadas e arquivo.
 - Idioma do produto e documentação: português do Brasil.
 

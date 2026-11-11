@@ -13,8 +13,9 @@ table usuario {
       sensitive = true
       visibility = "internal"
     }
+    bool ativo?=true
     enum perfil {
-      values = ["estudante", "bibliotecario"]
+      values = ["estudante", "bibliotecario", "admin"]
     }
   }
 

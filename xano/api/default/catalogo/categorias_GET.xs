@@ -5,7 +5,9 @@ query "catalogo/categorias" verb=GET {
   }
 
   stack {
-    db.query categoria as $categorias
+    db.query categoria {
+      return = {type: "list"}
+    } as $categorias
   }
 
   response = $categorias

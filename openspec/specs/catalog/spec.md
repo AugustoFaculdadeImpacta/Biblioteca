@@ -61,3 +61,120 @@ O sistema MUST validar existência e compatibilidade das relações de título, 
 #### Scenario: Referência inválida
 - **WHEN** pedido administrativo referencia título, categoria ou exemplar inexistente ou incompatível
 - **THEN** o sistema recusa a alteração e preserva o estado anterior
+
+### Requirement: Interface administrativa do acervo é exclusiva de bibliotecários
+A interface MUST permitir acesso às ações administrativas somente após autenticação com perfil `bibliotecario`; a autorização do backend permanece obrigatória para toda escrita.
+
+#### Scenario: Bibliotecário autenticado acessa administração do acervo
+- **WHEN** usuário autenticado com perfil `bibliotecario` abre a área de administração
+- **THEN** a interface permite acessar os formulários administrativos e envia as operações com a sessão autenticada em cada chamada
+
+#### Scenario: Estudante ou visitante tenta acessar a administração
+- **WHEN** estudante autenticado ou visitante abre uma rota ou tenta uma ação administrativa
+- **THEN** a interface bloqueia ou redireciona o acesso e não envia requisição de escrita
+
+#### Scenario: Backend recusa operação administrativa
+- **WHEN** o backend recusa a operação por perfil insuficiente
+- **THEN** a interface não indica sucesso e informa a recusa sem expor detalhes internos
+
+### Requirement: Cadastro de título usa somente os campos definidos
+A interface MUST enviar somente os campos aceitos pelo endpoint local de criação de título e usar o registro retornado para obter seu identificador.
+
+#### Scenario: Metadados do título no formulário
+- **WHEN** bibliotecário autenticado preenche o cadastro de um título
+- **THEN** título e autores são obrigatórios, e ISBN, editora, edição, ano de publicação e descrição são opcionais
+
+#### Scenario: Envio do título
+- **WHEN** bibliotecário confirma o cadastro com os dados válidos do formulário
+- **THEN** a interface envia somente `titulo`, `autores`, `isbn`, `editora`, `edicao`, `ano_publicacao` e `descricao` para `POST /catalogo/titulos` e obtém `id` do registro retornado
+
+### Requirement: Título pode ser associado a categorias existentes
+A interface MUST permitir selecionar categorias obtidas da listagem pública e associá-las ao título recém-criado usando os identificadores retornados pelos endpoints.
+
+#### Scenario: Carregar categorias para seleção
+- **WHEN** bibliotecário autenticado abre o cadastro de título
+- **THEN** a interface lista as categorias retornadas por `GET /catalogo/categorias` usando os campos `id` e `nome`
+
+#### Scenario: Associar categorias selecionadas
+- **WHEN** bibliotecário seleciona uma ou mais categorias para um título criado
+- **THEN** a interface envia uma associação para cada seleção usando `titulo_id` como identificador de rota e `categoria_id` como entrada e apresenta sucesso somente para associações confirmadas
+
+#### Scenario: Título já associado à categoria ou referência inválida
+- **WHEN** a associação é recusada por duplicidade ou referência inexistente
+- **THEN** a interface informa a falha sem indicar associação inexistente como concluída e permite retomar sem recriar o título
+
+### Requirement: Bibliotecário pode criar exemplares físicos do título
+A interface MUST permitir criar uma quantidade solicitada de exemplares para um título existente, enviando somente seu `titulo_id` e exibindo o código de tombo gerado pelo servidor para cada exemplar criado.
+
+#### Scenario: Criar exemplares
+- **WHEN** bibliotecário solicita um ou mais exemplares para um título criado
+- **THEN** a interface repete `POST /admin/exemplares` com `titulo_id` para cada unidade e apresenta os registros e códigos de tombo retornados
+
+#### Scenario: Falha parcial ao criar exemplares
+- **WHEN** uma das chamadas sequenciais de criação falha após outras terem sido confirmadas
+- **THEN** a interface distingue as unidades criadas das pendentes e não repete automaticamente escritas já confirmadas
+
+#### Scenario: Resposta não contém identificador ou código esperado
+- **WHEN** uma resposta bem-sucedida de criação não contém os campos necessários definidos pela implementação local
+- **THEN** a interface informa que o resultado precisa ser conferido, não presume sucesso completo e não repete automaticamente a escrita
+
+### Requirement: Interface pública apresenta títulos e disponibilidade
+A interface MUST permitir que visitantes e estudantes consultem o catálogo público por lista e detalhe, sem autenticação, exibindo a quantidade de exemplares disponíveis informada pelo serviço.
+
+#### Scenario: Consultar títulos públicos
+- **WHEN** visitante ou estudante abre o catálogo
+- **THEN** a interface apresenta os títulos retornados pela consulta pública em cards e permite abrir o detalhe de um título
+
+#### Scenario: Consultar disponibilidade no detalhe
+- **WHEN** visitante ou estudante abre o detalhe de um título
+- **THEN** a interface apresenta a quantidade de exemplares disponíveis retornada pelo serviço, sem expor dados pessoais de estudantes
+
+### Requirement: Busca, filtros e ordenação do catálogo são aplicados em memória
+A interface MUST permitir refinar os títulos carregados sem enviar filtros ou ordenações adicionais ao backend.
+
+#### Scenario: Buscar por texto
+- **WHEN** pessoa informa um texto no campo de busca
+- **THEN** a lista em memória é filtrada pelos campos de título e autoria retornados pelo catálogo
+
+#### Scenario: Filtrar por categoria e disponibilidade
+- **WHEN** pessoa seleciona uma categoria ou ativa "Somente disponíveis"
+- **THEN** a lista em memória contém somente títulos associados à categoria selecionada e, quando aplicável, com quantidade disponível maior que zero
+
+#### Scenario: Ordenar alfabeticamente
+- **WHEN** pessoa seleciona A-Z ou Z-A
+- **THEN** os títulos visíveis são ordenados em memória pelo título, respeitando a direção selecionada
+
+#### Scenario: Catálogo sem resultados
+- **WHEN** a busca ou os filtros não correspondem a nenhum título
+- **THEN** a interface informa claramente que nenhum título corresponde aos critérios atuais
+
+#### Scenario: Filtros combinados
+- **WHEN** pessoa informa texto, seleciona uma categoria, ativa somente disponíveis e escolhe ordenação A-Z ou Z-A
+- **THEN** a lista em memória contém somente títulos que atendem simultaneamente aos filtros e os ordena pelo título
+
+#### Scenario: Categoria sem títulos correspondentes
+- **WHEN** visitante seleciona uma categoria existente sem títulos correspondentes
+- **THEN** a interface não exibe títulos, mantém os outros filtros utilizáveis e informa que nenhum título corresponde aos critérios atuais
+
+#### Scenario: Remover filtro de categoria
+- **WHEN** visitante seleciona novamente todas as categorias
+- **THEN** a interface remove apenas o filtro de categoria e preserva busca, disponibilidade e ordenação
+
+### Requirement: Estudante inicia solicitação a partir do catálogo
+A interface MUST permitir que estudante autenticado inicie o fluxo de empréstimo ou reserva de um título do catálogo, submetendo a decisão final de disponibilidade e elegibilidade ao backend.
+
+#### Scenario: Há exemplar disponível no catálogo
+- **WHEN** estudante autenticado abre o detalhe de título que informa exemplares disponíveis
+- **THEN** a interface oferece solicitar empréstimo e envia a solicitação autenticada ao backend
+
+#### Scenario: Não há exemplar disponível no catálogo
+- **WHEN** estudante autenticado abre o detalhe de título sem exemplares disponíveis
+- **THEN** a interface oferece entrar na fila de reserva pelo fluxo de solicitação autenticado
+
+#### Scenario: Disponibilidade muda antes do envio
+- **WHEN** disponibilidade ou elegibilidade muda entre a consulta do catálogo e o envio
+- **THEN** a interface apresenta o resultado retornado pelo backend e não presume que a contagem previamente exibida ainda seja válida
+
+#### Scenario: Visitante ou bibliotecário tenta iniciar o fluxo de estudante
+- **WHEN** pessoa sem perfil estudante tenta enviar uma solicitação pelo catálogo
+- **THEN** a interface bloqueia a ação e o backend continua responsável por recusar a operação não autorizada

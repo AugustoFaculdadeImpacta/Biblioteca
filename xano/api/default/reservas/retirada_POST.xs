@@ -10,12 +10,17 @@ query "admin/reservas/{reserva_id}/retirada" verb=POST {
     db.get usuario {
       field_name = "id"
       field_value = $auth.id
-      output = ["id", "perfil"]
+      output = ["id", "perfil", "ativo"]
     } as $usuario
 
-    precondition ($usuario.perfil == "bibliotecario") {
+    precondition ($usuario.ativo != false) {
       error_type = "accessdenied"
-      error = "Perfil bibliotecario necessario."
+      error = "Conta desativada."
+    }
+
+    precondition ($usuario.perfil == "bibliotecario" || $usuario.perfil == "admin") {
+      error_type = "accessdenied"
+      error = "Perfil bibliotecario ou admin necessario."
     }
 
     db.get reserva {
@@ -53,7 +58,7 @@ query "admin/reservas/{reserva_id}/retirada" verb=POST {
     }
 
     db.query emprestimo {
-      where = $db.emprestimo.usuario_id == $reserva.usuario_id && $db.emprestimo.devolvido_em == null
+      where = $db.emprestimo.usuario_id == $reserva.usuario_id && ($db.emprestimo.devolvido_em == null || $db.emprestimo.devolvido_em == 0)
       return = {type: "count"}
     } as $emprestimos_ativos
 
@@ -63,7 +68,7 @@ query "admin/reservas/{reserva_id}/retirada" verb=POST {
     }
 
     db.query emprestimo {
-      where = $db.emprestimo.usuario_id == $reserva.usuario_id && $db.emprestimo.devolvido_em == null && $db.emprestimo.vence_em < $agora
+      where = $db.emprestimo.usuario_id == $reserva.usuario_id && ($db.emprestimo.devolvido_em == null || $db.emprestimo.devolvido_em == 0) && $db.emprestimo.vence_em < $agora
       return = {type: "count"}
     } as $emprestimos_atrasados
 

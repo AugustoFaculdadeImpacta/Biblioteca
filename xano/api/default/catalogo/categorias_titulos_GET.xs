@@ -18,10 +18,16 @@ query "catalogo/categorias/{categoria_id}/titulos" verb=GET {
 
     db.query titulo_categoria {
       where = $db.titulo_categoria.categoria_id == $input.categoria_id
+      return = {type: "list"}
     } as $associacoes
 
+    array.map ($associacoes) {
+      by = $this.titulo_id
+    } as $titulo_ids
+
     db.query titulo {
-      where = $db.titulo.id in ($associacoes|pluck:"titulo_id")
+      where = $db.titulo.id in ($titulo_ids) && $db.titulo.ativo != false
+      return = {type: "list"}
     } as $titulos
   }
 

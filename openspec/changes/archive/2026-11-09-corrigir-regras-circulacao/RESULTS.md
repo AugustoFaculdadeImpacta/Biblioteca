@@ -1,0 +1,361 @@
+# Resultados da correção de regras de circulação
+
+Evidências deste arquivo são sanitizadas. Não registrar tokens, senhas, e-mails, nomes ou dados pessoais.
+
+## Resumo atual
+
+| Cenário/verificação | Resultado atual |
+|---|---|
+| Atraso | PASSOU: solicitação e reserva bloqueadas; sem registros laterais. |
+| Limite concorrente | PASSOU: uma retirada aceita e a concorrente recusada. |
+| Fila e oferta FIFO | PASSOU: três reservas com `criada_em` igual retornaram por ID crescente; a mais antiga foi ofertada com HTTP 200. |
+| Processador global | NÃO EXECUTADO: filtros de ordenação confirmados por pull, sem executar a rotina global. |
+| Limpeza | PASSOU: fixtures com GET 404; contagens `0/0/0/0/0`, `usuario=2`. |
+| Testes estruturais | PASSOU: 9 testes; parser PowerShell passou. |
+| OpenSpec | PASSOU: `openspec validate corrigir-regras-circulacao --strict`. |
+
+## Diagnóstico inicial de schema e causa comum para atraso/limite (histórico, pré-correção)
+
+- Resolvi `emprestimo` por GET da lista de tabelas do workspace `151966`/branch `v1` e confirmei o identificador `910521`. `GET /workspace/151966/table/910521/schema` respondeu HTTP 200.
+- No schema remoto, `devolvido_em` é `timestamp`, `nullable=false`, `required=false`, sem default informado. O arquivo local `xano/table/emprestimo.xs` declara `timestamp devolvido_em?`: o `?` torna a entrada opcional, mas não corresponde a `nullable=true` no schema remoto. POST e PUT explícitos com JSON `null` foram aceitos, porém GET persistiu o número `0`; empréstimo criado pela rota de negócio também retornou `0` antes de qualquer mutação.
+- A definição remota de solicitação, retirada de solicitação, retirada de reserva, devolução, oferta FIFO e processador de expiradas usa `devolvido_em == null` para identificar empréstimos ativos/não devolvidos. Com o schema remoto não anulável e o valor observado `0`, esses filtros não encontram os empréstimos ativos. Isso explica a falha observada no bloqueio de atraso e fornece uma causa comum para o limite de empréstimos (além da corrida concorrente, que ainda pode persistir depois de corrigido o predicado).
+- Nenhuma tabela ou endpoint foi editado. A correção mínima candidata, pendente de OK, é tratar tanto `null` quanto `0` como “não devolvido” nos predicados e precondições afetados, sem migrar o schema; após isso, repetir atraso e limite. Se ainda houver duas retiradas aceitas, retomar a escolha e validação do mecanismo atômico.
+
+## Diagnóstico inicial do erro FIFO (histórico, pré-correção)
+
+- No remoto, a rota GET da fila retorna lista sem `sort`; a consulta da rota de oferta também não declara `sort` antes de percorrer a lista. A ordenação, portanto, não está garantida e precisa ser restaurada separadamente.
+- A resposta HTTP 500 foi reproduzida com fixtures isoladas. A mensagem sanitizada da resposta foi: `Invalid cast: "('now')::timestamptz" is of type:"timestamp", but trying to be of type:"epochms"`. O endpoint de oferta contém uma comparação de `vence_em` com `("now"|to_timestamp)` inline dentro da consulta de elegibilidade. A mensagem aponta para incompatibilidade de tipos nessa expressão, não para erro de criação da fixture. A correção deve alinhar o tipo temporal do instante comparado com o campo `vence_em` e validar XanoScript antes de propor o push; a resposta não expôs trace.
+- A consulta GET não ordenada é um problema independente do HTTP 500: depois de corrigida a incompatibilidade temporal, ainda é necessário ordenar por `criada_em` e `id` no GET e na seleção da oferta.
+
+## Reclassificação inicial após diagnóstico das fixtures (histórico)
+
+- `devolvido_em`: POST da Metadata API com JSON `null` e PUT de campo único com JSON `null` retornaram HTTP 200, mas o GET persistiu o estado numérico `0`. Ambos os probes tiveram limpeza e contagem confirmadas.
+- Os testes antigos que criaram empréstimos diretamente pela Metadata API ficam classificados como **fixture inválida para provar `devolvido_em == null`**; não são evidência isolada de bug da regra de atraso.
+- A repetição inicial com empréstimo criado pela rota de retirada removeu a limitação da fixture direta: o GET reportou `devolvido_em=0`, e a mutação de `vence_em` em epoch-ms foi confirmada. Naquela execução pré-correção, a solicitação respondeu HTTP 200. **Esse resultado foi superado pelos cenários após a correção do sentinel registrados adiante, que bloquearam solicitação e reserva por atraso.**
+- O cenário limite anterior à correção aceitou duas retiradas concorrentes (HTTP 200/200); esse resultado foi superado pelo teste após a correção do sentinel, que aceitou uma retirada e recusou a outra.
+- A reprodução FIFO retornou HTTP 500, código `ERROR_FATAL`; a consulta retornou as duas reservas na ordem esperada. Mensagem e trace foram omitidos. Limpeza individual e contagens confirmadas.
+- Após cada execução: `reserva=0`, `emprestimo=0`, `solicitacao_emprestimo=0`, `exemplar=0`, `titulo=0`, `usuario=2`; os dois usuários originais foram preservados.
+- Nenhum endpoint foi editado ou enviado ao Xano durante este diagnóstico.
+
+## Registro de execução
+- Pré-check do cenário `atraso`: branch v1 live; contagens-base reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; estados críticos=0. PASSOU.
+- Fixture registrada: `usuario/40` (usuario sintetico estudante).
+- Fixture registrada: `titulo/19` (titulo sintetico atraso).
+- Fixture registrada: `exemplar/22` (exemplar sintetico atraso).
+- Fixture registrada: `emprestimo/15` (emprestimo sintetico atraso).
+- Diagnóstico vence_em: envio numérico epoch-ms; método PUT HTTP 200; GET HTTP 200; tipo lido=System.Int64; comparação anterior ao instante atual=True.
+- Fixture registrada: `solicitacao_emprestimo/17` (solicitacao inesperada pela API).
+- Fixture registrada: `reserva/11` (reserva vinculada a solicitacao do cenario).
+- Achado atraso: solicitação HTTP 200, reserva HTTP 403; bloqueio esperado não foi confirmado em ambas.
+- Limpeza confirmada: `reserva/11`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `emprestimo/15`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `solicitacao_emprestimo/17`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `exemplar/22`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `titulo/19`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/40`; DELETE HTTP 200, GET HTTP 404.
+- Contagens após limpeza do cenário: reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; usuários originais preservados=True.
+- Cenário `atraso` terminou e suas fixtures foram removidas antes de qualquer outro cenário.
+- Pré-checagem FIFO: definições remotas comparadas por pull sanitizado antes do Lote 3; o remoto não tinha ordenação explícita em `ofertar_proxima`, `fila_GET` nem na fila de reoferta de `processar_expiradas`.
+- Lote 3 interrompido após o push delimitado de `ofertar_proxima`: o dry-run listou exatamente um `UPDATE` e o push terminou, mas o pull pós-push confirmou `devolvido_em == 0` e a comparação com `$agora` preservados, enquanto `sort = {reserva.criada_em: "asc", reserva.id: "asc"}` estava ausente no remoto (presente localmente). O endpoint permanece sem ordenação FIFO comprovada.
+- O CLI reportou avisos de referências de tabela não resolvidas nos pushes isolados; o pull pós-push manteve as referências `db.*` no endpoint. A persistência da ordenação, porém, falhou na verificação.
+- Por segurança, não foram enviados `fila_GET` nem `processar_expiradas`; o cenário FIFO não foi executado e nenhum processador global foi chamado. Change permanece incompleta e não deve ser arquivada até resolver a persistência da ordenação e verificar o Lote 3.
+- Pré-check do cenário `atraso`: branch v1 live; contagens-base reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; estados críticos=0. PASSOU.
+- Fixture registrada: `usuario/41` (usuario sintetico estudante).
+- Fixture registrada: `titulo/20` (titulo sintetico atraso).
+- Fixture registrada: `exemplar/23` (exemplar sintetico atraso).
+- Fixture registrada: `emprestimo/16` (emprestimo sintetico atraso).
+- Diagnóstico vence_em (ms): envio epoch-ms; PUT HTTP 200; GET empréstimo HTTP 200; tipo=System.Int64; magnitude=milissegundos; devolvido_em_nulo=False; usuário_fixture_corresponde=True; exemplar_fixture_corresponde=True; vence_em_anterior_ao_agora=True; estado_exemplar=emprestado.
+- Cenário `atraso` interrompido em 'execucao do cenario atraso': Mutação de vence_em não confirmada; cenário de atraso não foi chamado.
+- Limpeza confirmada: `emprestimo/16`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `exemplar/23`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `titulo/20`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/41`; DELETE HTTP 200, GET HTTP 404.
+- Contagens após limpeza do cenário: reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; usuários originais preservados=True.
+- Pré-check do cenário `atraso`: branch v1 live; contagens-base reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; estados críticos=0. PASSOU.
+- Fixture registrada: `usuario/42` (usuario sintetico estudante).
+- Fixture registrada: `titulo/21` (titulo sintetico atraso).
+- Fixture registrada: `exemplar/24` (exemplar sintetico atraso).
+- Fixture registrada: `emprestimo/17` (emprestimo sintetico atraso).
+- Diagnóstico vence_em (ms): envio epoch-ms; PUT HTTP 200; GET empréstimo HTTP 200; tipo=System.Int64; magnitude=milissegundos; devolvido_em=numero_zero (tipo System.Int32); usuário_fixture_corresponde=True; exemplar_fixture_corresponde=True; vence_em_anterior_ao_agora=True; estado_exemplar=emprestado.
+- Cenário `atraso` interrompido em 'execucao do cenario atraso': Mutação de vence_em não confirmada; cenário de atraso não foi chamado.
+- Limpeza confirmada: `emprestimo/17`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `exemplar/24`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `titulo/21`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/42`; DELETE HTTP 200, GET HTTP 404.
+- Contagens após limpeza do cenário: reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; usuários originais preservados=True.
+- Pré-check do cenário `atraso`: branch v1 live; contagens-base reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; estados críticos=0. PASSOU.
+- Fixture registrada: `usuario/43` (usuario sintetico estudante).
+- Fixture registrada: `titulo/22` (titulo sintetico atraso).
+- Fixture registrada: `exemplar/25` (exemplar sintetico atraso).
+- Fixture registrada: `emprestimo/18` (emprestimo sintetico atraso).
+- Diagnóstico vence_em (ms): envio epoch-ms; PUT HTTP 200; GET empréstimo HTTP 200; tipo=System.Int64; magnitude=milissegundos; devolvido_em=numero_zero (tipo System.Int32); usuário_fixture_corresponde=True; exemplar_fixture_corresponde=True; vence_em_anterior_ao_agora=True; estado_exemplar=emprestado.
+- Fixture registrada: `solicitacao_emprestimo/18` (solicitacao inesperada pela API).
+- Fixture registrada: `reserva/12` (reserva vinculada a solicitacao do cenario).
+- Divergência funcional atraso (ms): solicitação HTTP 200, reserva HTTP 403, solicitações_fixture=1, reservas_fixture=1.
+- Cenário `atraso` interrompido em 'execucao do cenario atraso': Divergência funcional no bloqueio por atraso com vence_em em ms.
+- Limpeza confirmada: `reserva/12`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `emprestimo/18`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `solicitacao_emprestimo/18`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `exemplar/25`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `titulo/22`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/43`; DELETE HTTP 200, GET HTTP 404.
+- Contagens após limpeza do cenário: reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; usuários originais preservados=True.
+- Pré-check do cenário `atraso`: branch v1 live; contagens-base reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; estados críticos=0. PASSOU.
+- Fixture registrada: `usuario/44` (usuario sintetico estudante).
+- Fixture registrada: `titulo/23` (titulo sintetico atraso).
+- Fixture registrada: `exemplar/26` (exemplar sintetico atraso).
+- Fixture registrada: `emprestimo/19` (emprestimo sintetico atraso).
+- Diagnóstico vence_em (s): envio epoch-s; PUT HTTP 200; GET empréstimo HTTP 200; tipo=System.Int32; magnitude=segundos; devolvido_em=numero_zero (tipo System.Int32); usuário_fixture_corresponde=True; exemplar_fixture_corresponde=True; vence_em_anterior_ao_agora=True; estado_exemplar=emprestado.
+- Fixture registrada: `solicitacao_emprestimo/19` (solicitacao inesperada pela API).
+- Fixture registrada: `reserva/13` (reserva vinculada a solicitacao do cenario).
+- Divergência funcional atraso (s): solicitação HTTP 200, reserva HTTP 403, solicitações_fixture=1, reservas_fixture=1.
+- Cenário `atraso` interrompido em 'execucao do cenario atraso': Divergência funcional no bloqueio por atraso com vence_em em s.
+- Limpeza confirmada: `reserva/13`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `emprestimo/19`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `solicitacao_emprestimo/19`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `exemplar/26`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `titulo/23`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/44`; DELETE HTTP 200, GET HTTP 404.
+- Contagens após limpeza do cenário: reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; usuários originais preservados=True.
+- Pré-check do cenário `atraso`: branch v1 live; contagens-base reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; estados críticos=0. PASSOU.
+- Fixture registrada: `usuario/45` (usuario sintetico estudante).
+- Fixture registrada: `titulo/24` (titulo sintetico null-probe).
+- Fixture registrada: `exemplar/27` (exemplar sintetico null-probe).
+- Fixture registrada: `emprestimo/20` (emprestimo sintetico null-probe).
+- Probe devolvido_em null: POST individual incluiu JSON null; GET HTTP 200; estado lido=numero_zero.
+- Probe devolvido_em null: PUT individual enviou JSON null; PUT HTTP 200; GET HTTP 200; estado lido=numero_zero.
+- Limpeza confirmada: `emprestimo/20`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `exemplar/27`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `titulo/24`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/45`; DELETE HTTP 200, GET HTTP 404.
+- Contagens após limpeza do cenário: reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; usuários originais preservados=True.
+- Cenário `atraso` terminou e suas fixtures foram removidas antes de qualquer outro cenário.
+- Pré-check do cenário `atraso`: branch v1 live; contagens-base reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; estados críticos=0. PASSOU.
+- Fixture registrada: `usuario/46` (usuario sintetico estudante).
+- Fixture registrada: `titulo/25` (titulo sintetico null-probe).
+- Fixture registrada: `exemplar/28` (exemplar sintetico null-probe).
+- Fixture registrada: `emprestimo/21` (emprestimo sintetico null-probe).
+- Probe devolvido_em null: POST individual incluiu JSON null; GET HTTP 200; estado lido=numero_zero.
+- Probe devolvido_em null: PUT individual enviou somente JSON null para devolvido_em; PUT HTTP 200; GET HTTP 200; estado lido=numero_zero.
+- Limpeza confirmada: `emprestimo/21`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `exemplar/28`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `titulo/25`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/46`; DELETE HTTP 200, GET HTTP 404.
+- Contagens após limpeza do cenário: reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; usuários originais preservados=True.
+- Cenário `atraso` terminou e suas fixtures foram removidas antes de qualquer outro cenário.
+- Pré-check do cenário `atraso`: branch v1 live; contagens-base reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; estados críticos=0. PASSOU.
+- Fixture registrada: `usuario/47` (usuario sintetico estudante).
+- Fixture registrada: `titulo/26` (titulo sintetico atraso).
+- Fixture registrada: `exemplar/29` (exemplar sintetico atraso).
+- Fixture registrada: `usuario/48` (usuario sintetico bibliotecario).
+- Fixture registrada: `solicitacao_emprestimo/20` (solicitacao sintetica atraso).
+- Fixture registrada: `emprestimo/22` (emprestimo criado pela rota de retirada).
+- Diagnóstico vence_em (ms): envio epoch-ms; PUT HTTP 200; GET empréstimo HTTP 200; tipo=System.Int64; magnitude=milissegundos; devolvido_em=numero_zero (tipo System.Int32); usuário_fixture_corresponde=True; exemplar_fixture_corresponde=True; vence_em_anterior_ao_agora=True; estado_exemplar=emprestado.
+- Fixture registrada: `solicitacao_emprestimo/21` (solicitacao inesperada pela API).
+- Fixture registrada: `reserva/14` (reserva vinculada a solicitacao do cenario).
+- Divergência funcional atraso (ms): solicitação HTTP 200, reserva HTTP 403, solicitações_fixture=0, reservas_fixture=1.
+- Cenário `atraso` interrompido em 'execucao do cenario atraso': Divergência funcional no bloqueio por atraso com vence_em em ms.
+- Limpeza confirmada: `reserva/14`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `emprestimo/22`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `solicitacao_emprestimo/20`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `solicitacao_emprestimo/21`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `exemplar/29`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `titulo/26`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/47`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/48`; DELETE HTTP 200, GET HTTP 404.
+- Contagens após limpeza do cenário: reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; usuários originais preservados=True.
+- Pré-check do cenário `limite`: branch v1 live; contagens-base reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; estados críticos=0. PASSOU.
+- Fixture registrada: `usuario/49` (usuario sintetico bibliotecario).
+- Fixture registrada: `usuario/50` (usuario sintetico estudante).
+- Fixture registrada: `titulo/27` (titulo sintetico limite-a).
+- Fixture registrada: `titulo/28` (titulo sintetico limite-b).
+- Fixture registrada: `exemplar/30` (exemplar sintetico limite-a).
+- Fixture registrada: `exemplar/31` (exemplar sintetico limite-b).
+- Fixture registrada: `solicitacao_emprestimo/22` (solicitacao sintetica limite-a).
+- Fixture registrada: `solicitacao_emprestimo/23` (solicitacao sintetica limite-b).
+- Fixture registrada: `emprestimo/23` (emprestimo criado pela retirada concorrente).
+- Fixture registrada: `emprestimo/24` (emprestimo criado pela retirada concorrente).
+- Cenário limite concorrente: respostas HTTP 200/200; retiradas aceitas=2, esperado=1.
+- Cenário `limite` interrompido em 'execucao do cenario limite': Divergência funcional do limite concorrente: retiradas aceitas=2; esperado=1.
+- Limpeza confirmada: `emprestimo/23`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `emprestimo/24`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `solicitacao_emprestimo/22`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `solicitacao_emprestimo/23`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `exemplar/30`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `exemplar/31`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `titulo/27`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `titulo/28`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/49`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/50`; DELETE HTTP 200, GET HTTP 404.
+- Contagens após limpeza do cenário: reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; usuários originais preservados=True.
+- Pré-check do cenário `fifo`: branch v1 live; contagens-base reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; estados críticos=0. PASSOU.
+- Fixture registrada: `usuario/51` (usuario sintetico bibliotecario).
+- Fixture registrada: `usuario/52` (usuario sintetico estudante).
+- Fixture registrada: `usuario/53` (usuario sintetico estudante).
+- Fixture registrada: `titulo/29` (titulo sintetico fifo).
+- Fixture registrada: `exemplar/32` (exemplar sintetico fifo).
+- Fixture registrada: `reserva/15` (reserva sintetica fifo-a).
+- Fixture registrada: `reserva/16` (reserva sintetica fifo-b).
+- Consulta FIFO: as duas reservas de fixture retornaram na ordem criada.
+- Reprodução FIFO baseline: HTTP 500; código=ERROR_FATAL; campos da resposta=code,message; mensagem/trace omitidos para evitar dados pessoais ou internos.
+- Limpeza confirmada: `reserva/15`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `reserva/16`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `exemplar/32`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `titulo/29`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/51`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/52`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/53`; DELETE HTTP 200, GET HTTP 404.
+- Contagens após limpeza do cenário: reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; usuários originais preservados=True.
+- Cenário `fifo` terminou e suas fixtures foram removidas antes de qualquer outro cenário.
+
+## Ordenação FIFO em memória e revalidação
+
+- Documentação oficial consultada: [filtro `sort` do Xano](https://docs.xano.com/the-function-stack/filters/array.md) descreve ordenação de arrays por caminho interno, tipo e direção; [referência XanoScript](https://docs.xano.com/xanoscript/filter-reference/array.md) confirma o filtro `sort`. O caminho da tabela principal em `db.query.sort` já havia sido descartado pelo parser como equivalente e não gerou alteração no dry-run.
+- `ofertar_proxima`: pull isolado guardado em `rollback/lote3/ofertar_proxima_POST-before-memory-sort.xs`; dry-run delimitado listou somente um `UPDATE`; push com `-i` e `--force`; pull pós-push confirmou os filtros em memória para `id` e `criada_em`, sem `sort` na query.
+- `fila_GET`: pull isolado guardado em `rollback/lote3/fila_GET-before-memory-sort.xs`; dry-run delimitado listou somente um `UPDATE`; push com `-i` e `--force`; pull pós-push confirmou os filtros em memória e `response = $fila_ordenada`.
+- `processar_expiradas`: pull isolado guardado em `rollback/lote3/processar_expiradas_POST-before-memory-sort.xs`; a ordem de múltiplas expirações pode afetar qual exemplar atende cada reserva, então foram ordenados em memória os arrays de expirações (`expira_em`, `id`) e de reoferta (`criada_em`, `id`). Dry-run delimitado listou somente um `UPDATE`; push com `-i` e `--force`; pull pós-push confirmou ambos os filtros e os loops sobre os arrays ordenados. O processador global não foi executado.
+- Os três pushes emitiram avisos do CLI sobre referências de tabelas não resolvidas durante a importação individual. Os pulls pós-push mantiveram as consultas e filtros no XanoScript, e a chamada funcional da oferta abaixo passou.
+- O CLI não disponibiliza lint/compilador local XanoScript; como validação disponível, os três dry-runs foram aceitos, cada importação terminou e o pull confirmou a estrutura importada. A execução funcional validou a fila e oferta.
+- Verificação estrutural final: `python -m unittest discover -s xano\tests -v` passou com 9 testes; o parser do PowerShell aceitou o runner atualizado; `git diff --check` não reportou erros.
+- As três prévias foram delimitadas a um único arquivo com `-i` e listaram somente um `UPDATE`; não houve push amplo, `--delete`, `--sync` nem alteração de `allow_push`. Não foi criado commit Git.
+- Cenário FIFO: pré-check somente leitura passou com contagens-base `reserva=0`, `emprestimo=0`, `solicitacao_emprestimo=0`, `exemplar=0`, `titulo=0`, `usuario=2` e estados críticos=0. Criadas três reservas de fixture com o mesmo `criada_em`; a consulta retornou `id` crescente e a oferta respondeu HTTP 200 para a reserva mais antiga. O runner não chamou o processador global.
+- Fixtures registradas para o cenário: usuários `65` a `68`, título `37`, exemplar `40`, reservas `21` a `23`.
+- Limpeza confirmada individualmente por GET 404: `reserva/21`, `reserva/22`, `reserva/23`, `exemplar/40`, `titulo/37`, `usuario/65`, `usuario/66`, `usuario/67`, `usuario/68`.
+- Contagens após a limpeza: `reserva=0`, `emprestimo=0`, `solicitacao_emprestimo=0`, `exemplar=0`, `titulo=0`, `usuario=2`; os dois usuários originais permaneceram.
+- Pré-check do cenário `atraso`: branch v1 live; contagens-base reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; estados críticos=0. PASSOU.
+- Fixture registrada: `usuario/54` (usuario sintetico estudante).
+- Fixture registrada: `titulo/30` (titulo sintetico atraso).
+- Fixture registrada: `exemplar/33` (exemplar sintetico atraso).
+- Fixture registrada: `usuario/55` (usuario sintetico bibliotecario).
+- Fixture registrada: `solicitacao_emprestimo/24` (solicitacao sintetica atraso).
+- Fixture registrada: `emprestimo/25` (emprestimo criado pela rota de retirada).
+- Empréstimo recém-criado (ms; origem=rota_de_negocio): GET HTTP 200; devolvido_em=numero_zero; vence_em_tipo=System.Int64; vence_em_magnitude=milissegundos.
+- Diagnóstico vence_em (ms): envio epoch-ms; PUT HTTP 200; GET empréstimo HTTP 200; tipo=System.Int64; magnitude=milissegundos; devolvido_em=numero_zero (tipo System.Int32); usuário_fixture_corresponde=True; exemplar_fixture_corresponde=True; vence_em_anterior_ao_agora=True; estado_exemplar=emprestado.
+- Fixture registrada: `solicitacao_emprestimo/25` (solicitacao inesperada pela API).
+- Fixture registrada: `reserva/17` (reserva vinculada a solicitacao do cenario).
+- Divergência funcional atraso (ms): solicitação HTTP 200, reserva HTTP 403, solicitações_fixture=0, reservas_fixture=1.
+- Cenário `atraso` interrompido em 'execucao do cenario atraso': Divergência funcional no bloqueio por atraso com vence_em em ms.
+- Limpeza confirmada: `reserva/17`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `emprestimo/25`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `solicitacao_emprestimo/24`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `solicitacao_emprestimo/25`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `exemplar/33`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `titulo/30`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/54`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/55`; DELETE HTTP 200, GET HTTP 404.
+- Contagens após limpeza do cenário: reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; usuários originais preservados=True.
+- Pré-check do cenário `atraso`: branch v1 live; contagens-base reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; estados críticos=0. PASSOU.
+- Fixture registrada: `usuario/56` (usuario sintetico estudante).
+- Fixture registrada: `titulo/31` (titulo sintetico atraso).
+- Fixture registrada: `exemplar/34` (exemplar sintetico atraso).
+- Fixture registrada: `usuario/57` (usuario sintetico bibliotecario).
+- Fixture registrada: `solicitacao_emprestimo/26` (solicitacao sintetica atraso).
+- Fixture registrada: `emprestimo/26` (emprestimo criado pela rota de retirada).
+- Empréstimo recém-criado (ms; origem=rota_de_negocio): GET HTTP 200; devolvido_em=numero_zero; vence_em_tipo=System.Int64; vence_em_magnitude=milissegundos.
+- Diagnóstico vence_em (ms): envio epoch-ms; PUT HTTP 200; GET empréstimo HTTP 200; tipo=System.Int64; magnitude=milissegundos; devolvido_em=numero_zero (tipo System.Int32); usuário_fixture_corresponde=True; exemplar_fixture_corresponde=True; vence_em_anterior_ao_agora=True; estado_exemplar=emprestado.
+- Fixture registrada: `solicitacao_emprestimo/27` (solicitacao inesperada pela API).
+- Fixture registrada: `reserva/18` (reserva vinculada a solicitacao do cenario).
+- Divergência funcional atraso (ms): solicitação HTTP 200, campos_resposta=atendida_em,estado,id,reserva_id,solicitada_em,titulo_id,usuario_id, id_resposta=presente, reserva HTTP 403, solicitações_fixture=0, reservas_fixture=1.
+- Cenário `atraso` interrompido em 'execucao do cenario atraso': Divergência funcional no bloqueio por atraso com vence_em em ms.
+- Limpeza confirmada: `reserva/18`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `emprestimo/26`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `solicitacao_emprestimo/26`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `solicitacao_emprestimo/27`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `exemplar/34`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `titulo/31`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/56`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/57`; DELETE HTTP 200, GET HTTP 404.
+- Contagens após limpeza do cenário: reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; usuários originais preservados=True.
+- Pré-check do cenário `fifo`: branch v1 live; contagens-base reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; estados críticos=0. PASSOU.
+- Fixture registrada: `usuario/58` (usuario sintetico bibliotecario).
+- Fixture registrada: `usuario/59` (usuario sintetico estudante).
+- Fixture registrada: `usuario/60` (usuario sintetico estudante).
+- Fixture registrada: `titulo/32` (titulo sintetico fifo).
+- Fixture registrada: `exemplar/35` (exemplar sintetico fifo).
+- Fixture registrada: `reserva/19` (reserva sintetica fifo-a).
+- Fixture registrada: `reserva/20` (reserva sintetica fifo-b).
+- Consulta FIFO: as duas reservas de fixture retornaram na ordem criada.
+- Reprodução FIFO baseline: HTTP 500; código=ERROR_FATAL; campos da resposta=code,message; mensagem sanitizada=Invalid cast: "('now')::timestamptz" is of type:"timestamp", but trying to be of type:"epochms"; trace omitido.
+- Limpeza confirmada: `reserva/19`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `reserva/20`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `exemplar/35`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `titulo/32`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/58`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/59`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/60`; DELETE HTTP 200, GET HTTP 404.
+- Contagens após limpeza do cenário: reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; usuários originais preservados=True.
+- Cenário `fifo` terminou e suas fixtures foram removidas antes de qualquer outro cenário.
+- Pré-check do cenário `atraso`: branch v1 live; contagens-base reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; estados críticos=0. PASSOU.
+- Fixture registrada: `usuario/61` (usuario sintetico estudante).
+- Fixture registrada: `titulo/33` (titulo sintetico atraso).
+- Fixture registrada: `exemplar/36` (exemplar sintetico atraso).
+- Fixture registrada: `emprestimo/27` (emprestimo sintetico atraso).
+- Empréstimo recém-criado (ms; origem=Metadata_API): GET HTTP 200; devolvido_em=numero_zero; vence_em_tipo=System.Int64; vence_em_magnitude=milissegundos.
+- Diagnóstico vence_em (ms): envio epoch-ms; PUT HTTP 200; GET empréstimo HTTP 200; tipo=System.Int64; magnitude=milissegundos; devolvido_em=numero_zero (tipo System.Int32); usuário_fixture_corresponde=True; exemplar_fixture_corresponde=True; vence_em_anterior_ao_agora=True; estado_exemplar=emprestado.
+- Cenário atraso (ms): solicitação HTTP 403 rejeitada por atraso e sem registros laterais. Verificação de reserva adiada ao Lote 2. PASSOU.
+- Limpeza confirmada: `emprestimo/27`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `exemplar/36`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `titulo/33`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/61`; DELETE HTTP 200, GET HTTP 404.
+- Contagens após limpeza do cenário: reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; usuários originais preservados=True.
+- Cenário `atraso` terminou e suas fixtures foram removidas antes de qualquer outro cenário.
+- Pré-check do cenário `limite`: branch v1 live; contagens-base reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; estados críticos=0. PASSOU.
+- Fixture registrada: `usuario/62` (usuario sintetico bibliotecario).
+- Fixture registrada: `usuario/63` (usuario sintetico estudante).
+- Fixture registrada: `titulo/34` (titulo sintetico limite-a).
+- Fixture registrada: `titulo/35` (titulo sintetico limite-b).
+- Fixture registrada: `exemplar/37` (exemplar sintetico limite-a).
+- Fixture registrada: `exemplar/38` (exemplar sintetico limite-b).
+- Fixture registrada: `solicitacao_emprestimo/28` (solicitacao sintetica limite-a).
+- Fixture registrada: `solicitacao_emprestimo/29` (solicitacao sintetica limite-b).
+- Fixture registrada: `emprestimo/28` (emprestimo criado pela retirada concorrente).
+- Cenário limite concorrente: respostas HTTP 200/403; retiradas aceitas=1, esperado=1.
+- Limpeza confirmada: `emprestimo/28`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `solicitacao_emprestimo/28`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `solicitacao_emprestimo/29`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `exemplar/37`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `exemplar/38`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `titulo/34`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `titulo/35`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/62`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/63`; DELETE HTTP 200, GET HTTP 404.
+- Contagens após limpeza do cenário: reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; usuários originais preservados=True.
+- Cenário `limite` terminou e suas fixtures foram removidas antes de qualquer outro cenário.
+- Pré-check do cenário `atraso`: branch v1 live; contagens-base reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; estados críticos=0. PASSOU.
+- Fixture registrada: `usuario/64` (usuario sintetico estudante).
+- Fixture registrada: `titulo/36` (titulo sintetico atraso).
+- Fixture registrada: `exemplar/39` (exemplar sintetico atraso).
+- Fixture registrada: `emprestimo/29` (emprestimo sintetico atraso).
+- Empréstimo recém-criado (ms; origem=Metadata_API): GET HTTP 200; devolvido_em=numero_zero; vence_em_tipo=System.Int64; vence_em_magnitude=milissegundos.
+- Diagnóstico vence_em (ms): envio epoch-ms; PUT HTTP 200; GET empréstimo HTTP 200; tipo=System.Int64; magnitude=milissegundos; devolvido_em=numero_zero (tipo System.Int32); usuário_fixture_corresponde=True; exemplar_fixture_corresponde=True; vence_em_anterior_ao_agora=True; estado_exemplar=emprestado.
+- Cenário atraso (ms): solicitação HTTP 403, reserva HTTP 403, ambas rejeitadas por atraso e sem registros laterais. PASSOU.
+- Limpeza confirmada: `emprestimo/29`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `exemplar/39`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `titulo/36`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/64`; DELETE HTTP 200, GET HTTP 404.
+- Contagens após limpeza do cenário: reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; usuários originais preservados=True.
+- Cenário `atraso` terminou e suas fixtures foram removidas antes de qualquer outro cenário.
+- Pré-check do cenário `fifo`: branch v1 live; contagens-base reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; estados críticos=0. PASSOU.
+- Fixture registrada: `usuario/65` (usuario sintetico bibliotecario).
+- Fixture registrada: `usuario/66` (usuario sintetico estudante).
+- Fixture registrada: `usuario/67` (usuario sintetico estudante).
+- Fixture registrada: `usuario/68` (usuario sintetico estudante).
+- Fixture registrada: `titulo/37` (titulo sintetico fifo).
+- Fixture registrada: `exemplar/40` (exemplar sintetico fifo).
+- Fixture registrada: `reserva/21` (reserva sintetica fifo-a).
+- Fixture registrada: `reserva/22` (reserva sintetica fifo-b).
+- Fixture registrada: `reserva/23` (reserva sintetica fifo-c).
+- Consulta FIFO: três reservas com `criada_em` igual retornaram por `id` crescente.
+- Oferta FIFO: HTTP 200 e reserva mais antiga selecionada.
+- Processador global de expiração não executado neste cenário.
+- Limpeza confirmada: `reserva/21`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `reserva/22`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `reserva/23`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `exemplar/40`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `titulo/37`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/65`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/66`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/67`; DELETE HTTP 200, GET HTTP 404.
+- Limpeza confirmada: `usuario/68`; DELETE HTTP 200, GET HTTP 404.
+- Contagens após limpeza do cenário: reserva=0, emprestimo=0, solicitacao_emprestimo=0, exemplar=0, titulo=0, usuario=2; usuários originais preservados=True.
+- Cenário `fifo` terminou e suas fixtures foram removidas antes de qualquer outro cenário.

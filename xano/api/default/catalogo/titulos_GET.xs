@@ -13,20 +13,24 @@ query "catalogo/titulos" verb=GET {
 
     foreach ($titulos) {
       each as $titulo {
-        db.query exemplar {
-          where = $db.exemplar.titulo_id == $titulo.id && $db.exemplar.estado == "disponivel"
-          return = {type: "count"}
-        } as $disponiveis
+        conditional {
+          if ($titulo.ativo != false) {
+            db.query exemplar {
+              where = $db.exemplar.titulo_id == $titulo.id && $db.exemplar.estado == "disponivel"
+              return = {type: "count"}
+            } as $disponiveis
 
-        db.query titulo_categoria {
-          where = $db.titulo_categoria.titulo_id == $titulo.id
-        } as $categorias
+            db.query titulo_categoria {
+              where = $db.titulo_categoria.titulo_id == $titulo.id
+            } as $categorias
 
-        var.update $resultado {
-          value = $resultado|append:{
-            titulo: $titulo,
-            categorias: $categorias,
-            exemplares_disponiveis: $disponiveis
+            var.update $resultado {
+              value = $resultado|append:{
+                titulo: $titulo,
+                categorias: $categorias,
+                exemplares_disponiveis: $disponiveis
+              }
+            }
           }
         }
       }

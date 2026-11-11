@@ -16,6 +16,11 @@ query "catalogo/titulos/{titulo_id}" verb=GET {
       error = "Titulo nao encontrado."
     }
 
+    precondition ($titulo.ativo != false) {
+      error_type = "notfound"
+      error = "Titulo nao encontrado."
+    }
+
     db.query exemplar {
       where = $db.exemplar.titulo_id == $input.titulo_id && $db.exemplar.estado == "disponivel"
       return = {type: "count"}
@@ -23,6 +28,7 @@ query "catalogo/titulos/{titulo_id}" verb=GET {
 
     db.query titulo_categoria {
       where = $db.titulo_categoria.titulo_id == $input.titulo_id
+      return = {type: "list"}
     } as $categorias
   }
 

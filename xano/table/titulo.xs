@@ -9,6 +9,7 @@ table titulo {
     text edicao?
     int ano_publicacao?
     text descricao?
+    bool ativo?=true
   }
 
   index = [
