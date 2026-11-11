@@ -24,3 +24,32 @@ O sistema MUST separar o pedido do estudante da confirmação física do emprés
 #### Scenario: Solicitação para título desativado
 - **WHEN** estudante autenticado solicita empréstimo ou reserva de título inativo
 - **THEN** o backend recusa a solicitação sem criar pedido, reserva ou empréstimo
+
+## ADDED Requirements
+
+### Requirement: Minha biblioteca explica falhas de carregamento
+A área pessoal MUST informar falhas de integração com mensagens específicas e sem expor detalhes internos, oferecendo nova autenticação quando a sessão não for aceita.
+
+#### Scenario: Sessão inválida ou expirada
+- **WHEN** uma chamada pessoal retorna HTTP 401
+- **THEN** a interface informa que a sessão expirou ou não é válida, encerra a sessão local e oferece um link acessível para entrar novamente
+
+#### Scenario: Perfil sem permissão
+- **WHEN** uma chamada pessoal retorna HTTP 403
+- **THEN** a interface informa que a conta não tem permissão para consultar o recurso
+
+#### Scenario: Recurso ou rota indisponível
+- **WHEN** uma chamada pessoal retorna HTTP 404
+- **THEN** a interface informa que o recurso não foi encontrado ou que a rota não está disponível
+
+#### Scenario: Serviço indisponível ou timeout
+- **WHEN** o serviço retorna HTTP 5xx ou a chamada excede o tempo limite
+- **THEN** a interface informa que o serviço está temporariamente indisponível e orienta tentar novamente mais tarde
+
+#### Scenario: Resposta inválida
+- **WHEN** o serviço retorna JSON inválido ou dados incompatíveis com o contrato pessoal
+- **THEN** a interface informa que a resposta do serviço é inválida sem exibir conteúdo interno
+
+#### Scenario: Estado de erro acessível
+- **WHEN** uma falha impede carregar os registros pessoais
+- **THEN** a mensagem é anunciada como alerta acessível e os estados vazios existentes não são apresentados como se a consulta tivesse sido bem-sucedida

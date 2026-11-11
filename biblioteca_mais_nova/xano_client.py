@@ -42,6 +42,14 @@ class XanoRequestError(RuntimeError):
     """Falha sanitizada ao acessar o Xano."""
 
 
+class XanoTimeoutError(XanoRequestError):
+    """Tempo limite excedido ao acessar o Xano."""
+
+
+class XanoInvalidResponseError(XanoRequestError):
+    """Resposta inválida retornada pelo Xano."""
+
+
 class XanoResponseError(XanoRequestError):
     """Resposta HTTP de erro retornada pelo Xano."""
 
@@ -154,6 +162,10 @@ class XanoClient:
                     headers=headers,
                     json=json,
                 )
+        except httpx.TimeoutException:
+            raise XanoTimeoutError(
+                "O serviço Xano excedeu o tempo limite."
+            ) from None
         except httpx.RequestError:
             raise XanoRequestError(
                 "Não foi possível se comunicar com o serviço Xano."

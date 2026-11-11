@@ -12,6 +12,7 @@ Bibliotecários precisam consultar e manter o acervo completo, inclusive exempla
 - Ocultar títulos desativados do catálogo público e recusar novas solicitações e reservas para eles no backend.
 - Exigir autenticação e autorização de bibliotecário ou admin no backend para operações administrativas; a interface não substitui essa validação.
 - Preservar histórico e nunca excluir fisicamente título, exemplar, empréstimo ou reserva por esta capability.
+- Na área pessoal, distinguir falhas de sessão, permissão, rota, serviço e resposta inválida, com ação para entrar novamente quando a sessão expirar.
 
 ## Capabilities
 

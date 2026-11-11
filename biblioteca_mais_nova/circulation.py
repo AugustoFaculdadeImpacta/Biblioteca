@@ -8,6 +8,7 @@ import httpx
 
 from biblioteca_mais_nova.xano_client import (
     XanoClient,
+    XanoInvalidResponseError,
     XanoRequestError,
 )
 
@@ -55,7 +56,7 @@ Record = TypeVar("Record")
 
 
 def _response_error() -> XanoRequestError:
-    return XanoRequestError(
+    return XanoInvalidResponseError(
         "O serviço não retornou uma resposta válida. Tente novamente mais tarde."
     )
 

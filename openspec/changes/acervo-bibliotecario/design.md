@@ -12,6 +12,7 @@ O Xano local confirma criação de título, associação a categoria, criação 
 - Evoluir o título e seus fluxos de maneira vertical, preservando histórico e as regras existentes de circulação.
 - Fazer da API Xano a autoridade para filtros de autorização, estado ativo e impedimentos por empréstimo/reserva.
 - Reutilizar os contratos existentes de criação, edição, categoria e exemplar quando compatíveis.
+- Tornar falhas de carregamento da área pessoal compreensíveis e recuperáveis sem expor detalhes internos do serviço.
 
 **Non-Goals:**
 - Criar ou alterar qualquer dado de empréstimo/reserva fora da validação necessária à desativação.
@@ -43,6 +44,12 @@ O OpenAPI local confirma `PATCH /catalogo/titulos/{tituloId}`, mas não oferece 
 Todas as consultas e mutações administrativas exigem autenticação e validação no servidor para bibliotecário/admin. A paridade de `admin` depende da Change `perfil-admin-xano`; até o Xano aceitar e autorizar esse perfil, não afirmar que as operações administrativas reais estão disponíveis a admin. Visitantes e estudantes não recebem consultas ou mutações administrativas.
 
 **Alternativa considerada:** ocultar ações apenas no Reflex; rejeitada porque a interface não é uma fronteira de autorização.
+
+### Falhas ao carregar Minha biblioteca
+
+As chamadas pessoais preservam o token em estado privado e o enviam como `Authorization: Bearer`. A interface não deve presumir que o token foi enviado incorretamente: a causa de um 401 depende da sessão real. O cliente distingue 401 (sessão inválida, limpar a sessão e oferecer link para entrar novamente), 403 (sem permissão), 404 (recurso/rota indisponível), 5xx ou timeout (serviço temporariamente indisponível) e payload inválido. Mensagens não incluem corpo de resposta, token ou URL. O alerta continua acessível e os estados vazios atuais permanecem intactos.
+
+**Alternativa considerada:** trocar o token ou usar a API demo automaticamente após erro; rejeitada porque não há evidência da causa e isso ocultaria falhas de configuração/autorização.
 
 ### Operação e validação Xano
 

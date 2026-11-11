@@ -8,6 +8,7 @@ import httpx
 from biblioteca_mais_nova.xano_client import (
     XanoClient,
     XanoConfigurationError,
+    XanoInvalidResponseError,
     XanoRequestError,
     XanoResponseError,
 )
@@ -136,7 +137,7 @@ def _response_json(response: httpx.Response) -> object:
 
 
 def _response_error() -> XanoRequestError:
-    return XanoRequestError(
+    return XanoInvalidResponseError(
         "O serviço não retornou uma resposta válida. Tente novamente mais tarde."
     )
 

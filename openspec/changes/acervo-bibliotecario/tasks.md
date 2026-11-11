@@ -26,6 +26,13 @@
 - [x] 4.1 Executar `pytest tests -q` (115 passaram), `python -m unittest discover -s xano\\tests -v` (12 passaram), `reflex compile --dry`, `openspec validate acervo-bibliotecario --strict` e `openspec validate --specs --strict`; verificações locais e simuladas, sem Xano real.
 - [x] 4.2 Revisar diff e `git status`; branch `trabalho-noturno`, alterações do acervo limitadas aos arquivos listados, sem segredos/dados reais e sem escrita remota; documentação da Change de reservas permanece fora deste commit.
 
+## 5. Erros de integração na área pessoal
+
+- [x] 5.1 Distinguir timeout e resposta inválida de falha de transporte no cliente e parsers pessoais; verificar com testes `httpx.MockTransport` em `tests/test_xano_client.py` e `tests/test_student_area.py` (47 passaram entre cliente, área pessoal e catálogo).
+- [ ] 5.2 Mapear 401, 403, 404, 5xx e falhas de transporte para mensagens específicas em português, sem incluir corpo/URL/token; verificar cada status com testes mockados.
+- [ ] 5.3 Ao receber 401 em Minha biblioteca, limpar a sessão local e oferecer link acessível para login, preservando alerta, estados vazios e demais dados; verificar com testes Reflex existentes.
+- [ ] 5.4 Executar `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation` e `openspec validate acervo-bibliotecario --strict`; registrar evidências no relatório autopilot.
+
 ## Bloqueio de publicação
 
 O Apply é local. O workspace `151966`, branch `v1` (live), não recebeu alterações. Os contratos candidatos locais ainda precisam de publicação e testes reais autorizados antes de considerar o backend verificado; não arquivar esta Change enquanto a tarefa 2.5 estiver NÃO EXECUTADA.

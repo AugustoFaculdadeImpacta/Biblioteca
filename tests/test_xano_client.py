@@ -6,6 +6,7 @@ import pytest
 from biblioteca_mais_nova.xano_client import (
     XanoClient,
     XanoConfigurationError,
+    XanoTimeoutError,
     XanoRequestError,
     XanoResponseError,
 )
@@ -108,3 +109,24 @@ def test_transport_errors_are_sanitized_and_not_logged(monkeypatch, caplog):
     assert error.value.__suppress_context__
     assert token not in caplog.text
     assert "api.example.test" not in caplog.text
+
+
+def test_timeout_errors_are_classified_and_sanitized(monkeypatch):
+    token = "token-de-teste"
+
+    def timeout_request(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout(
+            f"timeout em {request.url} com Bearer {token}",
+            request=request,
+        )
+
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    client = XanoClient.from_environment(
+        transport=httpx.MockTransport(timeout_request)
+    )
+
+    with pytest.raises(XanoTimeoutError) as error:
+        asyncio.run(client.request("GET", "/minhas/emprestimos", token=token))
+
+    assert token not in str(error.value)
+    assert "api.example.test" not in str(error.value)

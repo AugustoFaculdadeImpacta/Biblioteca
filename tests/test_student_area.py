@@ -14,7 +14,11 @@ from biblioteca_mais_nova.circulation import (
     list_my_reservations,
     request_title_loan,
 )
-from biblioteca_mais_nova.xano_client import XanoRequestError, XanoResponseError
+from biblioteca_mais_nova.xano_client import (
+    XanoInvalidResponseError,
+    XanoRequestError,
+    XanoResponseError,
+)
 
 
 def _request_records():
@@ -141,7 +145,7 @@ def test_personal_services_reject_malformed_responses(monkeypatch):
                 200, json=response_body
             )
         )
-        with pytest.raises(XanoRequestError):
+        with pytest.raises(XanoInvalidResponseError):
             asyncio.run(service("token", transport=transport))
 
 
@@ -197,7 +201,7 @@ def test_request_service_rejects_mismatched_title_and_invalid_json(monkeypatch):
     invalid_json = httpx.MockTransport(
         lambda request: httpx.Response(201, content=b"not-json")
     )
-    with pytest.raises(XanoRequestError):
+    with pytest.raises(XanoInvalidResponseError):
         asyncio.run(request_title_loan(14, "token", transport=invalid_json))
 
 
