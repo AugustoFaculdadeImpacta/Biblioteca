@@ -11,6 +11,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoInvalidResponseError,
     XanoRequestError,
     XanoResponseError,
+    XanoTimeoutError,
 )
 
 
@@ -466,8 +467,21 @@ def catalog_error_message(error: Exception) -> str:
         return str(error)
     if isinstance(error, XanoConfigurationError):
         return "O acervo está temporariamente indisponível. Tente novamente mais tarde."
-    if isinstance(error, XanoResponseError) and error.public_detail:
-        return error.public_detail
+    if isinstance(error, XanoResponseError):
+        if error.public_detail:
+            return error.public_detail
+        if error.status_code == 401:
+            return "Sua sessão expirou ou não é mais válida. Entre novamente para continuar."
+        if error.status_code == 403:
+            return "Sua conta não tem permissão para acessar este recurso."
+        if error.status_code == 404:
+            return "O recurso não foi encontrado ou a rota ainda não está disponível."
+        if error.status_code >= 500:
+            return "O serviço Xano está temporariamente indisponível. Tente novamente mais tarde."
+    if isinstance(error, XanoTimeoutError):
+        return "O serviço Xano demorou para responder. Verifique a conexão e tente novamente."
+    if isinstance(error, XanoInvalidResponseError):
+        return "O serviço Xano retornou uma resposta inválida. Tente novamente mais tarde."
     if isinstance(error, XanoRequestError):
-        return "Não foi possível concluir a operação no acervo. Confira a situação antes de tentar novamente."
+        return "Não foi possível se comunicar com o serviço Xano. Verifique a conexão e tente novamente."
     return "Ocorreu um erro inesperado. Tente novamente mais tarde."

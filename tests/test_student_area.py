@@ -18,6 +18,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoInvalidResponseError,
     XanoRequestError,
     XanoResponseError,
+    XanoTimeoutError,
 )
 
 
@@ -218,6 +219,56 @@ def test_student_library_formats_timezone_and_detects_only_active_overdue_loans(
         "2000-01-01T00:00:00Z", "2000-01-02T00:00:00Z"
     ) is False
     assert frontend._is_overdue("2999-01-01T00:00:00Z", None) is False
+
+
+@pytest.mark.parametrize(
+    ("error", "message"),
+    [
+        (
+            XanoResponseError(401),
+            "Sua sessão expirou ou não é mais válida. Entre novamente para continuar.",
+        ),
+        (
+            XanoResponseError(403),
+            "Sua conta não tem permissão para acessar este recurso.",
+        ),
+        (
+            XanoResponseError(404),
+            "O recurso não foi encontrado ou a rota ainda não está disponível.",
+        ),
+        (
+            XanoResponseError(503),
+            "O serviço Xano está temporariamente indisponível. Tente novamente mais tarde.",
+        ),
+        (
+            XanoTimeoutError("detalhe interno não deve aparecer"),
+            "O serviço Xano demorou para responder. Verifique a conexão e tente novamente.",
+        ),
+        (
+            XanoInvalidResponseError("payload interno não deve aparecer"),
+            "O serviço Xano retornou uma resposta inválida. Tente novamente mais tarde.",
+        ),
+        (
+            XanoRequestError("detalhe de transporte não deve aparecer"),
+            "Não foi possível se comunicar com o serviço Xano. Verifique a conexão e tente novamente.",
+        ),
+    ],
+)
+def test_student_library_maps_integration_errors_without_internal_details(
+    error, message
+):
+    assert frontend.catalog_error_message(error) == message
+
+
+def test_student_library_preserves_allowlisted_business_error():
+    error = XanoResponseError(
+        403,
+        "A reserva foi recusada porque o estudante possui empréstimo atrasado.",
+    )
+
+    assert frontend.catalog_error_message(error) == (
+        "A reserva foi recusada porque o estudante possui empréstimo atrasado."
+    )
 
 
 def test_student_library_route_guards_before_any_personal_get(monkeypatch):
