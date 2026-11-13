@@ -10,6 +10,7 @@ A biblioteca precisa de uma conta administradora capaz de exercer as permissões
 - Permitir que administradores autenticados exerçam as mesmas operações administrativas que bibliotecários, sem ampliar operações pessoais exclusivas de estudantes.
 - Permitir que admin crie e desative bibliotecários pela área de gestão, com autorização validada no backend; o autocadastro público continuará criando somente estudantes.
 - Permitir que o frontend reconheça sessões admin sem expor token e reutilize as permissões administrativas já disponíveis ao bibliotecário.
+- Permitir que admin alterne entre visualizações de bibliotecário e estudante, com indicação visível, sem mudar o perfil da sessão ou as permissões do backend.
 - Registrar em `docs/xano-workflow.md` um roteiro sem credenciais para provisionar manualmente a primeira conta admin pelo dono do workspace.
 - Não remover fisicamente contas de bibliotecário nem títulos que tenham histórico.
 - Não alterar `auth=false`, apagar registros, alterar `allow_push` ou executar escrita real no Xano sem passar pelos gates de destino, pull, rollback, dry-run e push unitário.
@@ -29,6 +30,6 @@ A biblioteca precisa de uma conta administradora capaz de exercer as permissões
 ## Impact
 
 - Xano: enum `usuario.perfil`, precondições dos endpoints administrativos do grupo Biblioteca e operações administrativas para criar e desativar bibliotecários.
-- Reflex: reconhecimento do perfil admin na sessão privada, nas verificações equivalentes ao bibliotecário e na área de gestão exclusiva de admin.
+- Reflex: reconhecimento do perfil admin na sessão privada, nas verificações equivalentes ao bibliotecário, na área de gestão exclusiva de admin e na alternância de visualização sem impersonação.
 - OpenAPI e specs das capacidades listadas; roteiro operacional sem segredos em `docs/`.
 - Alvo pretendido e confirmado pelo CLI: workspace `151966`, branch `v1` (live), grupo Biblioteca. `allow_push=false` e o sandbox não oferece filtro `-i`; nenhum push Xano será feito nesta Change.

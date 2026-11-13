@@ -109,6 +109,7 @@ class State(rx.State):
     _session_token: str = ""
     _session_profile: str = ""
     _session_name: str = ""
+    _admin_view_mode: str = "bibliotecaria"
     accessibility_font_scale_raw: str = rx.LocalStorage(
         "100", name="biblioteca-acessibilidade-fonte", sync=True
     )
@@ -181,6 +182,7 @@ class State(rx.State):
         self._store_session_token(token)
         self._session_profile = profile
         self._session_name = name.strip()
+        self._admin_view_mode = "bibliotecaria"
 
     @rx.var
     def greeting_name(self) -> str:
@@ -247,10 +249,25 @@ class State(rx.State):
     def _read_session_token(self) -> str | None:
         return self._session_token or None
 
+    @rx.var
+    def admin_view_mode(self) -> str:
+        if not self._is_admin():
+            return ""
+        if self._admin_view_mode not in {"bibliotecaria", "estudante"}:
+            return "bibliotecaria"
+        return self._admin_view_mode
+
+    @rx.event
+    def set_admin_view_mode(self, mode: str):
+        if not self._is_admin() or mode not in {"bibliotecaria", "estudante"}:
+            return
+        self._admin_view_mode = mode
+
     def _clear_session_token(self) -> None:
         self._session_token = ""
         self._session_profile = ""
         self._session_name = ""
+        self._admin_view_mode = "bibliotecaria"
         self.is_authenticated = False
 
     def _is_librarian(self) -> bool:
@@ -646,7 +663,9 @@ class State(rx.State):
     async def load_student_library(self):
         if not self._session_token:
             return rx.redirect("/login")
-        if not self.is_student:
+        if not self.is_student and not (
+            self._is_admin() and self.admin_view_mode == "estudante"
+        ):
             return rx.redirect("/")
 
         self.student_library_pending = True
@@ -1744,17 +1763,23 @@ def site_header() -> rx.Component:
                         class_name="session-greeting",
                     ),
                     rx.cond(
-                        State.is_student,
+                        State.is_student
+                        | (
+                            State.can_manage_librarians
+                            & (State.admin_view_mode == "estudante")
+                        ),
                         rx.link("Minha biblioteca", href="/minha-biblioteca"),
                         rx.fragment(),
                     ),
                     rx.cond(
-                        State.is_librarian,
+                        State.is_librarian
+                        & (State.admin_view_mode != "estudante"),
                         rx.link("Cadastrar livro", href="/admin/acervo"),
                         rx.fragment(),
                     ),
                     rx.cond(
-                        State.is_librarian,
+                        State.is_librarian
+                        & (State.admin_view_mode != "estudante"),
                         rx.link(
                             "Circulação",
                             href="/admin/circulacao",
@@ -1762,7 +1787,8 @@ def site_header() -> rx.Component:
                         rx.fragment(),
                     ),
                     rx.cond(
-                        State.is_librarian,
+                        State.is_librarian
+                        & (State.admin_view_mode != "estudante"),
                         rx.link(
                             "Reservas para estudantes",
                             href="/admin/reservas",
@@ -1791,6 +1817,38 @@ def site_header() -> rx.Component:
             ),
             aria_label="Navegação principal",
             class_name="site-nav",
+        ),
+        rx.cond(
+            State.can_manage_librarians,
+            rx.el.div(
+                rx.text(
+                    "Modo de visualização: ",
+                    rx.cond(
+                        State.admin_view_mode == "estudante",
+                        "Estudante",
+                        "Bibliotecária",
+                    ),
+                    role="status",
+                    aria_live="polite",
+                    class_name="admin-view-mode-label",
+                ),
+                rx.button(
+                    "Ver como bibliotecária",
+                    type="button",
+                    on_click=State.set_admin_view_mode("bibliotecaria"),
+                    aria_pressed=State.admin_view_mode == "bibliotecaria",
+                ),
+                rx.button(
+                    "Ver como estudante",
+                    type="button",
+                    on_click=State.set_admin_view_mode("estudante"),
+                    aria_pressed=State.admin_view_mode == "estudante",
+                ),
+                role="group",
+                aria_label="Alternar modo de visualização",
+                class_name="admin-view-mode",
+            ),
+            rx.fragment(),
         ),
         rx.el.details(
             rx.el.summary("Acessibilidade"),
@@ -3539,6 +3597,20 @@ app = rx.App(
             "min_width": "0",
             "max_width": "100%",
         },
+        ".admin-view-mode": {
+            "display": "flex",
+            "flex_wrap": "wrap",
+            "align_items": "center",
+            "gap": "0.5rem",
+            "width": "100%",
+            "padding": "0.5rem 0.75rem",
+            "border": "1px solid var(--blue-7)",
+            "border_radius": "0.5rem",
+            "background_color": "var(--blue-2)",
+        },
+        ".admin-view-mode-label": {
+            "font_weight": "700",
+        },
         ".session-greeting": {
             "font_weight": "700",
             "overflow_wrap": "anywhere",
@@ -3884,6 +3956,9 @@ app = rx.App(
             },
             ".site-nav": {
                 "gap": "0.5rem",
+                "width": "100%",
+            },
+            ".admin-view-mode": {
                 "width": "100%",
             },
             ".a11y-menu": {

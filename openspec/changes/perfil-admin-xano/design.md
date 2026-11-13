@@ -12,6 +12,7 @@ O enum local de `usuario.perfil` contém estudante e bibliotecário; 15 endpoint
 - Adicionar admin como terceiro perfil confiável, com a mesma autorização bibliotecária no backend e no estado de sessão Reflex.
 - Limitar listagem, criação, desativação e reativação de bibliotecários a uma conta admin autenticada e preservar o autocadastro público de estudante.
 - Impedir que contas desativadas façam login ou executem operações administrativas, inclusive por tokens já emitidos.
+- Oferecer a admin uma alternância de visualização entre bibliotecário e estudante sem substituir sua identidade nem alterar autorização no backend.
 - Fazer a mudança de schema em uma única atualização delimitada, sem mudar os outros fluxos de autorização ou dados.
 
 **Non-Goals:**
@@ -65,6 +66,7 @@ O primeiro admin deve ser criado manualmente pelo dono do workspace, usando os c
 - [Enum e endpoints podem ficar parcialmente sincronizados] → atualizar e conferir cada arquivo individualmente; não avançar ao próximo push se o pull de conferência divergir.
 - [Uma conta desativada mantém token válido] → verificar `ativo != false` nas rotas administrativas além de bloquear o login.
 - [Sessão admin pode vazar token ou obter ações de estudante] → testes de estado privado/logs e verificações de perfil positivas e negativas em cada evento; autorização Xano continua sendo a autoridade.
+- [Visualização de estudante pode ser confundida com impersonação] → manter o perfil e token admin, enviar somente esse token às rotas pessoais existentes e mostrar a recusa do backend sem fabricar dados quando admin não for elegível.
 
 ## Migration Plan
 

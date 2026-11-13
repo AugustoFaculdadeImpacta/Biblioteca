@@ -68,6 +68,11 @@ login requer tratamento local da sessão e verificação posterior autorizada.
 P1 alterou somente o cliente Reflex, parsers e mensagens locais; não adicionou
 nem modificou contratos Xano e não requer publicação.
 
+P4.3 adicionou somente alternância visual no frontend Reflex. A identidade,
+token e permissões efetivas do admin permanecem inalterados; nenhuma rota,
+tabela ou script Xano foi alterado e não há publicação adicional decorrente
+dessa funcionalidade.
+
 ## Estado da verificação
 
 - Validação local de sintaxe MCP: três rotas pessoais válidas.

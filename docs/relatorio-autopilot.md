@@ -309,3 +309,48 @@ pessoais e administrativos.
 P4.3: alternância de visualização somente na interface para admin. As tarefas
 remotas continuam pendentes; não arquivar as Changes enquanto houver qualquer
 publicação, prova ou limpeza remota por executar.
+
+## P4.3 — Alternância de visualização do admin
+
+**Status: concluído localmente; sem mudança remota.**
+
+- O cabeçalho agora oferece a admin os modos “Bibliotecária” e “Estudante”,
+  com faixa visível “Modo de visualização: ...”, botões operáveis por teclado
+  e estado `aria-pressed`. O modo altera somente as opções de navegação.
+- O perfil efetivo continua `admin`, com permissões administrativas intactas;
+  a interface não altera token, perfil ou autorização no servidor.
+- Em visualização de estudante, Minha biblioteca usa o token da própria
+  sessão admin. Quando o backend mockado recusa a chamada com 403, a tela
+  preserva a sessão, mostra a mensagem de permissão e não inventa registros.
+  A tela pessoal continua protegida para bibliotecários e visitantes.
+- Testes locais: `.\.venv\Scripts\python.exe -m pytest
+  tests\test_navigation.py tests\test_student_area.py -q` — **34 passaram**;
+  `.\.venv\Scripts\python.exe -m reflex compile --dry` — compilação concluída.
+  A primeira execução focada teve um teste que esperava acentos literais na
+  representação serializada do Reflex; o teste foi ajustado aos escapes reais
+  e a repetição passou. Nenhum servidor foi iniciado.
+- A validação estrita `openspec validate perfil-admin-xano --strict` passou.
+  Esta etapa não alterou XanoScript; validação MCP de sintaxe não se aplica.
+  Nenhuma chamada remota, Xano CLI ou publicação foi executada.
+
+### Decisões tomadas
+
+- Manter a visualização de estudante como modo visual, não como impersonação:
+  o token enviado é o do admin autenticado e o backend continua decidindo se a
+  rota pessoal pode ser consultada.
+- Não exibir dados simulados nem conceder ações exclusivas de estudante ao
+  admin; uma recusa do backend permanece explícita.
+- A alternância é reiniciada para “Bibliotecária” ao estabelecer ou limpar uma
+  sessão, e o estado interno do modo não é usado para autorização.
+
+### Como verificar
+
+- `.\.venv\Scripts\python.exe -m pytest tests\test_navigation.py tests\test_student_area.py -q`
+- `.\.venv\Scripts\python.exe -m reflex compile --dry`
+- `openspec validate perfil-admin-xano --strict`
+
+### Próximos itens
+
+As tarefas locais pendentes de implementação das três Changes foram
+concluídas. P5: validar todas as Changes e specs; não arquivar enquanto houver
+tarefas remotas pendentes. Nenhuma operação remota será executada nesta sessão.

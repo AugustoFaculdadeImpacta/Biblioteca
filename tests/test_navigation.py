@@ -80,6 +80,53 @@ def test_navigation_changes_by_profile_and_logout_clears_session():
     asyncio.run(verify())
 
 
+def test_admin_view_mode_changes_navigation_without_changing_session():
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"admin-view-mode-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-falso-admin-view", "admin", "Ana")
+            assert state.admin_view_mode == "bibliotecaria"
+
+            state.set_admin_view_mode("estudante")
+
+            assert state.admin_view_mode == "estudante"
+            assert state._session_profile == "admin"
+            assert state.is_librarian is True
+            assert state.is_student is False
+            assert state.can_manage_librarians is True
+            serialized = json.dumps(
+                await root._get_resolved_delta(),
+                default=str,
+            )
+            assert "token-falso-admin-view" not in serialized
+            assert '"admin"' not in serialized
+
+            state.set_admin_view_mode("bibliotecaria")
+            assert state.admin_view_mode == "bibliotecaria"
+            state._store_session("token-falso-bibliotecario", "bibliotecario")
+            state.set_admin_view_mode("estudante")
+            assert state.admin_view_mode == ""
+
+    asyncio.run(verify())
+
+
+def test_admin_view_mode_controls_are_visible_and_accessible():
+    header = json.dumps(
+        json.loads(repr(frontend.site_header())),
+        ensure_ascii=False,
+    )
+    style = frontend.app.style
+
+    assert r"Modo de visualiza\\u00e7\\u00e3o:" in header
+    assert r"Ver como bibliotec\\u00e1ria" in header
+    assert "Ver como estudante" in header
+    assert "aria-pressed" in header
+    assert style[".admin-view-mode"]["width"] == "100%"
+    assert style[":focus-visible"]["outline"].startswith("3px solid ")
+
+
 def test_student_navigation_has_accessible_labels_focus_and_mobile_layout():
     header = repr(frontend.site_header())
     style = frontend.app.style

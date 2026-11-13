@@ -299,6 +299,45 @@ def test_student_library_route_guards_before_any_personal_get(monkeypatch):
     asyncio.run(verify())
 
 
+def test_admin_student_preview_uses_own_token_and_does_not_invent_records(
+    monkeypatch,
+):
+    calls = []
+
+    async def forbidden_for_admin(token):
+        calls.append(token)
+        raise XanoResponseError(403)
+
+    async def unexpected_call(*args, **kwargs):
+        raise AssertionError("A consulta deve parar na primeira recusa")
+
+    monkeypatch.setattr(frontend, "list_my_loans", forbidden_for_admin)
+    monkeypatch.setattr(frontend, "list_my_requests", unexpected_call)
+    monkeypatch.setattr(frontend, "list_my_reservations", unexpected_call)
+    monkeypatch.setattr(frontend, "list_public_titles", unexpected_call)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"admin-student-preview-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-proprio-admin", "admin", "Ana")
+            state.set_admin_view_mode("estudante")
+
+            await state.load_student_library()
+
+            assert calls == ["token-proprio-admin"]
+            assert state._session_token == "token-proprio-admin"
+            assert state._session_profile == "admin"
+            assert state.is_student is False
+            assert state.student_library_has_error is True
+            assert state.student_library_loans == []
+            assert state.student_library_requests == []
+            assert state.student_library_reservations == []
+
+    asyncio.run(verify())
+
+
 def test_student_library_401_clears_session_and_offers_login(monkeypatch):
     async def expired_session(token):
         assert token == "token-expirado"

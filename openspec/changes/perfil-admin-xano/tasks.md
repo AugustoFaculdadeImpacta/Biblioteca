@@ -20,6 +20,7 @@
 - [x] 3.1 Permitir que a sessão Reflex reconheça `admin` e mantenha perfil/token privados; manter operações exclusivas de estudante bloqueadas.
 - [x] 3.2 Testar login/admin, chamadas administrativas e recusas por perfil com mocks; nenhuma chamada de escrita real foi enviada.
 - [x] 3.3 Criar a tela `/admin/bibliotecarios`, visível e acionável somente por admin, com listagem, cadastro, desativação e reativação; cobrir as chamadas com `httpx.MockTransport`, labels, foco visível e regras CSS responsivas. Testes locais verificam breakpoint móvel (até 40rem) e grade fluida móvel/desktop; não foi executado teste de navegador em viewport real.
+- [x] 3.4 Adicionar alternância de visualização admin entre bibliotecário e estudante com faixa visível, sem alterar sessão/permissões; testar que a tela pessoal usa o token admin e não inventa registros quando o backend recusa. `tests/test_navigation.py` e `tests/test_student_area.py` passaram (34 testes focados); `python -m reflex compile --dry` concluiu; a rota pessoal mockada retornou 403 sem preencher registros.
 
 ## 4. Verificação local e escopo
 

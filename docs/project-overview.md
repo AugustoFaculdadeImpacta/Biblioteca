@@ -12,6 +12,7 @@ O projeto é acadêmico e será desenvolvido incrementalmente com OpenSpec. Cada
 - **Estudante:** autocadastra-se e recebe acesso imediatamente, sem confirmação de e-mail; solicita empréstimos e reservas se estiver elegível.
 - **Bibliotecário:** administra títulos, categorias e exemplares; confirma fisicamente retiradas e devoluções; registra condições dos exemplares.
 - **Administrador:** tem as permissões do bibliotecário e pode gerir contas bibliotecárias; não pode desativar a própria conta nem outra conta administradora.
+- Admin também pode alternar a visualização da interface entre bibliotecário e estudante. Essa preferência visual não altera o perfil nem as permissões no backend; Minha biblioteca continua usando a sessão do próprio admin, sujeita à autorização das rotas pessoais.
 
 Autocadastro nunca concede perfil privilegiado. A primeira conta admin é provisionada manualmente pelo dono do workspace Xano; somente admin autenticado cria e ativa/desativa bibliotecários.
 

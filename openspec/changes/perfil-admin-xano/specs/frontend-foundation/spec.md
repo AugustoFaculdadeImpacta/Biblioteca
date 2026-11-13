@@ -29,6 +29,18 @@ A aplicação MUST exibir em todas as telas um cabeçalho navegável com opçõe
 - **WHEN** administrador autenticado abre qualquer tela da aplicação
 - **THEN** o cabeçalho oferece as opções de bibliotecário e o acesso à gestão de bibliotecários
 
+#### Scenario: Admin alterna para visualização de estudante
+- **WHEN** admin autenticado escolhe a visualização de estudante
+- **THEN** o cabeçalho mostra “Modo de visualização: Estudante” e a opção Minha biblioteca, sem alterar perfil, token ou permissões da sessão
+
+#### Scenario: Visualização de estudante respeita a sessão admin
+- **WHEN** admin em visualização de estudante abre Minha biblioteca
+- **THEN** a interface usa somente o token da própria sessão admin e apresenta a recusa do backend sem simular registros pessoais
+
+#### Scenario: Admin retorna à visualização de bibliotecário
+- **WHEN** admin escolhe a visualização de bibliotecário
+- **THEN** o cabeçalho mostra “Modo de visualização: Bibliotecária” e as opções administrativas, sem mudar as permissões efetivas do admin
+
 #### Scenario: Bibliotecário tenta abrir gestão de bibliotecários
 - **WHEN** bibliotecário autenticado abre a rota de gestão de bibliotecários
 - **THEN** a interface nega o acesso e não envia operações de gestão de contas
