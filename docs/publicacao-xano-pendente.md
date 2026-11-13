@@ -461,3 +461,81 @@ testes autenticados.
 O estado final lido para `allow_push` continua `false`; nenhuma preferência,
 branch ou configuração foi alterada nesta continuação. Seed, criação de contas
 e testes autenticados permanecem pendentes. Não houve push Git.
+
+## Correção de login e nova conferência — 2026-11-13
+
+### Comparação e contrato
+
+Comparando `xano/api/default/auth/login_POST.xs` com a cópia
+`api/biblioteca/auth/login_POST.xs` do backup:
+
+- A cópia antiga define `error_type = "accessdenied"` tanto na precondition de
+  usuário não encontrado quanto na de senha inválida. A versão local não
+  definia `error_type` nessas duas preconditions; o login falso havia retornado
+  500 antes de esta correção.
+- A precondition `$usuario != null` acontece antes da verificação de
+  `$usuario.ativo`; portanto, a leitura de `ativo` não explica o erro para
+  e-mail inexistente. O campo ativo foi mantido para impedir login de conta
+  desativada.
+- A cópia antiga usa `text senha`; a versão local usa `password senha`. Ambas
+  recebem a chave `senha` enviada pelo app. A correção não alterou esse tipo.
+- Ambas as respostas têm `authToken` e `usuario.id`, `nome`, `email` e
+  `perfil`. `biblioteca_mais_nova/login.py` valida e devolve esses campos;
+  `xano_client.py` envia `email`/`senha` no login e usa `Authorization: Bearer`
+  nas chamadas autenticadas. Nenhum campo exigido pelo app falta na resposta
+  antiga. Ela aceita estudante, bibliotecário e admin sem filtro de perfil,
+  mas não verificava `ativo`; a versão corrigida mantém a verificação de conta
+  ativa.
+
+### Correção e publicação
+
+Foi adicionada a classificação `accessdenied` às preconditions de usuário
+inexistente e senha incorreta. O teste
+`xano/tests/test_candidates.py` agora protege esse contrato. O MCP validou
+`login_POST.xs` sem avisos; `python -m pytest --ignore=evaluation` passou
+(178 testes) e `python -m unittest discover -s xano\tests` passou (14 testes).
+
+O dry-run filtrado mostrou exatamente `UPDATE` de `auth/login POST`, sem
+criação ou remoção. O push somente de `api/default/auth/login_POST.xs`, com
+`--no-guids --force`, terminou com código 0. O CLI ainda emitiu avisos de
+referências à tabela `usuario` não resolvidas.
+
+Verificação sem token após o push: `GET /catalogo/titulos` 200, JSON válido
+com 2 itens; `GET /catalogo/categorias` 200; as três rotas `/minhas/*` 401;
+login falso 403. O resultado atende ao critério 4xx, sem 500 nem 200.
+
+### Pull novo, `POST /reservas` e serialização
+
+Um pull novo, sem registros e sem variáveis de ambiente, trouxe 67 documentos.
+A comparação de assinatura aceita as duas formas `query "reservas" verb=POST`
+e `query reservas verb=POST`: encontrou exatamente uma ocorrência remota,
+`api/biblioteca/reservas_POST.xs`. O pull tem 38 assinaturas no grupo
+`biblioteca`, correspondentes às 38 locais; `POST /reservas` existe no remoto.
+O resultado anterior de assinatura ausente foi limitação do comparador
+anterior, não uma ausência da rota.
+
+Após ignorar comentários, `guid` e `api_group`, 25 assinaturas têm as mesmas
+características verificadas (auth, inputs, preconditions, operações DB,
+segurança, fluxo, campos de resposta e conjunto de literais); essas diferenças
+foram classificadas como serialização/representação equivalente nesse nível.
+Treze ainda têm diferenças em literais e não foram classificadas como apenas
+serialização:
+
+- `GET admin/acervo`, `GET admin/emprestimos`,
+  `GET admin/exemplares/{exemplar_id}/condicoes`, `GET admin/reservas`,
+  `GET admin/solicitacoes`,
+  `GET admin/titulos/{titulo_id}/fila-reservas`,
+  `GET catalogo/titulos`, `GET minhas/emprestimos`,
+  `GET minhas/solicitacoes`;
+- `POST admin/emprestimos/{emprestimo_id}/devolucao`,
+  `POST admin/reservas/ofertar-proxima`,
+  `POST admin/reservas/processar-expiradas` e `POST reservas`.
+
+Não imprimi os valores dos literais nem alterei esses endpoints; a divergência
+fica registrada para revisão. A re-sondagem com redirecionamentos desativados
+retornou `PATCH /admin/usuarios/2147483000` 401, sem `Location`. A comparação
+`POST /admin/reservas/2147483000/retirada` também retornou 401, sem `Location`.
+O 302 anterior não se reproduziu; não houve destino para comparar.
+
+`allow_push` permaneceu `false`. Nenhum seed, conta ou dado foi criado; não
+foram alterados `.env`, configurações MCP ou outras rotas Xano.

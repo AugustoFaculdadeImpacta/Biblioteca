@@ -20,6 +20,7 @@ query "auth/login" verb=POST {
     } as $usuario
 
     precondition ($usuario != null) {
+      error_type = "accessdenied"
       error = "Credenciais inválidas."
     }
 
@@ -34,6 +35,7 @@ query "auth/login" verb=POST {
     } as $senha_valida
 
     precondition ($senha_valida) {
+      error_type = "accessdenied"
       error = "Credenciais inválidas."
     }
 

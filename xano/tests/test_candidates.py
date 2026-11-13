@@ -86,6 +86,14 @@ class TestCandidateContracts(unittest.TestCase):
         self.assertIn("bool ativo?=true", title)
         self.assertIn('type: "btree|unique", field: [{name: "codigo_tombo"', copy)
 
+    def test_login_rejections_use_access_denied(self):
+        login = (APIS / "auth" / "login_POST.xs").read_text(encoding="utf-8")
+        for condition in (r"\$usuario != null", r"\$senha_valida"):
+            self.assertRegex(
+                login,
+                rf'precondition \({condition}\) \{{\s*error_type = "accessdenied"',
+            )
+
     def test_category_title_queries_map_association_ids_without_unknown_pluck(self):
         for filename in ("categorias_id_GET.xs", "categorias_titulos_GET.xs"):
             source = (APIS / "catalogo" / filename).read_text(encoding="utf-8")
