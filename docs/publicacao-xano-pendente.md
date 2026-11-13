@@ -344,3 +344,120 @@ verificação do lote de criações não satisfez integralmente o requisito de
 Nenhum seed ou criação de conta foi executado. Nenhum push Git foi feito. O
 estado final lido para `allow_push` é `false`; no plano Free, a mensagem do
 workspace informa que o push permanece habilitado.
+
+## Continuação da publicação autorizada — 2026-11-13
+
+### Endpoints de gestão de usuários
+
+Leitura estática de `admin/usuarios_POST.xs` e
+`admin/usuarios_id_PATCH.xs`: ambos declaram `auth = "usuario"` (linha 4);
+exigem perfil `admin` antes de qualquer escrita (POST: guard na linha 24,
+`db.add` na 50; PATCH: guard na linha 23, `db.patch` na 49). Aprovados pelo
+critério estático solicitado. A sonda sem token de
+`PATCH /admin/usuarios/2147483000` com `{"ativo": false}` retornou 302; não
+foram impressos corpo nem destino do redirecionamento.
+
+### Lotes dos 23 endpoints
+
+Antes e depois de cada lote, a linha de base ficou em
+`GET /catalogo/titulos` 200 (JSON válido, 2 itens),
+`GET /catalogo/categorias` 200 e `/minhas/emprestimos`,
+`/minhas/solicitacoes`, `/minhas/reservas` 401 sem token. Uma primeira
+requisição de baseline a `/minhas/solicitacoes` excedeu o timeout; a repetição
+com timeout maior retornou 401. Não houve mudança persistente na linha de
+base.
+
+| Lote | Arquivos | Dry-run | Verificação principal | Resultado |
+|---|---:|---|---|---|
+| (a) Login | 1 | 1 UPDATE | baseline OK; login falso retornou 500 | Publicado e revertido imediatamente pelo backup; após rollback, login falso retornou 403 e baseline OK |
+| (b) Catálogo/exemplares | 12 | 12 UPDATE | baseline OK; sondas sem token retornaram 401 ou 400; leituras com IDs inexistentes retornaram 404 | Publicado; sem rollback, pois nenhuma escrita foi aceita |
+| (c) Solicitações/empréstimos | 4 | 4 UPDATE | baseline OK; GET administrativo e três POST sem token retornaram 401 | Publicado |
+| (d) Reservas/fila | 6 | 6 UPDATE | baseline OK; GET administrativo e quatro POST sem token retornaram 401 | Publicado |
+
+Arquivos do lote (a):
+
+- `api/default/auth/login_POST.xs`
+
+Arquivos do lote (b):
+
+- `api/default/catalogo/categorias_id_GET.xs`
+- `api/default/catalogo/categorias_titulos_GET.xs`
+- `api/default/catalogo/titulos_GET.xs`
+- `api/default/catalogo/titulos_id_GET.xs`
+- `api/default/catalogo/categorias_id_PATCH.xs`
+- `api/default/catalogo/titulos_id_PATCH.xs`
+- `api/default/admin/categorias_POST.xs`
+- `api/default/admin/titulos_POST.xs`
+- `api/default/admin/exemplares_POST.xs`
+- `api/default/condicoes/condicoes_GET.xs`
+- `api/default/condicoes/condicoes_POST.xs`
+- `api/default/admin/titulos_categoria_POST.xs`
+
+Arquivos do lote (c):
+
+- `api/default/emprestimos/solicitacoes_POST.xs`
+- `api/default/emprestimos/admin_solicitacoes_GET.xs`
+- `api/default/emprestimos/retirada_POST.xs`
+- `api/default/emprestimos/devolucao_POST.xs`
+
+Arquivos do lote (d):
+
+- `api/default/reservas/reservas_POST.xs`
+- `api/default/reservas/minhas_GET.xs`
+- `api/default/reservas/fila_GET.xs`
+- `api/default/reservas/ofertar_proxima_POST.xs`
+- `api/default/reservas/processar_expiradas_POST.xs`
+- `api/default/reservas/retirada_POST.xs`
+
+No lote (a), o dry-run mostrou somente UPDATE e o push foi concluído. A
+sondagem de login com credenciais inválidas retornou 500, então foi feito
+rollback imediato somente de `auth/login_POST.xs`, usando o arquivo de
+`%USERPROFILE%\xano-backup-pre-publicacao`; o dry-run do rollback mostrou
+somente UPDATE, e o push terminou com código 0. A nova sonda retornou 403.
+
+No lote (b), as sondas com entradas não graváveis retornaram: GETs de detalhes
+com IDs inexistentes 404; PATCH de categoria e título 401; POST de exemplar,
+GET/POST de condições com exemplar inexistente e POST de vínculo de categoria
+401. POST de categoria e de título com valores vazios retornaram 400. Não foi
+enviado payload válido para essas duas rotas de criação, pois poderia criar
+registros caso a autenticação falhasse; portanto o status 401/403 dessas duas
+rotas não foi demonstrado dinamicamente. A leitura local declara
+`auth = "usuario"` e guard de perfil antes das escritas. Nenhuma sonda retornou
+2xx nem causou escrita; por isso não houve gatilho para rollback.
+
+O CLI emitiu avisos de referências a tabelas não resolvidas durante os pushes
+dos lotes (b), (c) e (d). Os códigos HTTP verificados não produziram 500, mas
+as rotas dependentes de banco ainda precisam de testes autenticados para
+confirmar o comportamento completo.
+
+### Pull final e divergências
+
+Um pull sem registros e sem variáveis de ambiente foi feito para uma pasta
+temporária nova: 67 documentos. O inventário encontrou os grupos
+`authentication` e `event_logs`, além das tabelas `user` e `event_log`.
+Também confirmou `titulo.ativo`, `usuario.ativo`, o valor `admin` em
+`usuario.perfil` e `recusada` em `reserva.estado`. As seis outras tabelas têm
+os mesmos campos e tipos que os arquivos locais; alguns arquivos completos
+diferem em comparação textual, portanto a igualdade de conteúdo integral não
+foi afirmada.
+
+Na comparação por `verb + path`, o pull contém 37 das 38 assinaturas locais
+de `api/default`. `POST /reservas` não aparece no snapshot, embora a sonda em
+execução tenha retornado 401 sem token e o GET de uma rota inexistente tenha
+retornado 404. Um dry-run filtrado posterior do próprio `reservas_POST.xs`
+informou “No changes to push”. O dry-run agregado dos outros 22 arquivos
+publicados também informou “No changes to push”. Assim, o CLI considera esses
+arquivos sincronizados, mas a ausência de `POST /reservas` no pull permanece
+uma divergência de representação não resolvida; nenhum push adicional foi
+feito.
+
+Após remover whitespace, comentários, `guid` e metadados `api_group`, seis
+assinaturas comuns foram iguais. As demais assinaturas comuns apresentam
+diferenças no conteúdo do XanoScript; não foi possível classificar todas como
+puramente de serialização nem provar que sejam diferenças comportamentais.
+Os dry-runs sem mudanças foram registrados separadamente e não substituem
+testes autenticados.
+
+O estado final lido para `allow_push` continua `false`; nenhuma preferência,
+branch ou configuração foi alterada nesta continuação. Seed, criação de contas
+e testes autenticados permanecem pendentes. Não houve push Git.
