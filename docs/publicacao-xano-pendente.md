@@ -76,11 +76,11 @@ dessa funcionalidade.
 ## Estado da verificação
 
 - Validação local de sintaxe MCP: três rotas pessoais válidas.
-- Workspace, branch e tabelas ativos: não consultados; as ferramentas MCP
-  disponíveis não expõem listagem de metadados do workspace e o Xano CLI está
-  fora dos limites desta execução.
-- Publicação, seed e testes autenticados no Xano real: pendentes e não
-  executados.
+- Na auditoria inicial, workspace, branch e tabelas ativos não foram
+  consultados; uma consulta posterior está registrada abaixo.
+- Na auditoria inicial, publicação, seed e testes autenticados no Xano real
+  estavam pendentes. A publicação parcial posterior está registrada abaixo;
+  seed e testes autenticados continuam pendentes.
 - O seed local foi verificado somente com transporte simulado e modo de prévia;
   não houve chamada ao Xano real. Como o script é Python e não contém
   XanoScript, validação de sintaxe pelo Xano Developer MCP não se aplica.
@@ -244,12 +244,103 @@ diferença textual, mas sem operação no preview, e o endpoint igual
 arquivos remotos extras (`authentication`, `event_logs`, `user.xs` e
 `event_log.xs`) podem permanecer; o modo parcial não os remove.
 
-Publicação real continua pendente. `allow_push=false` precisa ser tratado pelo
-responsável pelo workspace antes de qualquer push; este relatório não autoriza
-alterá-lo. Se houver autorização futura, repetir primeiro o dry-run e revisar
-o destino/resultado; depois usar somente push parcial, sem `--sync` nem
-`--delete`, e fazer novo pull de conferência. O código das APIs pode ser
-revertido a partir da cópia local de referência; campos e valores de enum
-adicionados são aditivos e não devem ser “desfeitos” por sincronização
-destrutiva sem avaliação dos dados. Nenhum push real, seed, alteração de
-configuração, branch ou dado foi executado nesta auditoria.
+Na auditoria de comparação, nenhum push real, seed, alteração de configuração,
+branch ou dado foi executado. A publicação parcial posterior está registrada
+na seção seguinte.
+
+## Publicação parcial autorizada — 2026-11-13
+
+### Backup e preferência do CLI
+
+Antes de qualquer push, a cópia `%USERPROFILE%\xano-backup-pre-publicacao`
+foi criada fora do repositório a partir do pull sem registros. Foram
+verificados 57 documentos e igualdade SHA-256 de todos os arquivos.
+
+O comando `xano workspace edit -w 151966 --allow-push` foi tentado, mas o
+workspace respondeu que a opção não está disponível no plano Free e que o
+push é sempre habilitado nesse plano. No encerramento,
+`xano workspace edit -w 151966 --no-allow-push` terminou com código 0 e a
+leitura final confirmou `allow_push=false`. Nenhum outro workspace ou branch
+foi alterado.
+
+### Linha de base HTTP
+
+As requisições foram feitas sem token, carregando `XANO_API_BASE_URL` do
+ambiente do backend sem exibir seu valor nem corpos de resposta.
+
+| Momento | `GET /catalogo/titulos` | `GET /catalogo/categorias` | `GET /minhas/emprestimos` | `GET /minhas/solicitacoes` | `GET /minhas/reservas` |
+|---|---:|---:|---:|---:|---:|
+| Antes dos pushes | 200 | 200 | 401 | 401 | 401 |
+| Após schemas | 200 | 200 | 401 | 401 | 401 |
+| Após endpoints novos | 200 | 200 | 401 | 401 | 401 |
+
+### Schemas publicados
+
+O dry-run filtrado nos três arquivos mostrou exatamente três tabelas
+atualizadas e nenhuma criação, remoção, recriação ou alteração de tipo. A
+primeira tentativa de push terminou com código 2 após exibir a prévia; o pull
+subsequente confirmou que ela não havia aplicado mudanças. Após a prévia ser
+revisada, o mesmo push parcial foi executado com `--force` para dispensar a
+confirmação interativa e terminou com código 0:
+
+- `xano/table/usuario.xs`;
+- `xano/table/titulo.xs`;
+- `xano/table/reserva.xs`.
+
+O CLI emitiu um aviso de referências não resolvidas para `reserva`. O pull
+posterior trouxe 57 documentos e confirmou `titulo.ativo` opcional,
+`usuario.ativo` opcional, `admin` no enum `usuario.perfil` e `recusada` no
+enum `reserva.estado`. As outras seis tabelas (`categoria`,
+`condicao_exemplar`, `emprestimo`, `exemplar`, `solicitacao_emprestimo` e
+`titulo_categoria`) permaneceram idênticas ao backup. Nenhum registro foi
+incluído no pull.
+
+### Endpoints novos publicados e verificação sem token
+
+O dry-run mostrou exatamente 10 criações; o push filtrado desses arquivos
+terminou com código 0. O CLI emitiu avisos de referências não resolvidas para
+as queries. Status observados:
+
+| Rota | Status sem token | Observação |
+|---|---:|---|
+| `GET /admin/acervo` | 401 | — |
+| `GET /admin/emprestimos` | 401 | — |
+| `GET /admin/estudantes` | 400; 401 com e-mail falso `@example.invalid` | A primeira sonda omitiu o e-mail obrigatório; a segunda continuou sem token e não altera dados. |
+| `GET /admin/reservas` | 401 | — |
+| `GET /admin/usuarios` | 401 | — |
+| `PATCH /admin/usuarios/{usuario_id}` | 400 sem corpo; 404 com ID `-1` e entrada válida | Não foi obtido 401/403. O dry-run/push e a validação de entrada mostram que a rota foi registrada; o 404 ocorreu com ID inexistente e não prova rejeição por autenticação. Nenhum ID real foi enviado. |
+| `POST /admin/reservas` | 400 sem corpo; 401 com IDs inválidos | Nenhuma entrada de usuário/título existente foi enviada. |
+| `POST /admin/reservas/{reserva_id}/recusar` | 401 | — |
+| `POST /admin/solicitacoes/{solicitacao_id}/recusar` | 401 | — |
+| `POST /admin/usuarios` | 400 sem corpo e com nome vazio | Não foi enviada entrada que pudesse criar conta; o status 401/403 não foi comprovado. |
+
+Não houve resposta 500. A linha de base permaneceu 200/200/401/401/401.
+Entretanto, os dois casos sem confirmação de 401/403 não foram considerados
+aprovados. Não foi possível fazer rollback do lote de criações usando o
+backup: nele esses dez endpoints não existem, e removê-los exigiria apagar
+endpoints, operação proibida nesta tarefa. Nenhum endpoint foi apagado ou
+revertido.
+
+### Lotes de atualização não executados
+
+Os 23 endpoints de atualização e os quatro lotes (login; catálogo/exemplares;
+solicitações/empréstimos; reservas) **não foram publicados**, pois a
+verificação do lote de criações não satisfez integralmente o requisito de
+401/403 e não havia rollback permitido para os endpoints criados.
+
+**Arquivos efetivamente publicados:** os três schemas listados acima e:
+
+- `xano/api/default/admin/acervo_GET.xs`;
+- `xano/api/default/emprestimos/admin_ativos_GET.xs`;
+- `xano/api/default/admin/estudantes_GET.xs`;
+- `xano/api/default/reservas/admin_GET.xs`;
+- `xano/api/default/admin/usuarios_GET.xs`;
+- `xano/api/default/admin/usuarios_id_PATCH.xs`;
+- `xano/api/default/admin/reservas_POST.xs`;
+- `xano/api/default/reservas/recusar_POST.xs`;
+- `xano/api/default/emprestimos/recusar_POST.xs`;
+- `xano/api/default/admin/usuarios_POST.xs`.
+
+Nenhum seed ou criação de conta foi executado. Nenhum push Git foi feito. O
+estado final lido para `allow_push` é `false`; no plano Free, a mensagem do
+workspace informa que o push permanece habilitado.
