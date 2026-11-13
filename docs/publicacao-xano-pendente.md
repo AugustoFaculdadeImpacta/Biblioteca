@@ -29,9 +29,23 @@ permissões e diff unitário. Este documento não autoriza operações remotas.
    o estado ativo do título, listagem administrativa, atualização e bloqueios
    de exclusão/desativação. A lista exata de arquivos será atualizada depois
    das Changes locais.
-5. **Conferir fluxos de reserva e circulação alterados localmente.** Validar
-   fila, disponibilidade, retirada, devolução e autorização antes de qualquer
-   publicação.
+5. **Conferir e publicar, se aprovado, os fluxos de circulação.** Revisar os
+   contratos locais e a regra de elegibilidade (até três empréstimos ativos;
+   atraso ou empréstimo ativo do mesmo título bloqueia; empréstimos de outros
+   títulos não bloqueiam abaixo do limite). Inclui:
+   - `POST /solicitacoes-emprestimo`;
+   - `POST /reservas`;
+   - `POST /admin/reservas`;
+   - `POST /admin/solicitacoes/{solicitacaoId}/retirada` e
+     `POST /admin/solicitacoes/{solicitacaoId}/recusar`;
+   - `POST /admin/reservas/ofertar-proxima`,
+     `POST /admin/reservas/{reservaId}/retirada` e
+     `POST /admin/reservas/{reservaId}/recusar`;
+   - `POST /admin/emprestimos/{emprestimoId}/devolucao` e
+     `POST /admin/reservas/processar-expiradas`.
+   Validar fila FIFO, disponibilidade, autorização, concorrência e transições
+   antes de qualquer publicação. Os arquivos `.xs` locais passaram na validação
+   de sintaxe MCP, mas não foram publicados nem testados no workspace.
 6. **Revisar e, após autorização, executar o seed do catálogo Xano.** O script
    local `scripts/seed_xano_demo.py` cobre categorias, títulos, vínculos e
    exemplares, obtém endereço/token somente do ambiente de execução, inicia em

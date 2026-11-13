@@ -22,11 +22,23 @@ O sistema MUST registrar reservas por título em ordem de solicitação e permit
 - **THEN** o backend recusa a reserva
 
 ### Requirement: Elegibilidade da reserva é revalidada no backend
-O sistema MUST verificar autenticação, perfil estudante e bloqueios vigentes antes de criar ou atender uma reserva.
+O sistema MUST verificar autenticação, perfil estudante, atraso, o limite de três empréstimos ativos e a existência de empréstimo ativo do mesmo título antes de criar ou atender uma reserva.
 
 #### Scenario: Estudante com empréstimo atrasado
 - **WHEN** estudante com empréstimo vencido e não devolvido solicita reserva
 - **THEN** o backend recusa a solicitação sem alterar a fila
+
+#### Scenario: Empréstimo ativo de outro título
+- **WHEN** estudante possui menos de três empréstimos ativos, todos de outros títulos, e solicita reserva elegível
+- **THEN** a existência desses empréstimos não bloqueia a reserva
+
+#### Scenario: Limite de empréstimos atingido
+- **WHEN** estudante possui três empréstimos ativos e solicita outra reserva
+- **THEN** o backend recusa a solicitação sem alterar a fila
+
+#### Scenario: Título já emprestado ao estudante
+- **WHEN** estudante possui empréstimo ativo de exemplar do título solicitado
+- **THEN** o backend recusa a reserva sem alterar a fila
 
 #### Scenario: Visitante ou bibliotecário sem contexto de estudante tenta reservar
 - **WHEN** perfil não estudante envia uma solicitação de reserva

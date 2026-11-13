@@ -47,6 +47,35 @@ query "solicitacoes-emprestimo" verb=POST {
       error = "Emprestimo atrasado bloqueia novas solicitacoes."
     }
 
+    db.query emprestimo {
+      where = $db.emprestimo.usuario_id == $auth.id && ($db.emprestimo.devolvido_em == null || $db.emprestimo.devolvido_em == 0)
+      return = {type: "count"}
+    } as $emprestimos_ativos
+
+    precondition ($emprestimos_ativos < 3) {
+      error_type = "accessdenied"
+      error = "Limite de tres emprestimos ativos atingido."
+    }
+
+    db.query exemplar {
+      where = $db.exemplar.titulo_id == $input.titulo_id
+      return = {type: "list"}
+    } as $exemplares_titulo
+
+    array.map ($exemplares_titulo) {
+      by = $this.id
+    } as $exemplar_ids
+
+    db.query emprestimo {
+      where = $db.emprestimo.usuario_id == $auth.id && ($db.emprestimo.devolvido_em == null || $db.emprestimo.devolvido_em == 0) && $db.emprestimo.exemplar_id in ($exemplar_ids)
+      return = {type: "count"}
+    } as $emprestimos_do_titulo
+
+    precondition ($emprestimos_do_titulo == 0) {
+      error_type = "accessdenied"
+      error = "Nao e permitido solicitar titulo ja emprestado a voce."
+    }
+
     db.query exemplar {
       where = $db.exemplar.titulo_id == $input.titulo_id && $db.exemplar.estado == "disponivel"
       return = {type: "count"}
@@ -71,22 +100,6 @@ query "solicitacoes-emprestimo" verb=POST {
 
     conditional {
       if ($exemplares_disponiveis == 0 || $reservas_aguardando > 0) {
-        db.query emprestimo {
-          join = {
-            exemplar: {
-              table: "exemplar"
-              where: $db.emprestimo.exemplar_id == $db.exemplar.id
-            }
-          }
-          where = $db.emprestimo.usuario_id == $auth.id && ($db.emprestimo.devolvido_em == null || $db.emprestimo.devolvido_em == 0) && $db.emprestimo.vence_em >= $agora && $db.exemplar.titulo_id == $input.titulo_id
-          return = {type: "count"}
-        } as $emprestimos_ativos_do_titulo
-
-        precondition ($emprestimos_ativos_do_titulo == 0) {
-          error_type = "accessdenied"
-          error = "Nao e permitido reservar titulo ja emprestado a voce."
-        }
-
         db.add reserva {
           data = {
             usuario_id: $auth.id

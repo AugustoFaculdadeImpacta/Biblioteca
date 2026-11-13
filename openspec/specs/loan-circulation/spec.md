@@ -40,12 +40,20 @@ O sistema MUST criar o empréstimo de um exemplar físico somente quando bibliot
 - **WHEN** estudante tenta executar a confirmação física
 - **THEN** o backend recusa a operação sem criar empréstimo
 
-### Requirement: Existe no máximo um empréstimo ativo por estudante e exemplar
-O sistema MUST impedir mais de um empréstimo ativo por estudante e mais de um empréstimo ativo por exemplar, inclusive em operações concorrentes.
+### Requirement: Limite de empréstimos ativos por estudante e exemplar
+O sistema MUST permitir até três empréstimos ativos por estudante, impedir um quarto empréstimo ativo e impedir mais de um empréstimo ativo por exemplar, inclusive em operações concorrentes.
+
+#### Scenario: Estudante abaixo do limite
+- **WHEN** estudante possui até dois empréstimos ativos de outros títulos e solicita outro título elegível
+- **THEN** o backend permite a operação se não houver atraso nem empréstimo ativo do mesmo título
 
 #### Scenario: Limite ativo do estudante
-- **WHEN** estudante já possui empréstimo ativo e tenta obter outro
+- **WHEN** estudante já possui três empréstimos ativos e tenta obter outro
 - **THEN** o backend recusa a nova confirmação de retirada
+
+#### Scenario: Mesmo título já emprestado
+- **WHEN** estudante possui exemplar ativo de um título e tenta obter outro exemplar do mesmo título
+- **THEN** o backend recusa a operação sem afetar empréstimos existentes
 
 #### Scenario: Exemplar já emprestado
 - **WHEN** bibliotecário tenta emprestar exemplar com empréstimo ativo

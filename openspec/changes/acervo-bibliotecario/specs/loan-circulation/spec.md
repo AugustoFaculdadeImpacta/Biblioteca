@@ -13,6 +13,18 @@ O sistema MUST separar o pedido do estudante da confirmação física do emprés
 - **WHEN** estudante possui empréstimo ativo vencido ou não atende a outra regra aprovada
 - **THEN** o backend recusa o pedido e não altera empréstimos nem disponibilidade
 
+#### Scenario: Empréstimos ativos de outros títulos abaixo do limite
+- **WHEN** estudante possui até dois empréstimos ativos de outros títulos e solicita um título elegível
+- **THEN** o backend permite a solicitação se não houver atraso nem empréstimo ativo do mesmo título
+
+#### Scenario: Limite de três empréstimos ativos
+- **WHEN** estudante já possui três empréstimos ativos
+- **THEN** o backend recusa nova solicitação ou retirada sem alterar empréstimos nem disponibilidade
+
+#### Scenario: Estudante já possui exemplar do mesmo título
+- **WHEN** estudante tenta solicitar ou retirar outro exemplar de título que já possui ativo
+- **THEN** o backend recusa a operação sem alterar empréstimos nem disponibilidade
+
 #### Scenario: Sem exemplar disponível
 - **WHEN** estudante elegível solicita empréstimo de título ativo e não há exemplar imediatamente disponível
 - **THEN** o pedido entra na fila FIFO de reservas do título e não cria um empréstimo nem uma fila separada de solicitações
@@ -53,3 +65,30 @@ A área pessoal MUST informar falhas de integração com mensagens específicas 
 #### Scenario: Estado de erro acessível
 - **WHEN** uma falha impede carregar os registros pessoais
 - **THEN** a mensagem é anunciada como alerta acessível e os estados vazios existentes não são apresentados como se a consulta tivesse sido bem-sucedida
+
+### Requirement: Equipe administra retiradas e empréstimos ativos
+O sistema MUST permitir a bibliotecários e admins consultar solicitações pendentes e empréstimos ativos, registrar retirada/devolução física e recusar somente solicitações ainda pendentes, validando autorização e elegibilidade no backend.
+
+#### Scenario: Confirmar retirada elegível
+- **WHEN** bibliotecário/admin confirma a retirada de solicitação elegível
+- **THEN** o backend revalida FIFO, disponibilidade, limite e atraso, cria o empréstimo por 14 dias e marca a solicitação como atendida
+
+#### Scenario: Recusar solicitação pendente
+- **WHEN** bibliotecário/admin recusa solicitação em estado `pendente`
+- **THEN** o backend marca somente a solicitação como `recusada` sem alterar exemplares ou empréstimos
+
+#### Scenario: Recusar solicitação já atendida ou em reserva
+- **WHEN** bibliotecário/admin tenta recusar solicitação que não está `pendente`
+- **THEN** o backend recusa a operação sem alterar solicitação, reserva ou empréstimo
+
+#### Scenario: Consultar empréstimos ativos e atrasos
+- **WHEN** bibliotecário/admin abre o painel de circulação
+- **THEN** recebe empréstimos não devolvidos com estudante, título e vencimento suficientes para identificar atrasos e registrar devolução
+
+#### Scenario: Registrar devolução
+- **WHEN** bibliotecário/admin confirma devolução de empréstimo ativo
+- **THEN** o backend registra a devolução e disponibiliza o exemplar conforme condições e fila FIFO
+
+#### Scenario: Perfil sem privilégio tenta operar circulação
+- **WHEN** visitante ou estudante consulta ou altera filas administrativas
+- **THEN** o backend recusa a operação sem expor dados de terceiros ou alterar registros

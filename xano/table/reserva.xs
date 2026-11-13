@@ -5,7 +5,7 @@ table reserva {
     int titulo_id { table = "titulo" }
     timestamp criada_em?=now
     enum estado {
-      values = ["aguardando", "ofertada", "retirada", "expirada"]
+      values = ["aguardando", "ofertada", "retirada", "expirada", "recusada"]
     }
     int exemplar_id? { table = "exemplar" }
     timestamp ofertada_em?

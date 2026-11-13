@@ -53,9 +53,9 @@ query "admin/solicitacoes/{solicitacao_id}/retirada" verb=POST {
       return = {type: "count"}
     } as $emprestimos_ativos
 
-    precondition ($emprestimos_ativos == 0) {
+    precondition ($emprestimos_ativos < 3) {
       error_type = "accessdenied"
-      error = "Estudante ja possui emprestimo ativo."
+      error = "Limite de tres emprestimos ativos atingido."
     }
 
     db.query emprestimo {
@@ -66,6 +66,25 @@ query "admin/solicitacoes/{solicitacao_id}/retirada" verb=POST {
     precondition ($emprestimos_atrasados == 0) {
       error_type = "accessdenied"
       error = "Estudante com emprestimo atrasado."
+    }
+
+    db.query exemplar {
+      where = $db.exemplar.titulo_id == $solicitacao.titulo_id
+      return = {type: "list"}
+    } as $exemplares_titulo
+
+    array.map ($exemplares_titulo) {
+      by = $this.id
+    } as $exemplar_ids
+
+    db.query emprestimo {
+      where = $db.emprestimo.usuario_id == $solicitacao.usuario_id && ($db.emprestimo.devolvido_em == null || $db.emprestimo.devolvido_em == 0) && $db.emprestimo.exemplar_id in ($exemplar_ids)
+      return = {type: "count"}
+    } as $emprestimos_do_titulo
+
+    precondition ($emprestimos_do_titulo == 0) {
+      error_type = "accessdenied"
+      error = "Estudante ja possui o titulo emprestado."
     }
 
     db.query exemplar {

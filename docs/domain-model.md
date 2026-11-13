@@ -20,7 +20,7 @@ Unidade física individual de um título. Possui condição e disponibilidade op
 Intenção de um estudante de obter um exemplar. Não inicia prazo nem representa retirada concluída. Deve ser confirmada pela biblioteca conforme disponibilidade e elegibilidade.
 
 ### Empréstimo
-Registro da retirada física de um exemplar por um estudante. Guarda o instante de retirada, vencimento, estado e devolução. O prazo de 14 dias corridos inicia quando o bibliotecário registra a retirada; há no máximo um empréstimo ativo por estudante.
+Registro da retirada física de um exemplar por um estudante. Guarda o instante de retirada, vencimento, estado e devolução. O prazo de 14 dias corridos inicia quando o bibliotecário registra a retirada; cada estudante pode ter até três empréstimos ativos, sem repetir título enquanto mantiver um exemplar daquele título.
 
 ### Reserva
 Pedido de um estudante para um título, ordenado por instante de solicitação numa fila FIFO. Só pode haver uma reserva ativa por estudante por título. Reserva não aponta para exemplar específico até a biblioteca disponibilizar um exemplar para atendimento.
@@ -33,7 +33,7 @@ Histórico de dano ou perda ligado a exemplar, com observação, data e respons�
 
 ## Relações
 
-- Conta estudante 1:N empréstimos históricos; no máximo um ativo simultaneamente.
+- Conta estudante 1:N empréstimos históricos; no máximo três ativos simultaneamente e sem dois exemplares ativos do mesmo título.
 - Conta estudante 1:N reservas; no máximo uma reserva ativa por título.
 - Conta bibliotecário 1:N registros de operações administrativas.
 - Título N:M categoria.
@@ -49,6 +49,7 @@ Histórico de dano ou perda ligado a exemplar, com observação, data e respons�
 - Prazo só começa após retirada física registrada.
 - Atraso existe quando o vencimento passou e não há devolução registrada.
 - Qualquer atraso bloqueia novas solicitações de empréstimo e reservas.
+- O limite global é de três empréstimos ativos por estudante; empréstimo de outro título, abaixo do limite, não bloqueia nova operação.
 - Reserva e confirmação de empréstimo não podem prometer o mesmo exemplar a duas pessoas; backend deve revalidar elegibilidade e disponibilidade de forma concorrente-segura.
 - Empréstimo ativo não atrasado do próprio título impede reserva desse título.
 - Dano/perda mantém o exemplar indisponível e exige observação.

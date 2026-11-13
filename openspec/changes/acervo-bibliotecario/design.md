@@ -63,6 +63,22 @@ O script Xano é separado e limitado a categorias, títulos, vínculos e exempla
 
 Os títulos das solicitações e reservas pessoais apontam para a rota pública de detalhes usando o `titulo_id` recebido na consulta autenticada. O link não altera a autorização nem solicita dados de outra conta; se o título estiver inativo, a rota pública pode continuar indisponível e a interface mantém o nome retornado na área pessoal.
 
+### Painel de circulação e decisão da equipe
+
+O painel administrativo usa os contratos de fila/circulação existentes para listar solicitações pendentes, reservar exemplar, confirmar retirada física e registrar devolução. Uma solicitação `pendente` pode ser recusada pelo bibliotecário/admin e passa a `recusada`; não há um estado intermediário de aceite, pois o empréstimo só começa na retirada física.
+
+Reservas `aguardando` permanecem em FIFO. A equipe pode oferecer um exemplar disponível somente à próxima reserva elegível usando o contrato existente; a oferta de 48 horas continua distinta da retirada física. Uma reserva ainda `aguardando` pode ser recusada, removida da fila sem alterar exemplar, empréstimo ou posição relativa das demais. Reservas já `ofertada` não podem ser recusadas manualmente: mantêm o exemplar associado até retirada ou expiração. O motivo de recusa não será acrescentado nesta etapa porque é extra e ainda não há campo no contrato.
+
+A listagem administrativa de empréstimos inclui somente empréstimos ativos e fornece o vencimento e os metadados mínimos de estudante/título necessários para devolução e indicadores de atraso. O backend valida perfil, situação, disponibilidade, elegibilidade e FIFO em cada escrita; o painel não substitui esses guards.
+
+**Alternativas consideradas:** tratar aceite como empréstimo antes da retirada; rejeitada porque iniciaria o prazo sem confirmação física. Recusar oferta já associada a exemplar; rejeitada para não liberar nem reatribuir o exemplar sem o fluxo de expiração existente.
+
+### Elegibilidade por quantidade e título
+
+Aplicar um máximo de três empréstimos ativos por estudante. Atrasos bloqueiam novas solicitações, reservas, ofertas e retiradas; abaixo do limite, empréstimos ativos de outros títulos não bloqueiam a operação. Um empréstimo ativo do mesmo título impede nova solicitação, reserva, oferta ou retirada daquele título. Para Xano, resolver o título consultando os IDs dos exemplares e filtrar os empréstimos ativos por esses IDs, sem `join`.
+
+**Alternativas consideradas:** bloquear qualquer empréstimo ativo; rejeitada porque contradiz o limite aprovado de três. Fazer somente a checagem no cliente; rejeitada porque a elegibilidade precisa ser revalidada no backend.
+
 ### Operação e validação Xano
 
 O CLI confirmou workspace `151966`, branch `v1` live, grupo Biblioteca e `allow_push=false`; sandbox push não oferece filtro unitário `-i`. O pull somente de definições desta sessão contém 57 documentos em uma pasta temporária fora do repositório. Nenhuma escrita será enviada ao Xano. Não alterar `allow_push`, não usar sandbox push nem sincronizar `xano/`. O Xano Developer MCP valida sintaxe local e informa documentação, mas não garante execução, concorrência ou publicação no workspace; contratos não encontrados no pull permanecem candidatos locais. Antes de qualquer operação remota futura, repetir a identificação do destino, obter pull isolado e rollback fora do repositório, e exigir dry-run unitário de um único CREATE/UPDATE para cada arquivo.

@@ -28,6 +28,14 @@ O sistema MUST permitir que bibliotecário ou admin autenticado crie reserva par
 - **WHEN** estudante alvo tem empréstimo vencido e não devolvido, com `devolvido_em` nulo ou zero
 - **THEN** o backend recusa a reserva sem alterar a fila
 
+#### Scenario: Estudante alvo tem empréstimo ativo de outro título
+- **WHEN** estudante alvo tem até dois empréstimos ativos de outros títulos e solicita uma reserva elegível
+- **THEN** o backend não recusa a reserva apenas pela existência desses empréstimos
+
+#### Scenario: Estudante alvo atingiu o limite de empréstimos
+- **WHEN** estudante alvo tem três empréstimos ativos
+- **THEN** o backend recusa a reserva sem alterar a fila
+
 #### Scenario: Estudante alvo já tem o título emprestado
 - **WHEN** estudante alvo já possui empréstimo ativo não atrasado de exemplar daquele título
 - **THEN** o backend recusa a reserva sem alterar a fila

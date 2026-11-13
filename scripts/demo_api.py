@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -74,20 +74,41 @@ class DemoData:
         self.students: list[dict[str, object]] = []
         self.users: dict[str, dict[str, object]] = {}
         self.reservations: list[dict[str, object]] = []
-        self.loans = [
-            {
-                "usuario_id": 101,
-                "titulo_id": 2,
-                "devolvido_em": None,
-                "vence_em": "2099-12-31T23:59:59Z",
-            }
-        ]
+        self.loan_requests: list[dict[str, object]] = []
+        self.loans: list[dict[str, object]] = []
         self.next_title_id = 1
         self.next_copy_id = 1
         self.next_category_link_id = 1
         self.next_reservation_id = 1
+        self.next_request_id = 1
+        self.next_loan_id = 1
 
         seed_demo_data(self)
+        borrowed_copy = next(
+            (item for item in self.copies if item["estado"] == "emprestado"),
+            None,
+        )
+        if borrowed_copy is not None:
+            self.loans.append(
+                {
+                    "id": self.next_loan_id,
+                    "usuario_id": 101,
+                    "titulo_id": borrowed_copy["titulo_id"],
+                    "exemplar_id": borrowed_copy["id"],
+                    "solicitacao_id": None,
+                    "retirado_em": "2024-01-01T12:00:00Z",
+                    "vence_em": "2099-12-31T23:59:59Z",
+                    "devolvido_em": None,
+                }
+            )
+            self.next_loan_id += 1
+
+        self.next_request_id = max(
+            (int(item["id"]) for item in self.loan_requests), default=0
+        ) + 1
+        self.next_reservation_id = max(
+            (int(item["id"]) for item in self.reservations), default=0
+        ) + 1
 
     def categories_for(self, title_id: int) -> list[dict[str, object]]:
         return [
@@ -121,6 +142,17 @@ class DemoData:
 
 def _normalized(value: str) -> str:
     return " ".join(value.strip().casefold().split())
+
+
+def _datetime(value: object) -> datetime:
+    if type(value) in {int, float}:
+        return datetime.fromtimestamp(value, tz=timezone.utc)
+    if not isinstance(value, str):
+        raise ValueError("Data inválida.")
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def seed_demo_data(data: DemoData) -> None:
@@ -284,7 +316,159 @@ class DemoHandler(BaseHTTPRequestHandler):
             "admin",
         }:
             raise ApiError(403, "Perfil insuficiente.")
+        if required == "estudante" and user["perfil"] != "estudante":
+            raise ApiError(403, "Somente estudantes podem acessar este recurso.")
         return user
+
+    def _active_loans(self, user_id: int) -> list[dict[str, object]]:
+        return [
+            loan
+            for loan in DATA.loans
+            if loan["usuario_id"] == user_id
+            and loan["devolvido_em"] in (None, 0)
+        ]
+
+    def _student_eligibility_error(self, user_id: int, title_id: int) -> str | None:
+        now = datetime.now(timezone.utc)
+        active = self._active_loans(user_id)
+        if any(_datetime(loan["vence_em"]) < now for loan in active):
+            return "Estudante possui empréstimo atrasado."
+        if any(loan["titulo_id"] == title_id for loan in active):
+            return "Estudante já possui empréstimo ativo deste título."
+        if len(active) >= 3:
+            return "Limite de três empréstimos ativos atingido."
+        return None
+
+    def _check_student_eligibility(self, user_id: int, title_id: int) -> None:
+        message = self._student_eligibility_error(user_id, title_id)
+        if message is not None:
+            raise ApiError(403, message)
+
+    def _create_loan(
+        self,
+        user_id: int,
+        copy: dict[str, object],
+        *,
+        request_id: int | None = None,
+    ) -> dict[str, object]:
+        now = datetime.now(timezone.utc)
+        loan: dict[str, object] = {
+            "id": DATA.next_loan_id,
+            "usuario_id": user_id,
+            "titulo_id": copy["titulo_id"],
+            "exemplar_id": copy["id"],
+            "solicitacao_id": request_id,
+            "retirado_em": now.isoformat(timespec="seconds").replace("+00:00", "Z"),
+            "vence_em": (now + timedelta(days=14))
+            .isoformat(timespec="seconds")
+            .replace("+00:00", "Z"),
+            "devolvido_em": None,
+        }
+        DATA.next_loan_id += 1
+        copy["estado"] = "emprestado"
+        DATA.loans.append(loan)
+        return loan
+
+    def _reservation_for_request(
+        self,
+        request: dict[str, object],
+    ) -> dict[str, object] | None:
+        reservation_id = request.get("reserva_id")
+        return next(
+            (
+                reservation
+                for reservation in DATA.reservations
+                if reservation["id"] == reservation_id
+            ),
+            None,
+        )
+
+    def _admin_reservation_entry(
+        self,
+        reservation: dict[str, object],
+    ) -> dict[str, object]:
+        student = next(
+            item for item in DATA.students if item["id"] == reservation["usuario_id"]
+        )
+        title = next(
+            item for item in DATA.titles if item["id"] == reservation["titulo_id"]
+        )
+        expires_at = reservation["expira_em"]
+        expires_local = (
+            _datetime(expires_at)
+            .astimezone(timezone(timedelta(hours=-3)))
+            .strftime("%Y-%m-%d %H:%M:%S")
+            if expires_at is not None
+            else None
+        )
+        return {
+            **reservation,
+            "usuario_nome": student["nome"],
+            "titulo": title["titulo"],
+            "expira_em_sao_paulo": expires_local,
+        }
+
+    def _admin_loan_entry(self, loan: dict[str, object]) -> dict[str, object]:
+        student = next(
+            item for item in DATA.students if item["id"] == loan["usuario_id"]
+        )
+        copy = next(item for item in DATA.copies if item["id"] == loan["exemplar_id"])
+        title = next(
+            item for item in DATA.titles if item["id"] == copy["titulo_id"]
+        )
+        return {
+            "id": loan["id"],
+            "usuario_id": loan["usuario_id"],
+            "usuario_nome": student["nome"],
+            "titulo_id": title["id"],
+            "titulo": title["titulo"],
+            "autores": title["autores"],
+            "exemplar_id": loan["exemplar_id"],
+            "retirado_em": loan["retirado_em"],
+            "vence_em": loan["vence_em"],
+        }
+
+    def _offer_next_reservation(
+        self,
+        title_id: int,
+        copy: dict[str, object],
+    ) -> dict[str, object] | None:
+        now = datetime.now(timezone.utc)
+        waiting = sorted(
+            (
+                reservation
+                for reservation in DATA.reservations
+                if reservation["titulo_id"] == title_id
+                and reservation["estado"] == "aguardando"
+            ),
+            key=lambda reservation: (
+                _datetime(reservation["criada_em"]),
+                reservation["id"],
+            ),
+        )
+        for reservation in waiting:
+            if self._student_eligibility_error(
+                int(reservation["usuario_id"]),
+                title_id,
+            ):
+                continue
+            offer_time = datetime.now(timezone.utc)
+            expires_at = offer_time + timedelta(hours=48)
+            reservation.update(
+                {
+                    "estado": "ofertada",
+                    "exemplar_id": copy["id"],
+                    "ofertada_em": offer_time.isoformat(timespec="seconds").replace(
+                        "+00:00", "Z"
+                    ),
+                    "expira_em": expires_at.isoformat(timespec="seconds").replace(
+                        "+00:00", "Z"
+                    ),
+                }
+            )
+            copy["estado"] = "reservado"
+            return reservation
+        return None
 
     def _handle(self) -> tuple[int, object]:
         parsed = urlsplit(self.path)
@@ -346,6 +530,94 @@ class DemoHandler(BaseHTTPRequestHandler):
                     if title["id"] in ids and title.get("ativo") is not False
                 ]
 
+        if method == "GET" and path in {
+            "/minhas/emprestimos",
+            "/minhas/solicitacoes",
+            "/minhas/reservas",
+        }:
+            user = self._profile(required="estudante")
+            user_id = user["id"]
+            with DATA.lock:
+                if path == "/minhas/emprestimos":
+                    return 200, [
+                        dict(item)
+                        for item in DATA.loans
+                        if item["usuario_id"] == user_id
+                    ]
+                if path == "/minhas/solicitacoes":
+                    return 200, [
+                        dict(item)
+                        for item in DATA.loan_requests
+                        if item["usuario_id"] == user_id
+                    ]
+                return 200, [
+                    self._admin_reservation_entry(item)
+                    for item in DATA.reservations
+                    if item["usuario_id"] == user_id
+                ]
+
+        if method == "POST" and path == "/solicitacoes-emprestimo":
+            user = self._profile(required="estudante")
+            body = self._read_json()
+            title_id = _int_field(body, "titulo_id")
+            with DATA.lock:
+                title = next(
+                    (item for item in DATA.titles if item["id"] == title_id),
+                    None,
+                )
+                if title is None:
+                    raise ApiError(404, "Título não encontrado.")
+                if title.get("ativo") is False:
+                    raise ApiError(403, "Título inativo não aceita solicitações.")
+                self._check_student_eligibility(int(user["id"]), title_id)
+                if any(
+                    request["usuario_id"] == user["id"]
+                    and request["titulo_id"] == title_id
+                    and request["estado"] in {"pendente", "em_reserva"}
+                    for request in DATA.loan_requests
+                ):
+                    raise ApiError(409, "Já existe solicitação ativa para este título.")
+                if any(
+                    reservation["usuario_id"] == user["id"]
+                    and reservation["titulo_id"] == title_id
+                    and reservation["estado"] in {"aguardando", "ofertada"}
+                    for reservation in DATA.reservations
+                ):
+                    raise ApiError(409, "Já existe reserva ativa para este título.")
+
+                waiting = any(
+                    reservation["titulo_id"] == title_id
+                    and reservation["estado"] == "aguardando"
+                    for reservation in DATA.reservations
+                )
+                request: dict[str, object] = {
+                    "id": DATA.next_request_id,
+                    "usuario_id": user["id"],
+                    "titulo_id": title_id,
+                    "solicitada_em": _now(),
+                    "estado": "pendente",
+                    "reserva_id": None,
+                    "atendida_em": None,
+                }
+                DATA.next_request_id += 1
+                if DATA.available_count(title_id) == 0 or waiting:
+                    reservation = {
+                        "id": DATA.next_reservation_id,
+                        "usuario_id": user["id"],
+                        "titulo_id": title_id,
+                        "criada_em": _now(),
+                        "estado": "aguardando",
+                        "exemplar_id": None,
+                        "ofertada_em": None,
+                        "expira_em": None,
+                    }
+                    DATA.next_reservation_id += 1
+                    DATA.reservations.append(reservation)
+                    request["estado"] = "em_reserva"
+                    request["reserva_id"] = reservation["id"]
+                DATA.loan_requests.append(request)
+                return 201, dict(request)
+
         if path.startswith("/admin/"):
             self._profile(required="bibliotecario")
 
@@ -370,6 +642,52 @@ class DemoHandler(BaseHTTPRequestHandler):
                 and student["ativo"] is not False
                 and student["email"] == email
             ]
+
+        if method == "GET" and path == "/admin/solicitacoes":
+            with DATA.lock:
+                return 200, [
+                    dict(item)
+                    for item in sorted(
+                        DATA.loan_requests,
+                        key=lambda request: (
+                            _datetime(request["solicitada_em"]),
+                            request["id"],
+                        ),
+                    )
+                    if item["estado"] == "pendente"
+                ]
+
+        if method == "GET" and path == "/admin/reservas":
+            with DATA.lock:
+                return 200, [
+                    self._admin_reservation_entry(item)
+                    for item in sorted(
+                        (
+                            reservation
+                            for reservation in DATA.reservations
+                            if reservation["estado"] in {"aguardando", "ofertada"}
+                        ),
+                        key=lambda reservation: (
+                            _datetime(reservation["criada_em"]),
+                            reservation["id"],
+                        ),
+                    )
+                ]
+
+        if method == "GET" and path == "/admin/emprestimos":
+            with DATA.lock:
+                active = sorted(
+                    (
+                        loan
+                        for loan in DATA.loans
+                        if loan["devolvido_em"] in (None, 0)
+                    ),
+                    key=lambda loan: (
+                        _datetime(loan["vence_em"]),
+                        loan["id"],
+                    ),
+                )
+                return 200, [self._admin_loan_entry(item) for item in active]
 
         if method == "POST" and path in {"/catalogo/titulos", "/admin/titulos"}:
             self._profile(required="bibliotecario")
@@ -580,6 +898,191 @@ class DemoHandler(BaseHTTPRequestHandler):
                 DATA.next_reservation_id += 1
                 DATA.reservations.append(reservation)
                 return 201, dict(reservation)
+
+        if method == "POST" and path == "/admin/reservas/ofertar-proxima":
+            body = self._read_json()
+            title_id = _int_field(body, "titulo_id")
+            copy_id = _int_field(body, "exemplar_id")
+            with DATA.lock:
+                copy = next(
+                    (item for item in DATA.copies if item["id"] == copy_id),
+                    None,
+                )
+                if (
+                    copy is None
+                    or copy["titulo_id"] != title_id
+                    or copy["estado"] != "disponivel"
+                ):
+                    raise ApiError(
+                        409,
+                        "É necessário um exemplar disponível do título informado.",
+                    )
+                reservation = self._offer_next_reservation(title_id, copy)
+                if reservation is None:
+                    raise ApiError(409, "Não há reserva elegível na fila.")
+                offered = self._admin_reservation_entry(reservation)
+                return 200, {
+                    "reserva": dict(reservation),
+                    "expira_em_utc": reservation["expira_em"],
+                    "expira_em_sao_paulo": offered["expira_em_sao_paulo"],
+                }
+
+        match = re.fullmatch(r"/admin/solicitacoes/(\d+)/(retirada|recusar)", path)
+        if method == "POST" and match:
+            request_id = int(match.group(1))
+            action = match.group(2)
+            with DATA.lock:
+                request = next(
+                    (
+                        item
+                        for item in DATA.loan_requests
+                        if item["id"] == request_id
+                    ),
+                    None,
+                )
+                if action == "recusar":
+                    if request is None or request["estado"] != "pendente":
+                        raise ApiError(
+                            409,
+                            "Somente solicitação pendente pode ser recusada.",
+                        )
+                    request["estado"] = "recusada"
+                    return 200, dict(request)
+
+                if request is None or request["estado"] != "pendente":
+                    raise ApiError(409, "Solicitação pendente não encontrada.")
+                queue = sorted(
+                    (
+                        item
+                        for item in DATA.loan_requests
+                        if item["titulo_id"] == request["titulo_id"]
+                        and item["estado"] == "pendente"
+                    ),
+                    key=lambda item: (
+                        _datetime(item["solicitada_em"]),
+                        item["id"],
+                    ),
+                )
+                if not queue or queue[0]["id"] != request_id:
+                    raise ApiError(
+                        409,
+                        "A solicitação deve seguir a ordem de chegada.",
+                    )
+                self._check_student_eligibility(
+                    int(request["usuario_id"]),
+                    int(request["titulo_id"]),
+                )
+                copy = next(
+                    (
+                        item
+                        for item in sorted(DATA.copies, key=lambda value: value["id"])
+                        if item["titulo_id"] == request["titulo_id"]
+                        and item["estado"] == "disponivel"
+                    ),
+                    None,
+                )
+                if copy is None:
+                    raise ApiError(409, "Não há exemplar disponível para retirada.")
+                loan = self._create_loan(
+                    int(request["usuario_id"]),
+                    copy,
+                    request_id=request_id,
+                )
+                request["estado"] = "atendida"
+                request["atendida_em"] = loan["retirado_em"]
+                return 201, dict(loan)
+
+        match = re.fullmatch(r"/admin/reservas/(\d+)/(retirada|recusar)", path)
+        if method == "POST" and match:
+            reservation_id = int(match.group(1))
+            action = match.group(2)
+            with DATA.lock:
+                reservation = next(
+                    (
+                        item
+                        for item in DATA.reservations
+                        if item["id"] == reservation_id
+                    ),
+                    None,
+                )
+                if action == "recusar":
+                    if reservation is None or reservation["estado"] != "aguardando":
+                        raise ApiError(
+                            409,
+                            "Somente reserva aguardando pode ser recusada.",
+                        )
+                    reservation["estado"] = "recusada"
+                    for request in DATA.loan_requests:
+                        if (
+                            request.get("reserva_id") == reservation_id
+                            and request["estado"] == "em_reserva"
+                        ):
+                            request["estado"] = "recusada"
+                    return 200, dict(reservation)
+
+                now = datetime.now(timezone.utc)
+                if (
+                    reservation is None
+                    or reservation["estado"] != "ofertada"
+                    or reservation["exemplar_id"] is None
+                    or reservation["expira_em"] is None
+                    or _datetime(reservation["expira_em"]) <= now
+                ):
+                    raise ApiError(409, "Não há oferta vigente para esta reserva.")
+                self._check_student_eligibility(
+                    int(reservation["usuario_id"]),
+                    int(reservation["titulo_id"]),
+                )
+                copy = next(
+                    (
+                        item
+                        for item in DATA.copies
+                        if item["id"] == reservation["exemplar_id"]
+                    ),
+                    None,
+                )
+                if copy is None or copy["estado"] != "reservado":
+                    raise ApiError(
+                        409,
+                        "O exemplar não está reservado para esta oferta.",
+                    )
+                loan = self._create_loan(int(reservation["usuario_id"]), copy)
+                reservation["estado"] = "retirada"
+                for request in DATA.loan_requests:
+                    if (
+                        request.get("reserva_id") == reservation_id
+                        and request["estado"] == "em_reserva"
+                    ):
+                        request["estado"] = "atendida"
+                        request["atendida_em"] = loan["retirado_em"]
+                return 201, dict(loan)
+
+        match = re.fullmatch(r"/admin/emprestimos/(\d+)/devolucao", path)
+        if method == "POST" and match:
+            loan_id = int(match.group(1))
+            with DATA.lock:
+                loan = next(
+                    (item for item in DATA.loans if item["id"] == loan_id),
+                    None,
+                )
+                if loan is None or loan["devolvido_em"] not in (None, 0):
+                    raise ApiError(404, "Empréstimo ativo não encontrado.")
+                returned_at = _now()
+                loan["devolvido_em"] = returned_at
+                copy = next(
+                    item
+                    for item in DATA.copies
+                    if item["id"] == loan["exemplar_id"]
+                )
+                copy["estado"] = "disponivel"
+                offered = self._offer_next_reservation(
+                    int(copy["titulo_id"]),
+                    copy,
+                )
+                return 200, {
+                    "emprestimo": dict(loan),
+                    "reserva_ofertada": dict(offered) if offered else None,
+                }
 
         return 404, {"message": "Rota não encontrada."}
 

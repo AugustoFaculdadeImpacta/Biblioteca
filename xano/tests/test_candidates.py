@@ -284,7 +284,10 @@ class TestCandidateContracts(unittest.TestCase):
             "/reservas",
             "/admin/reservas/processar-expiradas",
             "/admin/estudantes",
+            "/admin/emprestimos",
             "/admin/reservas",
+            "/admin/solicitacoes/{solicitacaoId}/recusar",
+            "/admin/reservas/{reservaId}/recusar",
             "/admin/exemplares/{exemplarId}/condicoes",
         }
         self.assertLessEqual(required_paths, set(paths))
@@ -320,7 +323,7 @@ class TestCandidateContracts(unittest.TestCase):
             for route, method in API_DECLARATION.findall(source):
                 candidates.append((method, "/" + route, path, source))
 
-        self.assertEqual(len(operations), 34)
+        self.assertEqual(len(operations), 38)
         self.assertEqual(len(candidates), len(operations))
 
         for method, path, operation in operations:
@@ -349,9 +352,12 @@ class TestCandidateContracts(unittest.TestCase):
                 path.startswith("/catalogo/")
                 and method == "PATCH"
             ):
-                self.assertIn(
-                    '$usuario.perfil == "bibliotecario" || $usuario.perfil == "admin"',
-                    source,
+                self.assertTrue(
+                    any(
+                        f'${actor}.perfil == "bibliotecario" || '
+                        f'${actor}.perfil == "admin"' in source
+                        for actor in ("usuario", "bibliotecario")
+                    ),
                     candidate_path.name,
                 )
 
@@ -422,6 +428,8 @@ class TestCandidateContracts(unittest.TestCase):
         paths = document["paths"]
         loan = paths["/admin/solicitacoes/{solicitacaoId}/retirada"]["post"]
         self.assertIn("14 dias corridos", loan["description"])
+        self.assertIn("limite de tres emprestimos ativos", loan["description"])
+        self.assertIn("emprestimo do mesmo titulo", loan["description"])
         self.assertIn("atraso", paths["/solicitacoes-emprestimo"]["post"]["description"])
 
         reservation = paths["/admin/reservas/processar-expiradas"]["post"]["description"]
@@ -429,6 +437,9 @@ class TestCandidateContracts(unittest.TestCase):
         self.assertIn("libera exemplares", reservation)
         self.assertIn("proximo estudante elegivel", reservation)
         self.assertIn("America/Sao_Paulo", paths["/minhas/reservas"]["get"]["responses"]["200"]["description"])
+        offer = paths["/admin/reservas/ofertar-proxima"]["post"]["description"]
+        self.assertIn("menos de tres emprestimos ativos", offer)
+        self.assertIn("emprestimo ativo do mesmo titulo", offer)
 
         condition = paths["/admin/exemplares/{exemplarId}/condicoes"]["post"]
         self.assertIn("dano ou perda", condition["description"])
@@ -443,6 +454,9 @@ class TestCandidateContracts(unittest.TestCase):
             encoding="utf-8"
         )
         return_loan = (APIS / "emprestimos" / "devolucao_POST.xs").read_text(
+            encoding="utf-8"
+        )
+        staff_reservation = (APIS / "admin" / "reservas_POST.xs").read_text(
             encoding="utf-8"
         )
         reservations = (APIS / "reservas" / "reservas_POST.xs").read_text(
@@ -467,17 +481,18 @@ class TestCandidateContracts(unittest.TestCase):
             "($db.emprestimo.devolvido_em == null || "
             "$db.emprestimo.devolvido_em == 0)"
         )
-        self.assertEqual(2, requests.count(active_loan_sentinel))
-        self.assertEqual(2, pickup.count(active_loan_sentinel))
+        self.assertEqual(3, requests.count(active_loan_sentinel))
+        self.assertEqual(3, pickup.count(active_loan_sentinel))
         self.assertIn(
             "($emprestimo.devolvido_em == null || $emprestimo.devolvido_em == 0)",
             return_loan,
         )
-        self.assertEqual(2, return_loan.count(active_loan_sentinel))
-        self.assertEqual(2, reservations.count(active_loan_sentinel))
-        self.assertEqual(2, reservation_pickup.count(active_loan_sentinel))
-        self.assertEqual(2, offer.count(active_loan_sentinel))
-        self.assertEqual(2, expiry.count(active_loan_sentinel))
+        self.assertEqual(3, return_loan.count(active_loan_sentinel))
+        self.assertEqual(3, reservations.count(active_loan_sentinel))
+        self.assertEqual(3, reservation_pickup.count(active_loan_sentinel))
+        self.assertEqual(3, offer.count(active_loan_sentinel))
+        self.assertEqual(3, expiry.count(active_loan_sentinel))
+        self.assertEqual(3, staff_reservation.count(active_loan_sentinel))
         self.assertIn('value = "now"|to_timestamp', return_loan)
         self.assertIn('|set:"devolvido_em":$agora', return_loan)
 
@@ -487,7 +502,7 @@ class TestCandidateContracts(unittest.TestCase):
         self.assertNotIn("perfil", input_fields(signup))
 
         self.assertIn("solicitada_em: \"asc\"", pickup)
-        self.assertIn("$emprestimos_ativos == 0", pickup)
+        self.assertIn("$emprestimos_ativos < 3", pickup)
         self.assertIn("$agora|add_secs_to_timestamp:1209600", pickup)
 
         self.assertNotRegex(offer, r"(?m)^\s*sort\s*=")
@@ -499,7 +514,24 @@ class TestCandidateContracts(unittest.TestCase):
         self.assertIn("$db.emprestimo.vence_em < $agora", offer)
         self.assertNotIn('$db.emprestimo.vence_em < ("now"|to_timestamp)', offer)
         self.assertIn("$ofertada_em|add_secs_to_timestamp:172800", offer)
-        self.assertIn("$atrasados == 0 && $emprestimos_do_titulo == 0", offer)
+        self.assertIn(
+            "$atrasados == 0 && $emprestimos_ativos < 3 && "
+            "$emprestimos_do_titulo == 0",
+            offer,
+        )
+        for source in (
+            requests,
+            pickup,
+            return_loan,
+            reservations,
+            reservation_pickup,
+            offer,
+            expiry,
+            staff_reservation,
+        ):
+            self.assertNotIn("join =", source)
+            self.assertIn("$db.emprestimo.exemplar_id in ($exemplar_ids)", source)
+            self.assertIn("$emprestimos_ativos < 3", source)
         self.assertNotRegex(queue, r"(?m)^\s*sort\s*=")
         self.assertIn(
             'value = $fila|sort:"id":"number":true|sort:"criada_em":"number":true',
@@ -520,6 +552,11 @@ class TestCandidateContracts(unittest.TestCase):
         self.assertIn('data = {estado: "expirada"}', expiry)
         self.assertIn('estado: "reservado"', expiry)
         self.assertIn('$condicoes == 0', expiry)
+        self.assertIn(
+            "$atrasados == 0 && $emprestimos_ativos < 3 && "
+            "$emprestimos_do_titulo == 0",
+            expiry,
+        )
 
         self.assertIn('tipo: $input.tipo', condition)
         self.assertIn('observacao: $input.observacao', condition)

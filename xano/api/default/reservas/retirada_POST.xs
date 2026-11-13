@@ -62,9 +62,9 @@ query "admin/reservas/{reserva_id}/retirada" verb=POST {
       return = {type: "count"}
     } as $emprestimos_ativos
 
-    precondition ($emprestimos_ativos == 0) {
+    precondition ($emprestimos_ativos < 3) {
       error_type = "accessdenied"
-      error = "Estudante ja possui emprestimo ativo."
+      error = "Limite de tres emprestimos ativos atingido."
     }
 
     db.query emprestimo {
@@ -75,6 +75,25 @@ query "admin/reservas/{reserva_id}/retirada" verb=POST {
     precondition ($emprestimos_atrasados == 0) {
       error_type = "accessdenied"
       error = "Estudante com emprestimo atrasado."
+    }
+
+    db.query exemplar {
+      where = $db.exemplar.titulo_id == $exemplar.titulo_id
+      return = {type: "list"}
+    } as $exemplares_titulo
+
+    array.map ($exemplares_titulo) {
+      by = $this.id
+    } as $exemplar_ids
+
+    db.query emprestimo {
+      where = $db.emprestimo.usuario_id == $reserva.usuario_id && ($db.emprestimo.devolvido_em == null || $db.emprestimo.devolvido_em == 0) && $db.emprestimo.exemplar_id in ($exemplar_ids)
+      return = {type: "count"}
+    } as $emprestimos_do_titulo
+
+    precondition ($emprestimos_do_titulo == 0) {
+      error_type = "accessdenied"
+      error = "Estudante ja possui o titulo emprestado."
     }
 
     var $vence_em {
@@ -103,6 +122,21 @@ query "admin/reservas/{reserva_id}/retirada" verb=POST {
           field_value = $exemplar.id
           data = {estado: "emprestado"}
         } as $exemplar_emprestado
+
+        db.query solicitacao_emprestimo {
+          where = $db.solicitacao_emprestimo.reserva_id == $reserva.id && $db.solicitacao_emprestimo.estado == "em_reserva"
+          return = {type: "single"}
+        } as $solicitacao
+
+        conditional {
+          if ($solicitacao != null) {
+            db.patch solicitacao_emprestimo {
+              field_name = "id"
+              field_value = $solicitacao.id
+              data = {}|set:"estado":"atendida"|set:"atendida_em":$agora
+            } as $solicitacao_atendida
+          }
+        }
       }
     }
   }

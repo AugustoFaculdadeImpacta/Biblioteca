@@ -3,7 +3,7 @@
 import unicodedata
 from datetime import datetime, timezone
 from functools import wraps
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable
 
 import reflex as rx
 
@@ -36,9 +36,20 @@ from biblioteca_mais_nova.catalog import (
     update_title,
 )
 from biblioteca_mais_nova.circulation import (
+    AdminReservation,
+    LoanRequest,
+    list_admin_loans,
+    list_admin_requests,
+    list_admin_reservations,
     list_my_loans,
     list_my_requests,
     list_my_reservations,
+    offer_next_reservation,
+    refuse_loan_request,
+    refuse_reservation,
+    register_loan_return,
+    register_request_pickup,
+    register_reservation_pickup,
     request_title_loan,
 )
 from biblioteca_mais_nova.user_admin import (
@@ -60,6 +71,19 @@ from biblioteca_mais_nova.xano_client import (
     XanoRequestError,
     XanoResponseError,
 )
+
+
+def _timestamp_is_past(
+    value: str | int | float,
+    now: datetime,
+) -> bool:
+    if type(value) in {int, float}:
+        deadline = datetime.fromtimestamp(value, tz=timezone.utc)
+    else:
+        deadline = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if deadline.tzinfo is None:
+            deadline = deadline.replace(tzinfo=timezone.utc)
+    return deadline < now
 
 
 class State(rx.State):
@@ -136,6 +160,14 @@ class State(rx.State):
     staff_reservation_title_options: list[dict[str, str]] = []
     staff_reservation_title_id: str = ""
     staff_reservation_needs_manual_check: bool = False
+    circulation_pending: bool = False
+    circulation_message: str = ""
+    circulation_has_error: bool = False
+    circulation_needs_manual_check: bool = False
+    circulation_requests: list[LoanRequest] = []
+    circulation_reservations: list[AdminReservation] = []
+    circulation_loans: list[dict[str, Any]] = []
+    circulation_catalog_entries: list[AdminCatalogEntry] = []
 
     def _store_session_token(self, token: str) -> None:
         if not token:
@@ -372,6 +404,26 @@ class State(rx.State):
     @rx.var
     def has_staff_reservation_student(self) -> bool:
         return bool(self.staff_reservation_student)
+
+    @rx.var
+    def has_circulation_requests(self) -> bool:
+        return bool(self.circulation_requests)
+
+    @rx.var
+    def has_circulation_reservations(self) -> bool:
+        return bool(self.circulation_reservations)
+
+    @rx.var
+    def has_circulation_loans(self) -> bool:
+        return bool(self.circulation_loans)
+
+    @rx.var
+    def circulation_active_loan_count(self) -> int:
+        return len(self.circulation_loans)
+
+    @rx.var
+    def circulation_overdue_loan_count(self) -> int:
+        return sum(bool(loan["atrasado"]) for loan in self.circulation_loans)
 
     def _redirect_non_librarian(self):
         if not self._session_token:
@@ -1012,6 +1064,188 @@ class State(rx.State):
             "pelo servidor."
         )
 
+    async def _refresh_circulation_data(self) -> bool:
+        self.circulation_pending = True
+        try:
+            requests = await list_admin_requests(self._session_token)
+            reservations = await list_admin_reservations(self._session_token)
+            loans = await list_admin_loans(self._session_token)
+            catalog_entries = await list_admin_catalog(self._session_token)
+        except (
+            XanoConfigurationError,
+            XanoRequestError,
+            XanoResponseError,
+        ) as error:
+            self.circulation_message = catalog_error_message(error)
+            self.circulation_has_error = True
+            return False
+        finally:
+            self.circulation_pending = False
+
+        now = datetime.now(timezone.utc)
+        self.circulation_requests = requests
+        self.circulation_reservations = reservations
+        self.circulation_loans = [
+            {
+                **loan,
+                "atrasado": _timestamp_is_past(loan["vence_em"], now),
+            }
+            for loan in loans
+        ]
+        self.circulation_catalog_entries = catalog_entries
+        self.circulation_has_error = False
+        self.circulation_needs_manual_check = False
+        return True
+
+    @rx.event
+    async def load_circulation_page(self):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        self.circulation_message = ""
+        self.circulation_has_error = False
+        await self._refresh_circulation_data()
+
+    async def _perform_circulation_action(
+        self,
+        action: Callable[[], Awaitable[object | None]],
+        success_message: str,
+    ) -> None:
+        if not self._is_librarian():
+            return
+        if self.circulation_pending:
+            self.circulation_message = "Aguarde a operação atual."
+            self.circulation_has_error = True
+            return
+        if self.circulation_needs_manual_check:
+            self.circulation_message = (
+                "Atualize a fila e os empréstimos antes de tentar outra operação."
+            )
+            self.circulation_has_error = True
+            return
+
+        self.circulation_pending = True
+        self.circulation_message = ""
+        self.circulation_has_error = False
+        try:
+            await action()
+        except XanoResponseError as error:
+            if error.status_code >= 500:
+                self.circulation_needs_manual_check = True
+                self.circulation_message = (
+                    "Não foi possível confirmar o resultado. Atualize a "
+                    "circulação antes de tentar novamente."
+                )
+            else:
+                self.circulation_message = catalog_error_message(error)
+            self.circulation_has_error = True
+            return
+        except XanoRequestError:
+            self.circulation_needs_manual_check = True
+            self.circulation_message = (
+                "Não foi possível confirmar o resultado. Atualize a "
+                "circulação antes de tentar novamente."
+            )
+            self.circulation_has_error = True
+            return
+        except XanoConfigurationError as error:
+            self.circulation_message = catalog_error_message(error)
+            self.circulation_has_error = True
+            return
+        finally:
+            self.circulation_pending = False
+
+        self.circulation_message = success_message
+        if not await self._refresh_circulation_data():
+            return
+        self.circulation_message = success_message
+
+    @rx.event
+    async def circulation_pickup_request(self, request_id: int):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        await self._perform_circulation_action(
+            lambda: register_request_pickup(request_id, self._session_token),
+            "Retirada registrada; empréstimo com prazo de 14 dias.",
+        )
+
+    @rx.event
+    async def circulation_refuse_request(self, request_id: int):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        await self._perform_circulation_action(
+            lambda: refuse_loan_request(request_id, self._session_token),
+            "Solicitação recusada.",
+        )
+
+    @rx.event
+    async def circulation_offer_reservation(self, title_id: int):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        title_entry = next(
+            (
+                entry
+                for entry in self.circulation_catalog_entries
+                if entry["titulo"]["id"] == title_id
+            ),
+            None,
+        )
+        copy_id = None
+        if title_entry is not None:
+            copy = next(
+                (
+                    item
+                    for item in title_entry["exemplares"]
+                    if item["estado"] == "disponivel"
+                ),
+                None,
+            )
+            if copy is not None:
+                copy_id = copy["id"]
+        if copy_id is None:
+            self.circulation_message = (
+                "Não há exemplar disponível para oferecer neste momento."
+            )
+            self.circulation_has_error = True
+            return
+        await self._perform_circulation_action(
+            lambda: offer_next_reservation(
+                title_id,
+                copy_id,
+                self._session_token,
+            ),
+            "Oferta registrada para a próxima reserva elegível da fila.",
+        )
+
+    @rx.event
+    async def circulation_pickup_reservation(self, reservation_id: int):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        await self._perform_circulation_action(
+            lambda: register_reservation_pickup(
+                reservation_id,
+                self._session_token,
+            ),
+            "Retirada da reserva registrada; empréstimo com prazo de 14 dias.",
+        )
+
+    @rx.event
+    async def circulation_refuse_reservation(self, reservation_id: int):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        await self._perform_circulation_action(
+            lambda: refuse_reservation(reservation_id, self._session_token),
+            "Reserva aguardando recusada.",
+        )
+
+    @rx.event
+    async def circulation_return_loan(self, loan_id: int):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        await self._perform_circulation_action(
+            lambda: register_loan_return(loan_id, self._session_token),
+            "Devolução registrada.",
+        )
+
     @rx.event
     def acknowledge_staff_reservation_check(self):
         if not self._is_librarian():
@@ -1517,6 +1751,14 @@ def site_header() -> rx.Component:
                     rx.cond(
                         State.is_librarian,
                         rx.link("Cadastrar livro", href="/admin/acervo"),
+                        rx.fragment(),
+                    ),
+                    rx.cond(
+                        State.is_librarian,
+                        rx.link(
+                            "Circulação",
+                            href="/admin/circulacao",
+                        ),
                         rx.fragment(),
                     ),
                     rx.cond(
@@ -3004,6 +3246,241 @@ def staff_reservation_page() -> rx.Component:
     )
 
 
+def circulation_request_card(request: LoanRequest) -> rx.Component:
+    return rx.el.article(
+        rx.heading(f"Solicitação #{request['id']}", size="4"),
+        rx.text(f"Estudante #{request['usuario_id']}"),
+        rx.text(f"Título #{request['titulo_id']}"),
+        rx.text("Status: pendente"),
+        rx.button(
+            "Registrar retirada",
+            type="button",
+            on_click=State.circulation_pickup_request(request["id"]),
+            disabled=State.circulation_pending
+            | State.circulation_needs_manual_check,
+            class_name="focus-demo-button",
+        ),
+        rx.button(
+            "Recusar solicitação",
+            type="button",
+            on_click=State.circulation_refuse_request(request["id"]),
+            disabled=State.circulation_pending
+            | State.circulation_needs_manual_check,
+            class_name="nav-logout",
+        ),
+        class_name="librarian-card",
+    )
+
+
+def circulation_reservation_card(
+    reservation: AdminReservation,
+) -> rx.Component:
+    return rx.el.article(
+        rx.heading(reservation["titulo"], size="4"),
+        rx.text(f"Estudante: {reservation['usuario_nome']}"),
+        rx.text(
+            f"Reserva #{reservation['id']} — status: {reservation['estado']}"
+        ),
+        rx.cond(
+            reservation["expira_em_sao_paulo"] != None,
+            rx.text(
+                "Prazo da oferta: ",
+                reservation["expira_em_sao_paulo"],
+            ),
+            rx.fragment(),
+        ),
+        rx.cond(
+            reservation["estado"] == "aguardando",
+            rx.fragment(
+                rx.button(
+                    "Oferecer ao próximo da fila",
+                    type="button",
+                    on_click=State.circulation_offer_reservation(
+                        reservation["titulo_id"]
+                    ),
+                    disabled=State.circulation_pending
+                    | State.circulation_needs_manual_check,
+                    class_name="focus-demo-button",
+                ),
+                rx.button(
+                    "Recusar reserva",
+                    type="button",
+                    on_click=State.circulation_refuse_reservation(
+                        reservation["id"]
+                    ),
+                    disabled=State.circulation_pending
+                    | State.circulation_needs_manual_check,
+                    class_name="nav-logout",
+                ),
+            ),
+            rx.cond(
+                reservation["estado"] == "ofertada",
+                rx.button(
+                    "Registrar retirada da reserva",
+                    type="button",
+                    on_click=State.circulation_pickup_reservation(
+                        reservation["id"]
+                    ),
+                    disabled=State.circulation_pending
+                    | State.circulation_needs_manual_check,
+                    class_name="focus-demo-button",
+                ),
+                rx.fragment(),
+            ),
+        ),
+        class_name="librarian-card",
+    )
+
+
+def circulation_loan_card(loan: dict[str, Any]) -> rx.Component:
+    return rx.el.article(
+        rx.heading(loan["titulo"], size="4"),
+        rx.text(f"Autor: {loan['autores']}"),
+        rx.text(f"Estudante: {loan['usuario_nome']}"),
+        rx.text(f"Devolução prevista: {loan['vence_em']}"),
+        rx.cond(
+            loan["atrasado"],
+            rx.text("Em atraso", role="status"),
+            rx.text("Em dia", role="status"),
+        ),
+        rx.button(
+            "Registrar devolução",
+            type="button",
+            on_click=State.circulation_return_loan(loan["id"]),
+            disabled=State.circulation_pending
+            | State.circulation_needs_manual_check,
+            class_name="focus-demo-button",
+        ),
+        class_name="librarian-card",
+    )
+
+
+def circulation_page() -> rx.Component:
+    return rx.box(
+        rx.link(
+            "Pular para o conteúdo",
+            href="#conteudo-circulacao",
+            class_name="skip-link",
+        ),
+        site_header(),
+        rx.el.main(
+            rx.el.section(
+                rx.heading("Painel de circulação", size="7"),
+                rx.text(
+                    "A retirada inicia o empréstimo por 14 dias. As ofertas "
+                    "seguem a fila definida pelo servidor."
+                ),
+                rx.cond(
+                    State.circulation_message != "",
+                    rx.el.p(
+                        State.circulation_message,
+                        role=rx.cond(
+                            State.circulation_has_error,
+                            "alert",
+                            "status",
+                        ),
+                        aria_live="polite",
+                        class_name=rx.cond(
+                            State.circulation_has_error,
+                            "signup-feedback signup-feedback-error",
+                            "signup-feedback signup-feedback-success",
+                        ),
+                    ),
+                    rx.fragment(),
+                ),
+                rx.el.div(
+                    rx.text(
+                        "Empréstimos ativos: ",
+                        State.circulation_active_loan_count,
+                    ),
+                    rx.text(
+                        "Atrasados: ",
+                        State.circulation_overdue_loan_count,
+                    ),
+                    class_name="librarian-card",
+                ),
+                rx.button(
+                    "Atualizar circulação",
+                    type="button",
+                    on_click=State.load_circulation_page,
+                    disabled=State.circulation_pending,
+                    class_name="nav-logout",
+                ),
+                rx.cond(
+                    State.circulation_pending,
+                    rx.text("Carregando circulação…", role="status"),
+                    rx.fragment(),
+                ),
+                rx.heading("Solicitações pendentes", size="5"),
+                rx.cond(
+                    State.has_circulation_requests,
+                    rx.el.div(
+                        rx.foreach(
+                            State.circulation_requests,
+                            circulation_request_card,
+                        ),
+                        class_name="librarian-list",
+                    ),
+                    rx.cond(
+                        State.circulation_pending
+                        | State.circulation_has_error,
+                        rx.fragment(),
+                        rx.text(
+                            "Não há solicitações pendentes.",
+                            role="status",
+                        ),
+                    ),
+                ),
+                rx.heading("Fila e ofertas de reserva", size="5"),
+                rx.cond(
+                    State.has_circulation_reservations,
+                    rx.el.div(
+                        rx.foreach(
+                            State.circulation_reservations,
+                            circulation_reservation_card,
+                        ),
+                        class_name="librarian-list",
+                    ),
+                    rx.cond(
+                        State.circulation_pending
+                        | State.circulation_has_error,
+                        rx.fragment(),
+                        rx.text(
+                            "Não há reservas aguardando ou ofertadas.",
+                            role="status",
+                        ),
+                    ),
+                ),
+                rx.heading("Empréstimos ativos e atrasos", size="5"),
+                rx.cond(
+                    State.has_circulation_loans,
+                    rx.el.div(
+                        rx.foreach(
+                            State.circulation_loans,
+                            circulation_loan_card,
+                        ),
+                        class_name="librarian-list",
+                    ),
+                    rx.cond(
+                        State.circulation_pending
+                        | State.circulation_has_error,
+                        rx.fragment(),
+                        rx.text(
+                            "Não há empréstimos ativos.",
+                            role="status",
+                        ),
+                    ),
+                ),
+                id="conteudo-circulacao",
+                class_name="content-section librarian-management-section",
+            ),
+            class_name="main-content",
+        ),
+        rx.el.footer(rx.text("Biblioteca escolar"), class_name="site-footer"),
+        class_name="app-shell",
+    )
+
+
 def accessible_page(page: Callable[[], rx.Component]) -> Callable[[], rx.Component]:
     @wraps(page)
     def wrapped() -> rx.Component:
@@ -3471,4 +3948,10 @@ app.add_page(
     route="/admin/reservas",
     title="Reservar para estudante",
     on_load=State.load_staff_reservation_page,
+)
+app.add_page(
+    accessible_page(circulation_page),
+    route="/admin/circulacao",
+    title="Painel de circulação",
+    on_load=State.load_circulation_page,
 )

@@ -83,8 +83,9 @@
 
 - Tratar o 401 observado após login como problema de sessão/token ainda não
   confirmado; corrigir mensagens e tratamento no cliente sem inventar uma causa.
-- Preservar o limite de um empréstimo ativo, pois já está definido no domínio e
-  nas specs; não substituir por três.
+- Naquele diagnóstico, o código e as specs vigentes registravam um empréstimo
+  ativo. A decisão foi substituída posteriormente pela regra explícita do usuário
+  descrita em “Retificação da regra de empréstimos” abaixo.
 - Manter renovação como não implementada e sem regra nova.
 - Não usar a API demo como fallback silencioso para o Xano configurado.
 - Não inspecionar `.env`; não expor URL, tokens, senhas ou dados pessoais.
@@ -241,6 +242,70 @@ Tarefas remotas continuam abertas e não serão marcadas como concluídas.
 
 ### Próximos itens
 
-P4.2: operações de bibliotecária para fila de solicitações, retirada,
-recusa/devolução, atrasos e resumo. P4.3: alternância de visualização somente
-na interface para admin.
+P4.2 está registrado abaixo. P4.3: implementar a alternância de visualização
+somente na interface para admin, sem alterar permissões do servidor.
+
+## Retificação da regra de empréstimos
+
+**Decisão vigente:** a regra definida pelo usuário nesta continuação substitui a
+menção anterior a um empréstimo ativo. Um estudante pode ter até três
+empréstimos ativos; atraso bloqueia novas operações; abaixo do limite,
+empréstimos de outros títulos não bloqueiam. Um empréstimo ativo do mesmo título
+impede nova solicitação, reserva, oferta ou retirada daquele título. Renovação
+continua não implementada.
+
+O XanoScript local aplica a regra por contagem dos empréstimos ativos e por
+consulta dos IDs de exemplares do título, sem `join` nos fluxos alterados. A API
+simulada aplica as mesmas condições. O Xano Developer MCP validou oito arquivos
+XanoScript; essa validação é local e não comprova publicação, execução ou
+concorrência no Xano real.
+
+## P4.2 — Painel e regras de circulação
+
+**Status: concluído localmente e verificado; sem publicação remota.** O painel Reflex e seus clientes tipados cobrem
+solicitações, fila FIFO, ofertas, retiradas, devoluções e indicadores de
+empréstimos ativos/atrasados. A API simulada foi ampliada para os fluxos
+pessoais e administrativos.
+
+- A suíte focada `tests/test_circulation.py` e
+  `tests/test_demo_api_circulation.py` passou (**14 testes**), incluindo o caso
+  de estudante com um empréstimo de outro título recebendo oferta, o limite
+  máximo de três empréstimos ativos e o bloqueio por empréstimo do mesmo título.
+- `xano.tests.test_candidates` passou (**13 testes**) após corrigir a contagem
+  das 38 operações OpenAPI e os contratos dos novos endpoints.
+- O Xano Developer MCP validou **8 arquivos `.xs` (8 válidos)**. Nenhuma
+  publicação, comando Xano CLI ou chamada remota foi realizada.
+- `python -m reflex compile --dry` concluiu com sucesso; nenhum servidor Reflex
+  foi iniciado.
+- Verificação integrada final: `.\\.venv\\Scripts\\python.exe -m pytest
+  --ignore=evaluation` — **174 passaram**; `unittest discover -s xano\\tests`
+  — **13 passaram**; `openspec validate --specs --strict` e as três Changes
+  (`acervo-bibliotecario`, `perfil-admin-xano`,
+  `reserva-pelo-bibliotecario`) — válidas.
+
+### Decisões tomadas
+
+- Aplicar o limite global de três empréstimos, sem bloquear por empréstimos de
+  outros títulos abaixo do limite.
+- Bloquear somente por atraso, limite atingido ou empréstimo ativo do título
+  operado; manter a validação no servidor e na API simulada.
+- Não usar `join` nos guards de título: listar IDs dos exemplares e filtrar os
+  empréstimos ativos por esses IDs.
+- Manter os contratos e XanoScript apenas locais, pendentes de validação e
+  publicação remotas autorizadas.
+
+### Como verificar
+
+- `.\.venv\Scripts\python.exe -m pytest tests\test_circulation.py tests\test_demo_api_circulation.py -q`
+- `.\.venv\Scripts\python.exe -m unittest xano.tests.test_candidates -v`
+- `.\.venv\Scripts\python.exe -m reflex compile --dry`
+- `openspec validate acervo-bibliotecario --strict`
+- `openspec validate perfil-admin-xano --strict`
+- `openspec validate reserva-pelo-bibliotecario --strict`
+- `openspec validate --specs --strict`
+
+### Próximos itens
+
+P4.3: alternância de visualização somente na interface para admin. As tarefas
+remotas continuam pendentes; não arquivar as Changes enquanto houver qualquer
+publicação, prova ou limpeza remota por executar.

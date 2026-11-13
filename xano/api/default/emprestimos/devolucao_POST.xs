@@ -84,18 +84,26 @@ query "admin/emprestimos/{emprestimo_id}/devolucao" verb=POST {
                 } as $atrasados
 
                 db.query emprestimo {
-                  join = {
-                    exemplar: {
-                      table: "exemplar"
-                      where: $db.emprestimo.exemplar_id == $db.exemplar.id
-                    }
-                  }
-                  where = $db.emprestimo.usuario_id == $item.usuario_id && ($db.emprestimo.devolvido_em == null || $db.emprestimo.devolvido_em == 0) && $db.exemplar.titulo_id == $exemplar.titulo_id
+                  where = $db.emprestimo.usuario_id == $item.usuario_id && ($db.emprestimo.devolvido_em == null || $db.emprestimo.devolvido_em == 0)
+                  return = {type: "count"}
+                } as $emprestimos_ativos
+
+                db.query exemplar {
+                  where = $db.exemplar.titulo_id == $exemplar.titulo_id
+                  return = {type: "list"}
+                } as $exemplares_titulo
+
+                array.map ($exemplares_titulo) {
+                  by = $this.id
+                } as $exemplar_ids
+
+                db.query emprestimo {
+                  where = $db.emprestimo.usuario_id == $item.usuario_id && ($db.emprestimo.devolvido_em == null || $db.emprestimo.devolvido_em == 0) && $db.emprestimo.exemplar_id in ($exemplar_ids)
                   return = {type: "count"}
                 } as $emprestimos_do_titulo
 
                 conditional {
-                  if ($atrasados == 0 && $emprestimos_do_titulo == 0) {
+                  if ($atrasados == 0 && $emprestimos_ativos < 3 && $emprestimos_do_titulo == 0) {
                     var.update $proxima_reserva {
                       value = $item
                     }

@@ -417,7 +417,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Somente estudante. Verifica atraso e limite de emprestimo. Se nao ha exemplar disponivel, registra a solicitacao na fila FIFO de reservas do titulo, sem fila paralela de pedidos. Se ha exemplar, registra pedido pendente de retirada fisica.",
+        "description": "Somente estudante. Verifica atraso, limite de tres emprestimos ativos e emprestimo ativo do mesmo titulo; emprestimos de outros titulos nao bloqueiam abaixo do limite. Se nao ha exemplar disponivel, registra a solicitacao na fila FIFO de reservas do titulo, sem fila paralela de pedidos. Se ha exemplar, registra pedido pendente de retirada fisica.",
         "requestBody": {
           "required": true,
           "content": {
@@ -502,10 +502,43 @@
             "bearerAuth": []
           }
         ],
-        "description": "Bibliotecario ou admin. Revalida elegibilidade e disponibilidade; registra retirada fisica e vencimento 14 dias corridos depois. Deve impedir dois emprestimos ativos por estudante e exemplar.",
+        "description": "Bibliotecario ou admin. Revalida atraso, limite de tres emprestimos ativos, emprestimo do mesmo titulo e disponibilidade; registra retirada fisica e vencimento 14 dias corridos depois, impedindo mais de um emprestimo ativo por exemplar.",
         "responses": {
           "201": {
             "description": "Emprestimo ativo criado"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflito"
+          }
+        }
+      }
+    },
+    "/admin/solicitacoes/{solicitacaoId}/recusar": {
+      "parameters": [
+        {
+          "name": "solicitacaoId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "post": {
+        "operationId": "recusarSolicitacaoPendente",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Bibliotecario ou admin. Recusa somente solicitacao pendente, sem alterar exemplares ou emprestimos.",
+        "responses": {
+          "200": {
+            "description": "Solicitacao marcada como recusada"
           },
           "403": {
             "$ref": "#/components/responses/PerfilInsuficiente"
@@ -568,7 +601,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Bibliotecario ou admin; encerra emprestimo ativo, preserva historico e, se existir reserva elegivel, oferece o exemplar ao proximo da fila FIFO por 48 horas.",
+        "description": "Bibliotecario ou admin; encerra emprestimo ativo, preserva historico e oferece o exemplar ao proximo estudante elegivel na fila FIFO por 48 horas. A elegibilidade considera atraso, limite de tres emprestimos ativos e emprestimo do mesmo titulo; outros titulos nao bloqueiam abaixo do limite.",
         "responses": {
           "200": {
             "description": "Devolucao registrada"
@@ -578,6 +611,25 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflito"
+          }
+        }
+      }
+    },
+    "/admin/emprestimos": {
+      "get": {
+        "operationId": "listarEmprestimosAtivos",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Bibliotecario ou admin. Retorna somente emprestimos nao devolvidos com estudante, titulo, exemplar e vencimento.",
+        "responses": {
+          "200": {
+            "description": "Emprestimos ativos para operacao de circulacao"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
           }
         }
       }
@@ -605,7 +657,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Somente estudante. FIFO por titulo, uma reserva ativa por estudante/titulo; recusa atraso e titulo ja emprestado ativamente ao estudante.",
+        "description": "Somente estudante. FIFO por titulo e uma reserva ativa por estudante/titulo. Recusa atraso, tres emprestimos ativos ou emprestimo ativo do mesmo titulo; emprestimos de outros titulos nao bloqueiam abaixo do limite.",
         "requestBody": {
           "required": true,
           "content": {
@@ -684,7 +736,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Bibliotecario ou admin. Escolhe a primeira reserva elegivel e exemplar livre; associa ambos e registra oferta UTC com expira_em = ofertada_em + 48 horas.",
+        "description": "Bibliotecario ou admin. Escolhe a primeira reserva elegivel e exemplar livre; elegibilidade exige ausencia de atraso, menos de tres emprestimos ativos e nenhum emprestimo ativo do mesmo titulo. Emprestimos ativos de outros titulos nao bloqueiam abaixo do limite. Associa ambos e registra oferta UTC com expira_em = ofertada_em + 48 horas.",
         "requestBody": {
           "required": true,
           "content": {
@@ -730,7 +782,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Bibliotecario ou admin. Marca ofertas vencidas como expiradas, libera exemplares e tenta ofertar cada exemplar ao proximo estudante elegivel da fila. O disparo automatico periodico precisa de mecanismo Xano fora do escopo de tabelas/endpoints e permanece bloqueado ate verificacao tecnica.",
+        "description": "Bibliotecario ou admin. Marca ofertas vencidas como expiradas, libera exemplares e tenta ofertar cada exemplar ao proximo estudante elegivel da fila, considerando atraso, limite de tres emprestimos ativos e emprestimo do mesmo titulo. O disparo automatico periodico precisa de mecanismo Xano fora do escopo de tabelas/endpoints e permanece bloqueado ate verificacao tecnica.",
         "responses": {
           "200": {
             "description": "Expiracoes processadas"
@@ -797,6 +849,23 @@
       }
     },
     "/admin/reservas": {
+      "get": {
+        "operationId": "listarReservasAtivasParaBibliotecario",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Bibliotecario ou admin. Lista reservas aguardando/ofertadas em ordem de criacao, com identificacao minima do estudante e do titulo.",
+        "responses": {
+          "200": {
+            "description": "Fila administrativa de reservas ativas"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          }
+        }
+      },
       "post": {
         "operationId": "criarReservaParaEstudante",
         "security": [
@@ -804,7 +873,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Candidato local ainda nao confirmado no Xano remoto. Bibliotecario ou admin; revalida conta estudante, titulo ativo, atraso, emprestimo ativo e duplicidade, inserindo no fim normal da fila. Nao aceita prioridade, posicao ou horario.",
+        "description": "Candidato local ainda nao confirmado no Xano remoto. Bibliotecario ou admin; revalida conta estudante, titulo ativo, atraso, limite de tres emprestimos ativos, emprestimo do mesmo titulo e duplicidade, inserindo no fim normal da fila. Emprestimos de outros titulos nao bloqueiam abaixo do limite. Nao aceita prioridade, posicao ou horario.",
         "requestBody": {
           "required": true,
           "content": {
@@ -833,6 +902,39 @@
         "responses": {
           "201": {
             "description": "Reserva na fila normal do titulo"
+          },
+          "403": {
+            "$ref": "#/components/responses/PerfilInsuficiente"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflito"
+          }
+        }
+      }
+    },
+    "/admin/reservas/{reservaId}/recusar": {
+      "parameters": [
+        {
+          "name": "reservaId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "post": {
+        "operationId": "recusarReservaAguardando",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Bibliotecario ou admin. Recusa somente reserva aguardando e atualiza solicitacao vinculada; nao libera exemplar ofertado nem altera a FIFO restante.",
+        "responses": {
+          "200": {
+            "description": "Reserva aguardando marcada como recusada"
           },
           "403": {
             "$ref": "#/components/responses/PerfilInsuficiente"

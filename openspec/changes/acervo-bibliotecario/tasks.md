@@ -42,6 +42,13 @@
 
 - [x] 7.1 Vincular os títulos das solicitações e reservas pessoais à rota pública de detalhes; `tests/test_student_area.py` confirma o `titulo_id` nos links e preserva estado/prazo (24 testes aprovados), com `openspec validate acervo-bibliotecario --strict` válido.
 
+## 8. Painel de circulação
+
+- [x] 8.1 Preparar XanoScript e OpenAPI para circulação e elegibilidade: até três empréstimos ativos, bloqueio por atraso ou empréstimo do mesmo título, sem `join`; validar os 8 arquivos `.xs` com o Xano Developer MCP (8 válidos) e os contratos OpenAPI/Xano com 13 testes estruturais aprovados. Nenhuma publicação remota.
+- [x] 8.2 Implementar clientes tipados e painel Reflex para solicitações, fila FIFO, ofertas, retiradas, devoluções e resumo de ativos/atrasos; 7 testes em `tests/test_circulation.py` passaram com `httpx.MockTransport`, e `python -m reflex compile --dry` concluiu com sucesso. Verificação local, sem serviço iniciado.
+- [x] 8.3 Estender `scripts/demo_api.py` para as consultas/mutações pessoais e administrativas de circulação; testes em `tests/test_demo_api_circulation.py` passaram cobrindo fila, disponibilidade, status de recusa, prazo de 14 dias, limite de três, bloqueio do mesmo título e oferta a estudante com empréstimo de outro título. Verificação simulada, sem acesso remoto.
+- [x] 8.4 Executar `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation` (174 passaram), `unittest discover -s xano\tests` (13 passaram), validar `--specs --strict` e as três Changes (todas válidas); atualizar `docs/relatorio-autopilot.md` e `docs/publicacao-xano-pendente.md`. Nenhuma tarefa remota foi marcada como concluída.
+
 ## Bloqueio de publicação
 
 O Apply é local. O workspace `151966`, branch `v1` (live), não recebeu alterações. Os contratos candidatos locais ainda precisam de publicação e testes reais autorizados antes de considerar o backend verificado; não arquivar esta Change enquanto a tarefa 2.5 estiver NÃO EXECUTADA.

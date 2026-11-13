@@ -29,10 +29,10 @@ Autocadastro nunca concede perfil privilegiado. A primeira conta admin é provis
 - A reserva é por título; o empréstimo confirmado é de um exemplar físico.
 - O estudante solicita; o bibliotecário confirma a retirada física e a devolução.
 - O prazo do empréstimo é de 14 dias corridos e começa no instante em que a retirada física é registrada.
-- Limite de um empréstimo ativo por estudante.
+- Limite de três empréstimos ativos por estudante; não permitir dois exemplares ativos do mesmo título para a mesma pessoa.
 - Empréstimo vencido e não devolvido bloqueia novos empréstimos e reservas.
 - Reservas são atendidas por FIFO; cada estudante pode ter uma reserva ativa por título.
-- Não se permite reservar título que o estudante já possui em empréstimo ativo não atrasado.
+- A existência de empréstimo ativo de outro título, abaixo do limite, não bloqueia nova operação; não se permite reservar ou retirar um segundo exemplar do mesmo título.
 - Quando uma reserva for disponibilizada para retirada, a pessoa tem 2 dias. O instante/canal do aviso, calendário da biblioteca, fins de semana, feriados e fuso ainda precisam ser fechados.
 - Exemplar danificado ou perdido fica indisponível e recebe observação.
 
