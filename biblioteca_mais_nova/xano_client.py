@@ -10,6 +10,9 @@ from dotenv import load_dotenv
 
 
 SAFE_ERROR_MESSAGES = {
+    "Conta desativada.": (
+        "A conta está desativada. Procure a administração da biblioteca."
+    ),
     "A desativacao foi recusada: ha emprestimo ativo.": (
         "O título não pode ser desativado enquanto houver empréstimo ativo."
     ),

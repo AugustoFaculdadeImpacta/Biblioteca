@@ -165,6 +165,39 @@ def test_login_rejections_have_safe_message_and_hide_response(
     assert detail not in caplog.text
 
 
+def test_login_distinguishes_allowlisted_disabled_account_detail(
+    monkeypatch,
+):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    responses = iter(
+        [
+            httpx.Response(403, json={"message": "Conta desativada."}),
+            httpx.Response(401, json={"message": "Credenciais inválidas."}),
+            httpx.Response(403, json={"message": "Credenciais inválidas."}),
+        ]
+    )
+    payload = build_login_payload(
+        {"email": "ana@escola.edu.br", "senha": "senha-falsa"}
+    )
+
+    messages = []
+    for _ in range(3):
+        with pytest.raises(XanoResponseError) as error:
+            asyncio.run(
+                submit_login(
+                    payload,
+                    transport=httpx.MockTransport(lambda _: next(responses)),
+                )
+            )
+        messages.append(login_error_message(error.value))
+
+    assert messages == [
+        "A conta está desativada. Procure a administração da biblioteca.",
+        "Não foi possível autenticar. Confira os dados e tente novamente.",
+        "Não foi possível autenticar. Confira os dados e tente novamente.",
+    ]
+
+
 def test_login_rejects_malformed_or_unexpected_session(monkeypatch):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
     payload = build_login_payload(

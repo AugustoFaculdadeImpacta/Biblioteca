@@ -24,11 +24,6 @@ query "auth/login" verb=POST {
       error = "Credenciais inválidas."
     }
 
-    precondition ($usuario.ativo != false) {
-      error_type = "accessdenied"
-      error = "Credenciais inválidas."
-    }
-
     security.check_password {
       text_password = $input.senha
       hash_password = $usuario.senha
@@ -37,6 +32,11 @@ query "auth/login" verb=POST {
     precondition ($senha_valida) {
       error_type = "accessdenied"
       error = "Credenciais inválidas."
+    }
+
+    precondition ($usuario.ativo != false) {
+      error_type = "accessdenied"
+      error = "Conta desativada."
     }
 
     security.create_auth_token {

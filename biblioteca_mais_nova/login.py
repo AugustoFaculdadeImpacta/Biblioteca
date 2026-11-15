@@ -97,6 +97,13 @@ async def submit_login(
 def login_error_message(error: Exception) -> str:
     if isinstance(error, LoginValidationError):
         return str(error)
+    if (
+        isinstance(error, XanoResponseError)
+        and error.status_code == 403
+        and error.public_detail
+        == "A conta está desativada. Procure a administração da biblioteca."
+    ):
+        return error.public_detail
     if isinstance(error, XanoResponseError) and error.status_code in {
         400,
         401,

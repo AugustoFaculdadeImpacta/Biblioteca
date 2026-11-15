@@ -88,11 +88,40 @@ class TestCandidateContracts(unittest.TestCase):
 
     def test_login_rejections_use_access_denied(self):
         login = (APIS / "auth" / "login_POST.xs").read_text(encoding="utf-8")
-        for condition in (r"\$usuario != null", r"\$senha_valida"):
-            self.assertRegex(
-                login,
-                rf'precondition \({condition}\) \{{\s*error_type = "accessdenied"',
+        self.assertRegex(
+            login,
+            r'precondition \(\$usuario != null\) \{\s*error_type = "accessdenied"',
+        )
+        self.assertRegex(
+            login,
+            r'precondition \(\$senha_valida\) \{\s*error_type = "accessdenied"',
+        )
+        self.assertRegex(
+            login,
+            r'precondition \(\$usuario\.ativo != false\) \{\s*'
+            r'error_type = "accessdenied"\s*error = "Conta desativada\."',
+        )
+        self.assertLess(
+            login.index("security.check_password"),
+            login.index("precondition ($usuario.ativo != false)"),
+        )
+
+    def test_active_account_guards_only_reject_explicit_false(self):
+        active_comparisons = []
+        for path in APIS.rglob("*.xs"):
+            source = path.read_text(encoding="utf-8")
+            active_comparisons.extend(
+                (path, operator, value)
+                for operator, value in re.findall(
+                    r"\$(?!input\.)(?:[A-Za-z_]\w*\.)*ativo\s*"
+                    r"(==|!=)\s*(false|true|null)",
+                    source,
+                )
             )
+
+        self.assertTrue(active_comparisons)
+        for path, operator, value in active_comparisons:
+            self.assertEqual(("!=", "false"), (operator, value), path.name)
 
     def test_category_title_queries_map_association_ids_without_unknown_pluck(self):
         for filename in ("categorias_id_GET.xs", "categorias_titulos_GET.xs"):
