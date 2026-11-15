@@ -428,3 +428,30 @@ Nenhum item local independente permaneceu em `[ ]`. O script de smoke é uma
 ferramenta de verificação, não cria contas nem substitui seed/fixtures ou
 operações de limpeza. As três Changes permanecem ativas porque ainda têm
 tarefas remotas pendentes.
+
+### Diagnóstico de login sintético — 2026-11-14
+
+- O destino foi confirmado como workspace `151966` (“Augusto's Workspace”),
+  branch `v1` live. A linha de base permaneceu: catálogo de títulos e categorias
+  200; as três consultas `/minhas/*` sem token 401.
+- Foram criadas, por autorização específica, três contas sintéticas: IDs
+  `71`, `72` e `73`. Os três cadastros retornaram 200, token e perfil estudante;
+  os três logins retornaram 403. Nenhuma credencial foi gravada ou registrada.
+  A mensagem do login não correspondeu à lista de mensagens seguras conhecida e
+  foi omitida, sem imprimir o corpo.
+- Os testes cobriram e-mail minúsculo no cadastro/login, e-mail maiúsculo no
+  cadastro e minúsculo no login, e maiúsculo em ambos. O resultado igual nos
+  três casos descarta a normalização como causa provável. O payload do app usa
+  `nome`, `email` e `senha` no cadastro e `email` e `senha` no login, em acordo
+  com os endpoints.
+- A correção local mudou o tipo de entrada `senha` de `password` para `text`
+  em signup/login; o campo da tabela continua `password`, e não foi adicionado
+  hash explícito. Isso segue o contrato documentado de `check_password` (texto
+  contra hash) e o exemplo Xano de input de senha como texto.
+- `pytest --ignore=evaluation`: 184 passaram; `unittest discover -s xano\tests`:
+  16 passaram. A validação pelo Xano Developer MCP não foi concluída porque o
+  servidor expirou durante a inicialização. O dry-run filtrado mostrou somente
+  UPDATE dos dois endpoints. Não houve push: as três contas autorizadas já
+  foram usadas, então não é possível fazer a verificação pós-correção com uma
+  conta nova sem ultrapassar o limite aprovado. A correção remota e o teste
+  autenticado pós-publicação permanecem pendentes.

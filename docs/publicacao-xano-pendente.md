@@ -592,3 +592,28 @@ O 302 anterior não se reproduziu; não houve destino para comparar.
 
 `allow_push` permaneceu `false`. Nenhum seed, conta ou dado foi criado; não
 foram alterados `.env`, configurações MCP ou outras rotas Xano.
+
+### Diagnóstico sintético de signup/login — 2026-11-14
+
+- Confirmação de destino por consulta: workspace `151966` (“Augusto's
+  Workspace”), branch `v1` live. GET de títulos/categorias: 200; GET sem token
+  nas três rotas pessoais: 401.
+- Criadas três contas sintéticas autorizadas, IDs `71`, `72` e `73`. Signup:
+  200 para cada uma, com token e perfil estudante. Login: 403 para cada uma;
+  a mensagem não passou pela lista de mensagens permitidas e o corpo foi
+  omitido. Nenhuma credencial foi persistida.
+- Variações de caixa do e-mail não alteraram o resultado. O pull sem registros
+  confirmou signup, login e schema `usuario` coerentes entre remoto e local:
+  normalização `trim|lower`, senha atribuída diretamente ao campo `password`,
+  sem hash explícito, e comparação via `security.check_password`.
+- Correção local proposta/aplicada: declarar `senha` como entrada `text` nos
+  dois endpoints de autenticação, mantendo `usuario.senha` como tipo `password`.
+  O dry-run incluiu somente UPDATE de `auth/login POST` e `auth/signup POST`,
+  sem remoções ou recriações. Não foi realizado push, pois a verificação
+  pós-correção exige uma conta nova e o limite autorizado de três contas já
+  foi atingido.
+- Validação MCP XanoScript não concluída: timeout de inicialização. Testes
+  locais: pytest 184/184; unittest Xano 16/16. Pendente: autorização para uma
+  conta sintética adicional (ou outra forma segura de testar a correção), push
+  filtrado e verificação autenticada pós-publicação. As contas existentes
+  devem ser removidas manualmente pelo usuário, se desejar; não foram apagadas.

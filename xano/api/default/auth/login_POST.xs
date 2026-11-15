@@ -4,7 +4,7 @@ query "auth/login" verb=POST {
 
   input {
     email email filters=trim|lower
-    password senha
+    text senha
   }
 
   stack {

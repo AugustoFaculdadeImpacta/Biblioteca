@@ -79,12 +79,27 @@ class TestCandidateContracts(unittest.TestCase):
         self.assertIn('perfil : "estudante"', signup)
         self.assertIn('contains:" "', signup)
         self.assertIn('contains:" "', login)
-        self.assertIn("password senha", signup)
+        self.assertIn("text senha", signup)
         self.assertIn('$usuario.ativo != false', login)
         self.assertIn("text titulo filters=trim", title)
         self.assertIn("text autores filters=trim", title)
         self.assertIn("bool ativo?=true", title)
         self.assertIn('type: "btree|unique", field: [{name: "codigo_tombo"', copy)
+
+    def test_auth_password_inputs_are_plain_text_for_hash_validation(self):
+        signup = (APIS / "auth" / "signup_POST.xs").read_text(encoding="utf-8")
+        login = (APIS / "auth" / "login_POST.xs").read_text(encoding="utf-8")
+        user = (TABLES / "usuario.xs").read_text(encoding="utf-8")
+
+        for source in (signup, login):
+            self.assertRegex(source, r"(?m)^\s*text senha$")
+            self.assertNotRegex(source, r"(?m)^\s*password senha$")
+
+        self.assertRegex(user, r"(?m)^\s*password senha \{")
+        self.assertRegex(signup, r"(?m)^\s*senha\s*:\s*\$input\.senha$")
+        self.assertIn("text_password = $input.senha", login)
+        self.assertIn("hash_password = $usuario.senha", login)
+        self.assertNotIn("security.hash_password", signup)
 
     def test_login_rejections_use_access_denied(self):
         login = (APIS / "auth" / "login_POST.xs").read_text(encoding="utf-8")
