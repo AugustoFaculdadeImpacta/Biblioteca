@@ -455,3 +455,19 @@ tarefas remotas pendentes.
   foram usadas, então não é possível fazer a verificação pós-correção com uma
   conta nova sem ultrapassar o limite aprovado. A correção remota e o teste
   autenticado pós-publicação permanecem pendentes.
+
+### Publicação e autenticação sintética — continuação, 2026-11-14
+
+- Com nova autorização específica, o dry-run filtrado mostrou somente UPDATE
+  dos endpoints de login e signup. O push com `--no-guids --force` publicou os
+  dois arquivos. O CLI avisou referências não resolvidas à tabela `usuario`;
+  a verificação de runtime abaixo passou.
+- Após a publicação: catálogo de títulos/categorias 200; as três consultas
+  `/minhas/*` sem token 401.
+- Uma conta sintética nova (ID `74`) foi criada: signup 200 com token e perfil
+  estudante; login correto 200 com token e perfil estudante; senha errada e
+  e-mail inexistente retornaram 403. As credenciais ficaram somente em memória.
+- Resultado: a entrada `text` permite o fluxo de senha documentado funcionar
+  com o campo de tabela `password`; não foi necessário testar alternativas nem
+  fazer rollback. `pytest --ignore=evaluation`: 184 passaram; unittest Xano:
+  16 passaram. A conta não foi apagada; o usuário pode removê-la manualmente.

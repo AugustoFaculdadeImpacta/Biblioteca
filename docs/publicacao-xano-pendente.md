@@ -617,3 +617,20 @@ foram alterados `.env`, configurações MCP ou outras rotas Xano.
   conta sintética adicional (ou outra forma segura de testar a correção), push
   filtrado e verificação autenticada pós-publicação. As contas existentes
   devem ser removidas manualmente pelo usuário, se desejar; não foram apagadas.
+
+### Publicação e teste de login — continuação, 2026-11-14
+
+- Workspace `151966`, branch `v1` live. O dry-run dos dois arquivos mostrou
+  exclusivamente `UPDATE`; o push filtrado com `--no-guids --force` publicou
+  `auth/signup POST` e `auth/login POST`. Sem `--sync`, `--delete`, `--records`
+  ou `--truncate`. O CLI reportou referências não resolvidas a `usuario`;
+  apesar do aviso, os testes de runtime foram aprovados.
+- Linha de base após publicação: `GET /catalogo/titulos` 200,
+  `GET /catalogo/categorias` 200 e GET sem token nas três rotas `/minhas/*`
+  401.
+- Conta sintética criada: ID `74`. Signup 200 com token/perfil estudante;
+  login com senha correta 200 com token/perfil estudante; senha errada 403;
+  e-mail inexistente 403. Nenhuma credencial foi persistida e nada foi apagado.
+- Testes locais após publicação: pytest 184/184; unittest Xano 16/16. Não foi
+  necessário rollback nem testar uma alternativa adicional. A conta `74`
+  permanece para remoção manual pelo usuário.
