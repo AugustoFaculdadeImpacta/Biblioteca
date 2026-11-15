@@ -354,3 +354,77 @@ publicação, prova ou limpeza remota por executar.
 As tarefas locais pendentes de implementação das três Changes foram
 concluídas. P5: validar todas as Changes e specs; não arquivar enquanto houver
 tarefas remotas pendentes. Nenhuma operação remota será executada nesta sessão.
+
+## Continuação — login legado, smoke e pendências OpenSpec (2026-11-14)
+
+### Login e campo `ativo`
+
+- Um pull sem registros da branch `v1` confirmou que o login remoto contém
+  `precondition ($usuario.ativo != false)`. A mesma regra já estava no arquivo
+  local e nos guards de perfil, nas rotas administrativas e nas consultas de
+  estudantes/títulos. Não há uma condição `ativo == true` que rejeite nulos.
+- Portanto, pelo código, `ativo` nulo não é tratado como explicitamente falso.
+  A hipótese é plausível apenas se o runtime do Xano avaliar essa comparação de
+  forma diferente; não foi possível testá-la com conta existente sem
+  credenciais. A regra foi mantida conforme o contrato `!= false`.
+- A checagem de conta ativa foi movida para depois da validação da senha e agora
+  responde `Conta desativada.`. Isso evita revelar que um e-mail pertence a
+  uma conta desativada quando a senha está errada. O app traduz esse detalhe
+  somente quando o cliente o reconhece na lista de mensagens seguras. Respostas
+  401 e 403 sem esse detalhe continuam com mensagem genérica de credenciais.
+- O Xano usa `accessdenied` para credenciais inválidas e para conta desativada,
+  então ambas podem retornar 403; a sonda de credenciais falsas confirmou 403.
+  Não foi afirmado que o código HTTP sozinho diferencie os casos.
+- A validação MCP de XanoScript foi tentada repetidamente, mas o MCP não
+  inicializou (negociação de lifecycle excedeu 60 segundos). O pull confirmou
+  a regra remota anterior; o CLI executou dry-run somente de `login_POST.xs`
+  com exatamente um UPDATE e aceitou o push parcial do mesmo arquivo. O push
+  terminou com código 0, com aviso do CLI sobre referência à tabela `usuario`.
+- Verificação remota sem credenciais reais: títulos 200 com JSON válido e
+  contagem 2; categorias 200; `/minhas/emprestimos`,
+  `/minhas/solicitacoes` e `/minhas/reservas` 401; login com endereço e senha
+  falsos 403. Nenhuma conta real foi usada.
+
+### Smoke autenticado somente de leitura
+
+- Criados `scripts/smoke_xano.py` e testes com `httpx.MockTransport`. O script
+  lê `XANO_API_BASE_URL` da configuração local, captura credenciais somente do
+  ambiente do terminal antes de carregar `.env`, faz login e executa apenas as
+  consultas GET previstas por perfil. Não imprime e-mail, senha, token, corpo
+  de resposta nem URL. Perfis sem ambos os valores são ignorados.
+- Os testes cobrem rotas por perfil, bearer token no transporte simulado,
+  contagens, credenciais omitidas do output e ajuda com exemplos PowerShell.
+  O script não foi executado com credenciais reais; smoke autenticado real
+  permanece pendente para o usuário.
+
+### Verificações e Changes
+
+- `python -m pytest --ignore=evaluation`: 183 passaram.
+- `python -m unittest discover -s xano\tests`: 15 passaram.
+- `openspec validate --specs --strict`: 6 válidas, 0 inválidas.
+- `openspec validate acervo-bibliotecario --strict`: válida.
+- `openspec validate perfil-admin-xano --strict`: válida.
+- `openspec validate reserva-pelo-bibliotecario --strict`: válida.
+- Contagem do OpenSpec: acervo-bibliotecario 24/25; perfil-admin-xano
+  11/15; reserva-pelo-bibliotecario 10/12. Nenhuma tarefa adicional foi
+  marcada como concluída: os itens restantes exigem confirmação/execução
+  remota completa, não apenas os testes e sondagens desta sessão.
+- Não houve Change 100% concluída; nenhuma foi arquivada. As validações foram
+  repetidas após as alterações e permaneceram verdes.
+
+#### Tarefas ainda abertas e responsável
+
+| Change | Tarefa(s) `[ ]` | Falta | Responsável |
+|---|---|---|---|
+| acervo-bibliotecario | 2.5 | Testes autenticados/sintéticos das rotas, prova de concorrência, pull de conferência da funcionalidade e limpeza remota; a publicação parcial e sondagens sem token não provam esses itens | Usuário: fornecer contas de teste e autorizar operações remotas fora do escopo atual; Copilot pode executar depois de autorização específica |
+| perfil-admin-xano | 1.3 | Prova do enum/perfis em tabela descartável e limpeza confirmada | Usuário/Xano admin: autorizar e executar a prova remota; não permitida nesta sessão |
+| perfil-admin-xano | 2.2 | Dry-run unitário de `usuario.xs` e pull de conferência que satisfaçam o critério exato da tarefa | Usuário: autorização específica para publicar/verificar schema; Copilot pode fazê-lo em sessão autorizada |
+| perfil-admin-xano | 2.4 | Dry-run, publicação e pull individual de cada endpoint de autorização | Usuário: autorização específica para operações remotas; Copilot pode fazê-lo em sessão autorizada |
+| perfil-admin-xano | 2.6 | Fixtures de contas sintéticas, testes autenticados, limpeza individual e conferência de contagens | Usuário: autorizar escrita/limpeza e fornecer contas/ambiente de teste; Copilot pode executar depois |
+| reserva-pelo-bibliotecario | 2.3 | Confirmar atomicidade FIFO e execução da reserva no Xano real | Usuário: autorizar teste autenticado no workspace; Copilot pode executar depois |
+| reserva-pelo-bibliotecario | 2.4 | Fixtures, testes autenticados, limpeza individual e pull/verificação remotos | Usuário: autorizar escrita/limpeza e fornecer ambiente de teste; Copilot pode executar depois |
+
+Nenhum item local independente permaneceu em `[ ]`. O script de smoke é uma
+ferramenta de verificação, não cria contas nem substitui seed/fixtures ou
+operações de limpeza. As três Changes permanecem ativas porque ainda têm
+tarefas remotas pendentes.

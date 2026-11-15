@@ -462,6 +462,59 @@ O estado final lido para `allow_push` continua `false`; nenhuma preferência,
 branch ou configuração foi alterada nesta continuação. Seed, criação de contas
 e testes autenticados permanecem pendentes. Não houve push Git.
 
+## Compatibilidade de contas legadas e login — 2026-11-14
+
+Pull sem registros da branch `v1` confirmou no login remoto:
+
+- busca por e-mail com `ativo` incluído no output;
+- `precondition ($usuario != null)` antes de qualquer acesso aos campos;
+- `precondition ($usuario.ativo != false)`;
+- verificação de senha e geração de token.
+
+A comparação `ativo != false` já era usada no login local e remoto e em todos
+os guards locais que bloqueiam contas. Não havia condição estrita
+`ativo == true`. Assim, o código representa a regra desejada de só bloquear
+quando explicitamente falso; sem uma conta real com `ativo` nulo não foi
+possível confirmar o comportamento em execução. A sonda falsa não testa esse
+caso.
+
+O login local foi ajustado para verificar a senha antes de avaliar o estado
+ativo, evitando indicar conta desativada quando a senha está errada. Com senha
+correta, conta explicitamente desativada retorna o detalhe seguro
+`Conta desativada.`; o cliente só o traduz após allowlist. Credenciais falsas
+continuam retornando erro genérico. O Xano configurado com `accessdenied`
+respondeu 403 tanto para a sonda falsa quanto para a rota de login; portanto
+não se usa o status 403 sozinho para concluir que uma conta está desativada.
+
+Foi publicado exclusivamente `api/default/auth/login_POST.xs` no workspace
+151966, branch `v1`. O dry-run mostrou somente `UPDATE query auth/login POST`.
+O push com `--no-guids --force` terminou com código 0; o CLI reportou
+referências não resolvidas à tabela `usuario`. A validação `xano_validate_xanoscript`
+foi solicitada, mas o MCP não inicializou após tentativas repetidas (timeout de
+negociação de lifecycle de 60 segundos); não se afirma validação MCP nesta
+execução. O dry-run e o push CLI foram verificados separadamente.
+
+Após o push, os status HTTP sem token foram: títulos 200 (JSON válido, 2
+itens), categorias 200 e `/minhas/emprestimos`, `/minhas/solicitacoes`,
+`/minhas/reservas` 401. O login com credenciais explicitamente falsas retornou
+403, sem 500. Nenhuma credencial real foi usada.
+
+### Smoke e ações ainda pendentes
+
+O script local [smoke_xano.py](../scripts/smoke_xano.py) faz login e somente
+GETs, lendo as credenciais de teste das variáveis de ambiente do terminal e
+imprimindo status/contagens sem dados sensíveis. Os testes de transporte
+mockado passaram; o script não foi executado com credenciais reais. Seed,
+criação de contas e testes autenticados continuam pendentes e exigem
+autorização/execução própria; o script não executa seed.
+
+As Changes `acervo-bibliotecario`, `perfil-admin-xano` e
+`reserva-pelo-bibliotecario` continuam abertas por tarefas remotas de prova,
+publicação individual, testes autenticados e/ou limpeza. O relatório
+[relatorio-autopilot.md](./relatorio-autopilot.md) enumera as tarefas e
+responsáveis. Nenhum endpoint ou schema além do login foi republicado nesta
+continuação.
+
 ## Correção de login e nova conferência — 2026-11-13
 
 ### Comparação e contrato
