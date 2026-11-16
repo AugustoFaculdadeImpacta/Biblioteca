@@ -688,3 +688,28 @@ foram alterados `.env`, configurações MCP ou outras rotas Xano.
 - Validações locais: 198 testes pytest, 16 testes unittest de Xano, 12 testes
   da API demo (cadastro, seed e circulação) e compilação Reflex em modo dry
   concluíram com sucesso.
+
+### Jornada sintética de estudante — 2026-11-16
+
+- Linha de base remota: catálogo de títulos 200 (2 itens), categorias 200 (8
+  itens) e as três rotas pessoais sem token 401.
+- Uma conta sintética foi criada pelo cadastro público (ID 82). Cadastro 200;
+  perfil `estudante`; login correto 200; duplicidade 403 com mensagem da
+  interface “Este e-mail já está cadastrado. Tente entrar com sua conta.”.
+  Senha incorreta e conta inexistente retornaram 403 com mensagem genérica de
+  autenticação; token adulterado em `/auth/me` retornou 401.
+- Com a sessão, `/auth/me` e as três rotas pessoais responderam 200; as listas
+  pessoais estavam vazias. O catálogo respondeu 200 com 2 títulos e indicou
+  um título com exemplar disponível.
+- Depois dessas chamadas, o detalhe do título respondeu 429. As chamadas
+  foram interrompidas nesse ponto para respeitar a limitação; não foram
+  tentadas rotas administrativas nem operações de empréstimo. Nenhum registro
+  de circulação foi criado nesta jornada. O contrato local não contém rota de
+  cancelamento de solicitação.
+- Validações locais do cadastro rejeitaram e-mail inválido, nome vazio e senha
+  vazia com mensagens em português. Senha curta não gerou chamada remota nesta
+  rodada. O e-mail digitado em maiúsculas foi normalizado pelo app antes do
+  cadastro e do login.
+- Não houve alteração ou publicação de arquivos Xano. A conta sintética 82
+  permanece para remoção manual; credenciais e token foram descartados da
+  memória e não foram registrados.

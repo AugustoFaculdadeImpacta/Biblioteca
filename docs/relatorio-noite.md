@@ -168,3 +168,53 @@ As fases funcionais avançaram parcialmente. A tentativa de seed remoto foi inte
   bem-sucedida, mas não elimina essa pendência.
 - Não houve chamada nem escrita no Xano nesta demonstração. O runtime local
   foi deixado ativo para consulta; dados de demonstração são voláteis.
+
+## Checklist final — continuação autônoma, 2026-11-16
+
+- [x] **Passo 1 — commits e push:** os lotes iniciais foram enviados na branch
+  `trabalho-autopilot`; o commit de documentação `d3c37f6` também foi enviado.
+  Este registro e a atualização do relatório Xano serão incluídos no push de
+  fechamento.
+- [B] **Passo 2 — jornada real de estudante:** linha de base: títulos 200 (2),
+  categorias 200 (8) e rotas pessoais sem token 401. A conta sintética 82 teve
+  cadastro e login correto 200; duplicidade, senha errada e conta inexistente
+  403; token adulterado 401. Com sessão, `/auth/me` e rotas pessoais 200, sem
+  registros. O detalhe do título retornou 429 após o catálogo indicar um item
+  disponível. As rotas administrativas e operações de circulação não foram
+  chamadas após o limite; nenhum registro foi criado.
+- [B] **Passo 3 — promoção de perfil:** a atualização por Metadata API exige
+  credencial com escopo de edição do workspace. Não foi lida nem extraída
+  credencial armazenada; nenhuma promoção foi feita. O roteiro manual está em
+  [docs/passos-manuais-xano.md](./passos-manuais-xano.md).
+- [x] **Passo 4 — execução:** o README documenta o modo Xano e a demonstração
+  local, incluindo as portas e o diagnóstico do listener. `rxconfig.py` não
+  foi alterado.
+- [B] **Passo 5 — visual:** o login foi capturado em viewport de 360 px e
+  1366 px; em 360 px, a largura do documento permaneceu 360 px. Um login
+  claramente fictício pela interface demo mostrou a mensagem segura em
+  português e não exibiu erro visível de conexão. Nenhum bloco visual novo foi
+  alterado; as telas administrativas e pessoais não foram recapturadas nesta
+  continuação.
+- [B] **Passo 6 — fechamento:** pytest 198/198, unittest Xano 16/16 e
+  `reflex compile --dry` passaram. A validação OpenSpec estrita desta rodada
+  foi bloqueada pela política de execução do `openspec.ps1`; não houve
+  tentativa de contornar Device Guard. A validação anterior havia confirmado
+  7 specs e 17 Changes arquivadas. O frontend Reflex próprio foi encerrado e a
+  porta 3000 ficou livre. As portas 8000 e 8001 permaneceram ocupadas por
+  listeners sem processo identificável no CIM; a porta 8002 ainda apontava
+  para um PID cujo processo deixou de ser consultável após o encerramento. A
+  porta 8765 pertence a um processo Python cuja linha de comando não confirma
+  o caminho do projeto. Esses listeners foram preservados; nenhuma porta
+  desconhecida foi encerrada.
+
+### Contas sintéticas e decisões
+
+- IDs sintéticos documentados para remoção manual: 71 a 82. Nesta rodada foi
+  criada somente a conta 82; as senhas e tokens foram descartados da memória.
+  Nenhuma conta ou registro de circulação foi apagado.
+- Depois da resposta 429, não houve repetição de chamadas remotas nem criação
+  de registros. Nenhum código Xano foi alterado ou publicado.
+- O runtime Reflex foi iniciado com o backend na porta alternativa 8002, pois
+  a 8000 estava ocupada e a 8001 já tinha listener não identificável. O
+  frontend e a interação de login demo foram verificados antes de encerrar os
+  processos Reflex próprios.

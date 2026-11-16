@@ -7,9 +7,10 @@ editar dados ou iniciar o seed.
 ## Promover uma conta sintética
 
 O usuário pode usar uma conta sintética nova, criada por ele, ou conferir os
-IDs 80 e 81 registrados no relatório da execução. As senhas das contas 80 e 81
-existiram somente em memória durante o teste e não foram guardadas; para login
-autenticado, crie novas contas de teste com senhas conhecidas somente por você.
+IDs 80, 81 e 82 registrados nos relatórios da execução. As senhas dessas contas
+existiram somente em memória durante os testes e não foram guardadas; para
+login autenticado, crie novas contas de teste com senhas conhecidas somente por
+você.
 
 1. No painel do Xano, abra **Database** e a tabela `usuario`.
 2. Localize a linha pelo ID numérico da conta sintética que você criou.
