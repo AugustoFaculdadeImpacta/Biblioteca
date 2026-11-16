@@ -20,11 +20,12 @@ versionados. O comando padrão abre `http://localhost:3000`.
 ## Estado atual
 
 O catálogo está integrado à API Xano; o `GET /catalogo/titulos` no Xano real
-retornou HTTP 200. Login e cadastro contra o Xano real ainda não foram
-verificados; acessibilidade foi verificada localmente. Acervo do bibliotecário,
-reserva por estudante e gestão de bibliotecários estão implementados e testados
-com dados simulados, aguardando a publicação dos endpoints correspondentes no
-Xano.
+retornou HTTP 200. Login e cadastro foram verificados anteriormente com uma
+conta sintética; os resultados e IDs estão registrados em
+[docs/publicacao-xano-pendente.md](docs/publicacao-xano-pendente.md).
+Acessibilidade e as jornadas de acervo, reserva e gestão de bibliotecários
+estão cobertas localmente com dados simulados; isso não substitui a validação
+integrada dessas operações no Xano.
 
 ## Demonstração com dados simulados
 
@@ -44,7 +45,9 @@ $env:XANO_API_BASE_URL='http://127.0.0.1:8765'; reflex run
 Use `demo.bibliotecario@example.invalid` ou
 `demo.estudante@example.invalid`, ambos com senha `demo123`. A variável de
 ambiente vale somente naquele terminal e não altera o arquivo `.env`. A API
-simulada mantém os dados apenas em memória e não substitui o Xano.
+simulada mantém os dados apenas em memória e não substitui o Xano. O
+autocadastro também funciona nessa demonstração; contas e operações somem ao
+reiniciar a API.
 
 ## Preparar o ambiente no Windows PowerShell
 
@@ -79,10 +82,12 @@ O cliente em `biblioteca_mais_nova/xano_client.py` lê a URL no backend, exige H
 Com `.venv` ativo, na raiz:
 
 ```powershell
-reflex run
+.\.venv\Scripts\python.exe -m reflex run
 ```
 
 O endereço local padrão é `http://localhost:3000`. O processo usa a configuração Reflex versionada, que desativa telemetria opcional.
+Esse comando foi verificado no Windows com frontend e backend ativos; `reflex run`
+também pode ser usado quando o ambiente virtual estiver ativado.
 
 ## Verificações
 

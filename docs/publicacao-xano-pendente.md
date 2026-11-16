@@ -1,8 +1,9 @@
 # Publicação Xano pendente
 
 Este arquivo registra trabalho local que poderá exigir publicação ou execução
-futura no Xano real. **Nada foi publicado, executado, excluído ou alterado
-remotamente nesta sessão.**
+futura no Xano real. **Nenhuma publicação de código foi realizada nesta
+execução noturna; as verificações e alterações remotas de dados sintéticos
+estão registradas ao final.**
 
 ## Gate obrigatório antes de qualquer operação
 
@@ -51,8 +52,8 @@ permissões e diff unitário. Este documento não autoriza operações remotas.
    exemplares, obtém endereço/token somente do ambiente de execução, inicia em
    prévia e exige `--apply` mais confirmação do destino. Ele depende de
    `GET /admin/acervo`, contrato candidato ainda não confirmado no Xano remoto.
-   O script não provisiona contas: não há contrato aprovado para criar uma
-   conta admin de teste. Nenhuma escrita foi executada.
+   O script não provisiona contas. A execução remota autorizada e sua limitação
+   estão registradas na seção de 2026-11-14 ao final; o seed permanece pendente.
 7. **Executar testes remotos somente após autorização e destino confirmado.**
    Inclui testes de autorização, concorrência/FIFO e limpeza individual de
    registros sintéticos `@example.invalid`, sem exclusão global.
@@ -634,3 +635,56 @@ foram alterados `.env`, configurações MCP ou outras rotas Xano.
 - Testes locais após publicação: pytest 184/184; unittest Xano 16/16. Não foi
   necessário rollback nem testar uma alternativa adicional. A conta `74`
   permanece para remoção manual pelo usuário.
+
+### Execução noturna — autenticação administrativa e seed, 2026-11-14
+
+- Destino mantido: workspace `151966`, branch `v1` live. Não houve publicação
+  de código Xano nesta etapa.
+- Criada a conta sintética ID `78`, promovida a admin por atualização
+  individual da Metadata API enviando somente `perfil`; a leitura antes/depois
+  confirmou os demais campos inalterados. Login admin: 200. O GET direto de
+  `/admin/usuarios` respondeu 200 com 2 itens e sem campos de credencial.
+- A conta bibliotecária sintética ID `76` foi desativada e reativada pela rota
+  administrativa; ambos os PATCH responderam 200 e a leitura final confirmou
+  `ativo=true`.
+- Durante o smoke admin e as leituras pré-seed, algumas chamadas responderam
+  429. Após aguardar, `GET /catalogo/categorias` e
+  `GET /catalogo/titulos` responderam 200, mantendo as contagens da linha de
+  base: 8 categorias e 2 títulos. As três rotas `/minhas/*` sem token
+  continuaram respondendo 401.
+- A prévia local informou 7 categorias e 30 títulos. Uma execução de
+  `scripts.seed_xano_demo --apply --confirm-destination` terminou com código
+  1; a saída detalhada não foi preservada, então o motivo exato não está
+  confirmado. Nenhuma categoria ou título novo ficou observável. O seed não
+  foi repetido: o token admin existiu somente em memória e as três promoções
+  sintéticas autorizadas já foram usadas.
+- A validação OpenSpec estrita passou: 6 specs e as três Changes ativas válidas.
+  Nenhuma Change foi arquivada porque há tarefas remotas pendentes. Testes
+  locais: pytest 184/184 e unittest Xano 16/16.
+- As contas sintéticas `75`, `76`, `77` e `78` permanecem para eventual limpeza
+  manual autorizada. Nada foi apagado; não houve push Git.
+
+### Verificação somente leitura do destino, 2026-11-15
+
+- O Xano CLI puxou somente definições, sem registros, do workspace `151966`,
+  branch `v1`, para uma pasta temporária fora do repositório. Foram obtidos 67
+  documentos; a árvore contém o grupo `api/biblioteca` e rotas de autenticação,
+  catálogo, administração e área pessoal coerentes com este projeto.
+- Nenhum arquivo foi sincronizado de volta e nenhuma escrita remota foi feita.
+  O MCP de documentação não inicializou antes do timeout; não houve tentativa
+  de contornar essa falha nem de publicar código.
+
+### Demonstração local integrada — 2026-11-16
+
+- Reflex foi iniciado e respondeu localmente com frontend na porta 3000 e
+  backend na 8001; a API demonstrativa responde na porta 8765. A porta 8000,
+  ocupada por processo não identificado, não foi alterada.
+- Cadastro e operações da demonstração são armazenados apenas em memória. O
+  cadastro de estudante e as jornadas de empréstimo/circulação validadas
+  localmente não constituem evidência de funcionamento ou publicação no Xano.
+- Nenhum endpoint remoto foi chamado e nenhum arquivo Xano foi publicado neste
+  fechamento. A verificação remota de autenticação permanece separada da
+  demonstração.
+- Validações locais: 198 testes pytest, 16 testes unittest de Xano, 12 testes
+  da API demo (cadastro, seed e circulação) e compilação Reflex em modo dry
+  concluíram com sucesso.

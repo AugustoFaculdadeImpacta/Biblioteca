@@ -471,3 +471,26 @@ tarefas remotas pendentes.
   com o campo de tabela `password`; não foi necessário testar alternativas nem
   fazer rollback. `pytest --ignore=evaluation`: 184 passaram; unittest Xano:
   16 passaram. A conta não foi apagada; o usuário pode removê-la manualmente.
+
+## P5 — Jornadas principais e execução local — 2026-11-16
+
+- A API local de demonstração agora mantém cadastros somente em memória,
+  autentica a senha cadastrada e recusa e-mail duplicado.
+- Jornadas verificadas pela interface: cadastro/login e solicitação de título
+  como estudante; criação de título, categoria e exemplar e processamento de
+  solicitação como bibliotecário.
+- Verificações visuais em 360 px e 1366 px não encontraram rolagem horizontal
+  nas telas percorridas; o foco de teclado permaneceu visível.
+- Resultados locais: pytest 198 aprovados; unittest de `xano\tests` 16
+  aprovados; 12 testes da API demo (cadastro, seed e circulação) aprovados;
+  `reflex compile --dry` concluído; frontend e backend responderam HTTP 200.
+- A Change `jornadas-principais-biblioteca` foi sincronizada e arquivada após
+  7/7 tarefas. Validação estrita: 7 specs válidas e 17 Changes arquivadas
+  válidas.
+- A demonstração permaneceu ativa nas portas 3000 (frontend), 8001 (backend) e
+  8765 (API local). A porta 8000 já estava ocupada por processo não
+  identificado e foi preservada.
+- Os cadastros e operações acima são exclusivamente locais e voláteis. Não
+  houve acesso nem publicação no Xano. A Change `execucao-reflex-windows`
+  continua em 6/7, pendente de correção específica para a corrida
+  `psutil.NoSuchProcess`.
