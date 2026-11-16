@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import secrets
 import threading
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -480,7 +481,11 @@ class DemoHandler(BaseHTTPRequestHandler):
             email = body.get("email")
             password = body.get("senha")
             user = DATA.users.get(email.strip().lower()) if isinstance(email, str) else None
-            if user is None or password != PASSWORD or not user["ativo"]:
+            if (
+                user is None
+                or password != user.get("senha", PASSWORD)
+                or not user["ativo"]
+            ):
                 raise ApiError(401, "Credenciais inválidas.")
             return 200, {
                 "authToken": user["token"],
@@ -491,6 +496,63 @@ class DemoHandler(BaseHTTPRequestHandler):
                     "perfil": user["perfil"],
                 },
             }
+
+        if method == "POST" and path == "/auth/signup":
+            body = self._read_json()
+            name = body.get("nome")
+            email = body.get("email")
+            password = body.get("senha")
+            if not isinstance(name, str) or not name.strip():
+                raise ApiError(400, "Informe seu nome.")
+            if not isinstance(email, str) or not email.strip():
+                raise ApiError(400, "Informe seu e-mail.")
+            normalized_email = email.strip().lower()
+            if (
+                any(character.isspace() for character in normalized_email)
+                or not re.fullmatch(
+                    r"[^@\s]+@[^@\s.]+(?:\.[^@\s.]+)+",
+                    normalized_email,
+                )
+            ):
+                raise ApiError(400, "Informe um endereço de e-mail válido.")
+            if not isinstance(password, str) or not password:
+                raise ApiError(400, "Informe sua senha.")
+
+            with DATA.lock:
+                if normalized_email in DATA.users:
+                    raise ApiError(
+                        409,
+                        "Este e-mail já está cadastrado. Tente entrar com sua conta.",
+                    )
+                user_id = max(
+                    (int(user["id"]) for user in DATA.users.values()),
+                    default=0,
+                ) + 1
+                user = {
+                    "id": user_id,
+                    "nome": name,
+                    "email": normalized_email,
+                    "perfil": "estudante",
+                    "token": secrets.token_urlsafe(24),
+                    "ativo": True,
+                    "senha": password,
+                }
+                DATA.users[normalized_email] = user
+                DATA.students.append(
+                    {
+                        key: user[key]
+                        for key in ("id", "nome", "email", "perfil", "ativo")
+                    }
+                )
+                return 201, {
+                    "authToken": user["token"],
+                    "usuario": {
+                        "id": user["id"],
+                        "nome": user["nome"],
+                        "email": user["email"],
+                        "perfil": user["perfil"],
+                    },
+                }
 
         if method == "GET" and path == "/catalogo/categorias":
             return 200, [dict(item) for item in DATA.categories]

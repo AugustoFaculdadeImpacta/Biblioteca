@@ -10,6 +10,9 @@ from dotenv import load_dotenv
 
 
 SAFE_ERROR_MESSAGES = {
+    "Este e-mail já está cadastrado.": (
+        "Este e-mail já está cadastrado. Tente entrar com sua conta."
+    ),
     "Conta desativada.": (
         "A conta está desativada. Procure a administração da biblioteca."
     ),

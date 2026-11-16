@@ -185,6 +185,35 @@ def test_signup_api_errors_have_safe_portuguese_messages(
     assert secret_url not in caplog.text
 
 
+def test_signup_duplicate_access_denied_has_specific_safe_message(
+    monkeypatch, caplog
+):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    email = "ana@escola.edu.br"
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            403,
+            json={
+                "message": "Este e-mail já está cadastrado.",
+                "email": email,
+            },
+        )
+    )
+    payload = build_signup_payload(
+        {"nome": "Ana", "email": email, "senha": "senha falsa"}
+    )
+
+    with pytest.raises(XanoResponseError) as error:
+        asyncio.run(submit_student_signup(payload, transport=transport))
+
+    assert error.value.status_code == 403
+    assert signup_error_message(error.value) == (
+        "Este e-mail já está cadastrado. Tente entrar com sua conta."
+    )
+    assert email not in str(error.value)
+    assert email not in caplog.text
+
+
 def test_signup_response_must_return_a_student_session(monkeypatch):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
     transport = httpx.MockTransport(

@@ -97,6 +97,10 @@ def signup_error_message(error: Exception) -> str:
     if isinstance(error, XanoResponseError):
         if error.status_code == 409:
             return "Este e-mail já está cadastrado. Tente entrar com sua conta."
+        if error.status_code == 403 and error.public_detail == (
+            "Este e-mail já está cadastrado. Tente entrar com sua conta."
+        ):
+            return error.public_detail
         if error.status_code == 400:
             return "Confira os dados informados e tente novamente."
     if isinstance(error, XanoConfigurationError):
