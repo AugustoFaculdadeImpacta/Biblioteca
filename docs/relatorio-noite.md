@@ -393,3 +393,13 @@ As fases funcionais avançaram parcialmente. A tentativa de seed remoto foi inte
   Minha biblioteca.”. A busca sem resultados mostra o estado vazio esperado.
 - A mensagem de erro foi vista em captura nos viewports de 360 px e 1366 px;
   métricas DOM em ambos indicaram ausência de rolagem horizontal.
+
+## Retentativa do bloqueio Xano — 2026-11-16
+
+- [B] Após concluir os blocos locais, a validação do XanoScript, a consulta de
+  versão do Xano Developer MCP e a consulta de documentação do CLI foram
+  tentadas novamente. As três falharam na inicialização com timeout de
+  negociação do MCP de 60 segundos.
+- Não houve comando Xano CLI, dry-run, sincronização ou publicação nesta
+  retentativa. O candidato de guarda de duplicidade permanece local e não
+  validado oficialmente; não foi arquivado como Change concluída.
