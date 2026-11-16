@@ -377,3 +377,19 @@ As fases funcionais avançaram parcialmente. A tentativa de seed remoto foi inte
   com uma solicitação, estados vazios de empréstimos/reservas e sem rolagem
   horizontal; nenhum e-mail ou credencial apareceu no conteúdo.
 - Próximo: bloco 6, estados de carregamento, vazio, erro e sucesso.
+
+## Passo C — bloco visual 6, 2026-11-16
+
+- [x] Estados de carregamento, vazio, erro e sucesso receberam largura,
+  contraste, espaçamento e distinção visual sem alterar os rótulos acessíveis.
+- [x] Durante o teste local, a duplicidade recebeu inicialmente uma mensagem
+  genérica porque o texto da API demo não constava na lista segura. O cliente
+  agora mapeia as mensagens exatas de solicitação/reserva duplicada para
+  instruções claras; a regressão usa `httpx.MockTransport`.
+- `python -m reflex compile --dry`: aprovado.
+- `python -m pytest --ignore=evaluation -q`: 203 aprovados.
+- No fluxo da API demo local, a solicitação repetida não criou novo registro e
+  agora mostra “Você já tem uma solicitação ativa para este título. Consulte
+  Minha biblioteca.”. A busca sem resultados mostra o estado vazio esperado.
+- A mensagem de erro foi vista em captura nos viewports de 360 px e 1366 px;
+  métricas DOM em ambos indicaram ausência de rolagem horizontal.

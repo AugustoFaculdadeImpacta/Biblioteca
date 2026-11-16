@@ -17,6 +17,14 @@ SAFE_ERROR_MESSAGES = {
         "Você já tem uma solicitação ou reserva ativa para este título. "
         "Consulte Minha biblioteca."
     ),
+    "Já existe solicitação ativa para este título.": (
+        "Você já tem uma solicitação ativa para este título. "
+        "Consulte Minha biblioteca."
+    ),
+    "Já existe reserva ativa para este título.": (
+        "Você já tem uma reserva ativa para este título. "
+        "Consulte Minha biblioteca."
+    ),
     "Titulo nao encontrado.": "Este título não foi encontrado no catálogo.",
     "Conta desativada.": (
         "A conta está desativada. Procure a administração da biblioteca."

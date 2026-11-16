@@ -462,29 +462,42 @@ def test_student_request_does_not_retry_uncertain_result(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("server_message", "expected_message"),
+    ("server_message", "status_code", "expected_message"),
     [
         (
             "Solicitacao duplicada. Consulte Minha biblioteca.",
+            403,
             "Você já tem uma solicitação ou reserva ativa para este título. "
             "Consulte Minha biblioteca.",
         ),
         (
+            "Já existe solicitação ativa para este título.",
+            409,
+            "Você já tem uma solicitação ativa para este título. "
+            "Consulte Minha biblioteca.",
+        ),
+        (
+            "Já existe reserva ativa para este título.",
+            409,
+            "Você já tem uma reserva ativa para este título. "
+            "Consulte Minha biblioteca.",
+        ),
+        (
             "Titulo nao encontrado.",
+            404,
             "Este título não foi encontrado no catálogo.",
         ),
     ],
 )
 def test_student_request_shows_allowlisted_business_error(
-    monkeypatch, server_message, expected_message
+    monkeypatch, server_message, status_code, expected_message
 ):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
     requests = []
 
     def handle(request):
         requests.append(request)
-        status = 403 if "duplicada" in server_message else 404
-        return httpx.Response(status, json={"message": server_message})
+        return httpx.Response(status_code, json={"message": server_message})
 
     transport = httpx.MockTransport(handle)
 
