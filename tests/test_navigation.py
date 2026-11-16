@@ -140,7 +140,7 @@ def test_student_navigation_has_accessible_labels_focus_and_mobile_layout():
     assert "Sair" in header
 
     assert style[":focus-visible"]["outline"].startswith("3px solid ")
-    assert style[".site-nav a"]["color"] == "var(--blue-11)"
+    assert style[".site-nav a"]["color"] == "#174ea6"
     assert "Início" not in repr(header)
     assert "greeting_name_rx_state_" in repr(header)
     assert r"Ol\\u00e1, " in header

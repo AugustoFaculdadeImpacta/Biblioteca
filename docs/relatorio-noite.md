@@ -324,3 +324,15 @@ As fases funcionais avançaram parcialmente. A tentativa de seed remoto foi inte
   do Reflex; o ícone de falha só aparece com erros de conexão. A conexão
   Socket.IO com o backend alternativo 8011 abriu e o catálogo carregou.
 - Próximo: bloco 2, hierarquia do cabeçalho e navegação por perfil.
+
+## Passo C — bloco visual 2, 2026-11-16
+
+- [x] Cabeçalho e navegação receberam hierarquia visual, estados de hover e
+  alvos de navegação com altura mínima de 2,5 rem; os destinos por perfil
+  continuam condicionados às permissões existentes.
+- `python -m reflex compile --dry`: aprovado.
+- `python -m pytest --ignore=evaluation -q`: 201 aprovados. A expectativa de
+  cor do link no teste de navegação foi atualizada para a nova paleta.
+- Catálogo visto em captura nos viewports de 360 px e 1366 px; sem rolagem
+  horizontal em ambos.
+- Próximo: bloco 3, cartões e filtros do catálogo.
