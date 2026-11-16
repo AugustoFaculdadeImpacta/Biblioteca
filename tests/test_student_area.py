@@ -462,6 +462,55 @@ def test_student_request_does_not_retry_uncertain_result(monkeypatch):
 
 
 @pytest.mark.parametrize(
+    ("server_message", "expected_message"),
+    [
+        (
+            "Solicitacao duplicada. Consulte Minha biblioteca.",
+            "Você já tem uma solicitação ou reserva ativa para este título. "
+            "Consulte Minha biblioteca.",
+        ),
+        (
+            "Titulo nao encontrado.",
+            "Este título não foi encontrado no catálogo.",
+        ),
+    ],
+)
+def test_student_request_shows_allowlisted_business_error(
+    monkeypatch, server_message, expected_message
+):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        status = 403 if "duplicada" in server_message else 404
+        return httpx.Response(status, json={"message": server_message})
+
+    transport = httpx.MockTransport(handle)
+
+    async def submit(title_id, token):
+        return await request_title_loan(title_id, token, transport=transport)
+
+    monkeypatch.setattr(frontend, "request_title_loan", submit)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"student-business-error-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-estudante", "estudante")
+            state.public_catalog_detail = {"id": 14}
+            await state.request_catalog_title(14)
+
+            assert state.student_request_has_error is True
+            assert state.student_request_message == expected_message
+            assert len(requests) == 1
+            assert requests[0].url.path == "/solicitacoes-emprestimo"
+
+    asyncio.run(verify())
+
+
+@pytest.mark.parametrize(
     ("available", "status", "message"),
     [
         (1, "pendente", "Sua solicitação foi registrada."),

@@ -713,3 +713,32 @@ foram alterados `.env`, configurações MCP ou outras rotas Xano.
 - Não houve alteração ou publicação de arquivos Xano. A conta sintética 82
   permanece para remoção manual; credenciais e token foram descartados da
   memória e não foram registrados.
+
+### Solicitação de empréstimo duplicada — 2026-11-16
+
+- Foi criada uma conta sintética nova (ID 83). Cadastro e login retornaram
+  HTTP 200, sem expor os dados de autenticação.
+- O catálogo e o detalhe retornaram HTTP 200; havia um exemplar disponível.
+  O primeiro POST de `/solicitacoes-emprestimo` retornou 200. A repetição com
+  a mesma conta e título também retornou 200, e `/minhas/solicitacoes` mostrou
+  dois itens. A API não rejeita a solicitação duplicada; duas solicitações de
+  teste permanecem no remoto. Nenhum dado foi apagado.
+- O pedido de título inexistente retornou 404. A interface anterior mostrava
+  mensagem genérica; foi corrigida localmente com mapeamento por allowlist e
+  teste usando transporte HTTP simulado.
+- Token adulterado em POST de circulação retornou 401. As rotas `/admin/acervo`,
+  `/admin/solicitacoes`, `/admin/reservas`, `/admin/emprestimos` e
+  `/admin/usuarios` retornaram 403 para estudante. A rota
+  `/admin/estudantes` exige o parâmetro de busca `email`; chamada sem ele
+  retornou 400 e não comprova o guard de perfil.
+- Foi preparada uma guarda local que recusa solicitação pendente/em reserva
+  ou reserva aguardando/ofertada do mesmo usuário e título antes de inserir.
+  O teste estrutural local passou. A tentativa de obter documentação e
+  validação no Xano Developer MCP falhou por timeout de inicialização de 60 s;
+  não houve dry-run nem publicação. Não considerar a correção publicada nem a
+  duplicidade resolvida no remoto.
+- Próximos gates: validar XanoScript por ferramenta oficial disponível,
+  confirmar destino e prévia filtrada pelo CLI sem alterar `allow_push`, testar
+  novamente com conta sintética nova caso a publicação seja autorizada e
+  validar o guard de `/admin/estudantes` com parâmetro válido. Não apagar as
+  contas ou solicitações sintéticas nesta execução.

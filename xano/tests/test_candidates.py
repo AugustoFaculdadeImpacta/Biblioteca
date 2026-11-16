@@ -256,6 +256,32 @@ class TestCandidateContracts(unittest.TestCase):
         self.assertIn("exemplares_disponiveis: $disponiveis", admin_catalog)
         self.assertNotIn("senha", admin_catalog)
 
+    def test_student_loan_request_rejects_active_duplicates_before_writing(self):
+        request = (APIS / "emprestimos" / "solicitacoes_POST.xs").read_text(
+            encoding="utf-8"
+        )
+        normalized = " ".join(request.split())
+
+        self.assertIn(
+            "$db.solicitacao_emprestimo.usuario_id == $auth.id && "
+            "$db.solicitacao_emprestimo.titulo_id == $input.titulo_id",
+            normalized,
+        )
+        self.assertIn('$db.solicitacao_emprestimo.estado == "pendente"', request)
+        self.assertIn('$db.solicitacao_emprestimo.estado == "em_reserva"', request)
+        self.assertIn('$db.reserva.usuario_id == $auth.id', request)
+        self.assertIn('$db.reserva.estado == "aguardando"', request)
+        self.assertIn('$db.reserva.estado == "ofertada"', request)
+        self.assertIn(
+            "$solicitacoes_ativas == 0 && $reservas_ativas == 0",
+            request,
+        )
+        guard = request.index(
+            "precondition ($solicitacoes_ativas == 0 && $reservas_ativas == 0)"
+        )
+        write = request.index("db.add solicitacao_emprestimo")
+        self.assertLess(guard, write)
+
     def test_staff_reservation_endpoints_enforce_identity_and_fifo_rules(self):
         search_student = (APIS / "admin" / "estudantes_GET.xs").read_text(
             encoding="utf-8"

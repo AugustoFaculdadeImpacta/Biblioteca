@@ -417,7 +417,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Somente estudante. Verifica atraso, limite de tres emprestimos ativos e emprestimo ativo do mesmo titulo; emprestimos de outros titulos nao bloqueiam abaixo do limite. Se nao ha exemplar disponivel, registra a solicitacao na fila FIFO de reservas do titulo, sem fila paralela de pedidos. Se ha exemplar, registra pedido pendente de retirada fisica.",
+        "description": "Somente estudante. Verifica pedido ou reserva ativa duplicada para o mesmo titulo, atraso, limite de tres emprestimos ativos e emprestimo ativo do mesmo titulo; emprestimos de outros titulos nao bloqueiam abaixo do limite. Se nao ha exemplar disponivel, registra a solicitacao na fila FIFO de reservas do titulo, sem fila paralela de pedidos. Se ha exemplar, registra pedido pendente de retirada fisica.",
         "requestBody": {
           "required": true,
           "content": {

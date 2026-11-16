@@ -218,3 +218,51 @@ As fases funcionais avançaram parcialmente. A tentativa de seed remoto foi inte
   a 8000 estava ocupada e a 8001 já tinha listener não identificável. O
   frontend e a interação de login demo foram verificados antes de encerrar os
   processos Reflex próprios.
+
+## Continuação autônoma — 2026-11-16, rodada seguinte
+
+### Passo A — jornada real de estudante
+
+- Criada uma conta sintética nova (ID 83), sem imprimir ou registrar e-mail,
+  senha ou token. Cadastro e login retornaram HTTP 200.
+- Catálogo retornou 200; o detalhe de um título existente retornou 200. Um
+  exemplar estava disponível.
+- O pedido de empréstimo retornou 200. Repetir o pedido para a mesma conta e
+  título também retornou 200, e `/minhas/solicitacoes` retornou 2 itens. A API
+  aceitou uma duplicata em vez de recusá-la; duas solicitações sintéticas
+  permanecem no remoto, sem exclusão.
+- Pedido para título inexistente retornou 404. Antes do ajuste local, a
+  interface mostraria uma mensagem genérica; foram adicionados mapeamento
+  seguro do erro e teste com `httpx.MockTransport`.
+- Token adulterado em POST de circulação retornou 401. Rotas de acervo,
+  solicitações, reservas, empréstimos e usuários retornaram 403 para
+  estudante. `/admin/estudantes` sem o parâmetro obrigatório de e-mail
+  retornou 400; o teste correto de autorização nessa rota permanece pendente.
+- O candidato local de `solicitacoes_POST.xs` agora verifica solicitação
+  pendente/em reserva e reserva aguardando/ofertada do mesmo estudante e
+  título antes de inserir. Foi adicionada validação estrutural local. O
+  Xano Developer MCP não inicializou (timeout de 60 s); não houve dry-run ou
+  publicação. O remoto continua aceitando duplicatas até validação e
+  publicação controlada.
+
+### Passo B — Changes e próxima ação
+
+- A revisão das cinco listas de tarefas confirmou que `acervo-bibliotecario`,
+  `reserva-pelo-bibliotecario` e `perfil-admin-xano` mantêm dependências de
+  verificação/publicação remota. `devolvido-em-nulavel` ainda depende da prova
+  descartável obrigatória antes de qualquer migração produtiva. Não marcar
+  essas tarefas remotas como concluídas nem arquivar Changes incompletas.
+- `execucao-reflex-windows` continua em 6/7; a falha histórica
+  `psutil.NoSuchProcess` não se reproduziu, e não há correção segura que
+  dispense alterar `.venv`/site-packages.
+- Próxima ação: validar o XanoScript e tentar confirmar pelo CLI se o dry-run
+  filtrado é possível sem mudar `allow_push`; se o MCP/CLI ou a proteção
+  impedir a prova, registrar bloqueio e seguir para a revisão visual local.
+
+### Testes do Passo A
+
+- `pytest tests\test_student_area.py -q`: 27 aprovados, incluindo as
+  mensagens mockadas de duplicidade e título inexistente.
+- `unittest discover -s xano\tests`: 17 aprovados, incluindo a guarda
+  estrutural candidata contra solicitação duplicada.
+- A suíte completa e as validações estritas são executadas no Passo D.

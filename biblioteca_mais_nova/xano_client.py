@@ -13,6 +13,11 @@ SAFE_ERROR_MESSAGES = {
     "Este e-mail já está cadastrado.": (
         "Este e-mail já está cadastrado. Tente entrar com sua conta."
     ),
+    "Solicitacao duplicada. Consulte Minha biblioteca.": (
+        "Você já tem uma solicitação ou reserva ativa para este título. "
+        "Consulte Minha biblioteca."
+    ),
+    "Titulo nao encontrado.": "Este título não foi encontrado no catálogo.",
     "Conta desativada.": (
         "A conta está desativada. Procure a administração da biblioteca."
     ),

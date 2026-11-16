@@ -33,6 +33,21 @@ query "solicitacoes-emprestimo" verb=POST {
       error = "Titulo inativo nao aceita novas solicitacoes."
     }
 
+    db.query solicitacao_emprestimo {
+      where = $db.solicitacao_emprestimo.usuario_id == $auth.id && $db.solicitacao_emprestimo.titulo_id == $input.titulo_id && ($db.solicitacao_emprestimo.estado == "pendente" || $db.solicitacao_emprestimo.estado == "em_reserva")
+      return = {type: "count"}
+    } as $solicitacoes_ativas
+
+    db.query reserva {
+      where = $db.reserva.usuario_id == $auth.id && $db.reserva.titulo_id == $input.titulo_id && ($db.reserva.estado == "aguardando" || $db.reserva.estado == "ofertada")
+      return = {type: "count"}
+    } as $reservas_ativas
+
+    precondition ($solicitacoes_ativas == 0 && $reservas_ativas == 0) {
+      error_type = "accessdenied"
+      error = "Solicitacao duplicada. Consulte Minha biblioteca."
+    }
+
     var $agora {
       value = "now"|to_timestamp
     }

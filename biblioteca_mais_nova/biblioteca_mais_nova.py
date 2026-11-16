@@ -620,7 +620,9 @@ class State(rx.State):
             result = await request_title_loan(title_id, self._session_token)
         except XanoResponseError as error:
             self.student_request_has_error = True
-            if error.status_code == 403:
+            if error.public_detail:
+                self.student_request_message = error.public_detail
+            elif error.status_code == 403:
                 self.student_request_message = (
                     "Seu perfil não está autorizado a solicitar este título."
                 )
