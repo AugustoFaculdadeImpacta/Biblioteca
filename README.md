@@ -4,18 +4,35 @@ Aplicação frontend em Reflex. A URL base do Xano é lida pelo backend da vari�
 
 ## Início rápido
 
-No PowerShell, na raiz do projeto:
+No PowerShell, entre na pasta que contém `rxconfig.py`, ative o ambiente e
+configure `XANO_API_BASE_URL` em `.env`:
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
 Copy-Item .env.example .env
 # Edite .env e preencha XANO_API_BASE_URL com a URL do seu ambiente Xano.
-reflex run
+python -m reflex run
 ```
 
 Não inclua valores reais de URL ou credenciais neste README nem em arquivos
-versionados. O comando padrão abre `http://localhost:3000`.
+versionados. O comando padrão usa a porta 3000 para o frontend e a porta 8000
+para o backend; ambas precisam estar livres. Para conferir quem escuta na
+porta 8000:
+
+```powershell
+Get-NetTCPConnection -LocalPort 8000 -State Listen
+```
+
+O resultado informa o PID. Para identificar o processo, sem encerrá-lo:
+
+```powershell
+Get-CimInstance Win32_Process -Filter "ProcessId = <PID>" |
+    Select-Object ProcessId, Name, CommandLine
+```
+
+Não encerre um processo que não puder identificar. Se a porta estiver ocupada,
+resolva o conflito com o responsável pelo processo antes de iniciar o modo
+padrão.
 
 ## Estado atual
 
@@ -39,7 +56,8 @@ No segundo, ative o `.venv` e inicie o Reflex apontando para a API simulada:
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
-$env:XANO_API_BASE_URL='http://127.0.0.1:8765'; reflex run
+$env:XANO_API_BASE_URL='http://127.0.0.1:8765'
+python -m reflex run --backend-port 8001
 ```
 
 Use `demo.bibliotecario@example.invalid` ou
@@ -47,7 +65,8 @@ Use `demo.bibliotecario@example.invalid` ou
 ambiente vale somente naquele terminal e não altera o arquivo `.env`. A API
 simulada mantém os dados apenas em memória e não substitui o Xano. O
 autocadastro também funciona nessa demonstração; contas e operações somem ao
-reiniciar a API.
+reiniciar a API. A porta 8001 evita conflitar com um backend já ocupado na
+porta 8000; o frontend permanece na porta 3000.
 
 ## Preparar o ambiente no Windows PowerShell
 
@@ -79,15 +98,20 @@ O cliente em `biblioteca_mais_nova/xano_client.py` lê a URL no backend, exige H
 
 ## Executar
 
-Com `.venv` ativo, na raiz:
+Com `.venv` ativo, na pasta do projeto que contém `rxconfig.py`:
 
 ```powershell
-.\.venv\Scripts\python.exe -m reflex run
+python -m reflex run
 ```
 
 O endereço local padrão é `http://localhost:3000`. O processo usa a configuração Reflex versionada, que desativa telemetria opcional.
 Esse comando foi verificado no Windows com frontend e backend ativos; `reflex run`
 também pode ser usado quando o ambiente virtual estiver ativado.
+
+Para a demonstração com API local, inicie `python scripts\demo_api.py` em um
+terminal e, em outro, use a configuração de porta 8001 mostrada acima. Para o
+Xano real, mantenha `XANO_API_BASE_URL` somente na configuração local ignorada
+pelo Git e use o comando padrão, sem `--backend-port`.
 
 ## Verificações
 
