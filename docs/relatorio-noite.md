@@ -336,3 +336,14 @@ As fases funcionais avançaram parcialmente. A tentativa de seed remoto foi inte
 - Catálogo visto em captura nos viewports de 360 px e 1366 px; sem rolagem
   horizontal em ambos.
 - Próximo: bloco 3, cartões e filtros do catálogo.
+
+## Passo C — bloco visual 3, 2026-11-16
+
+- [x] Cartões, campos de filtro e ações do catálogo receberam contraste,
+  hierarquia e estados de interação discretos, sem animações pesadas.
+- `python -m reflex compile --dry`: aprovado.
+- `python -m pytest --ignore=evaluation -q`: 201 aprovados.
+- Catálogo visto em captura nos viewports de 360 px e 1366 px; sem rolagem
+  horizontal. No navegador local, a busca por título filtrou para 1 cartão e
+  a categoria Literatura filtrou para 18.
+- Próximo: bloco 4, formulários e tabelas da bibliotecária.
