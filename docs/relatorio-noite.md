@@ -266,3 +266,46 @@ As fases funcionais avançaram parcialmente. A tentativa de seed remoto foi inte
 - `unittest discover -s xano\tests`: 17 aprovados, incluindo a guarda
   estrutural candidata contra solicitação duplicada.
 - A suíte completa e as validações estritas são executadas no Passo D.
+
+### Passo B — inventário OpenSpec e dependências
+
+- [x] Inventário das tarefas pendentes e validação estrita das Changes.
+  `openspec.cmd validate --specs --strict`: 7 passaram; `--changes --strict`:
+  5 passaram; `--archived --strict`: 17 passaram. A validação estrutural não
+  significa que as tarefas remotas foram executadas.
+- Nenhuma Change está 100% concluída; não houve archive.
+- `execucao-reflex-windows` (6/7): **1.3** — falta reproduzir a condição em
+  que o frontend desaparece antes da limpeza e provar ausência de processo
+  residual. Responsável: agente, somente se surgir uma solução segura no
+  código do projeto; a falha histórica não se reproduziu e o ponto conhecido
+  fica no Reflex instalado, cuja `.venv`/site-packages não pode ser editada.
+- `acervo-bibliotecario` (24/25): **2.5** — falta sincronização/verificação de
+  concorrência, conferência remota e limpeza. Responsável: agente para os
+  testes e publicação sob escopo aprovado; limpeza permanece bloqueada pela
+  proibição absoluta de apagar dados. A solicitação duplicada foi observada
+  ao vivo; o fix local não foi publicado.
+- `reserva-pelo-bibliotecario` (10/12): **2.3** — falta prova remota de
+  execução/atomicidade FIFO; responsável: agente quando houver prévia e
+  publicação seguras. **2.4** — faltam fixtures, limpeza individual e
+  conferência; responsável: operador Xano com autorização futura para limpeza.
+- `perfil-admin-xano` (11/15): **1.3** — prova de schema em tabela descartável
+  e exclusão/GET 404; responsável: agente, bloqueado por não apagar dados.
+  **2.2** — publicar `usuario.xs`; **2.4** — publicar guards; responsáveis:
+  agente após gate de destino/prévia e autorização específica para esses
+  arquivos, que não faz parte da correção isolada de duplicidade.
+  **2.6** — fixtures e limpeza com contagens finais; responsável: operador
+  Xano após autorização de limpeza. As quatro tarefas continuam sem execução.
+- `devolvido-em-nulavel` (0/20): **1.1** — confirmação/consulta oficial e
+  registro do destino, responsável: agente após disponibilidade da ferramenta
+  oficial. **1.2–1.3** — sentinel, registro null, rollback e exclusões,
+  bloqueados por exigirem criação e posterior exclusão. **2.1–2.3** — prova,
+  schema produtivo, publicação e fixture, dependem do passo 1 e incluem
+  exclusões. **3.1–3.8** — updates/pull dos sete endpoints e conferência do
+  oitavo, dependem do schema nullable comprovado; responsável: agente após
+  gates e aprovação, sem executar agora. **4.1** — testes estruturais depende
+  dos arquivos-alvo atualizados; **4.2–4.4** — cenários exigem limpeza, vedada;
+  **4.5** — documentação final depende da prova/migração; **5.1** — verify
+  final depende de todos os gates. Responsável: agente após desbloqueio do
+  sentinel e autorização de exclusões.
+- Nenhuma tarefa pendente foi marcada como concluída por inferência. A Change
+  de nulabilidade não foi aplicada, publicada ou arquivada.
