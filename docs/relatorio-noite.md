@@ -309,3 +309,18 @@ As fases funcionais avançaram parcialmente. A tentativa de seed remoto foi inte
   sentinel e autorização de exclusões.
 - Nenhuma tarefa pendente foi marcada como concluída por inferência. A Change
   de nulabilidade não foi aplicada, publicada ou arquivada.
+
+## Passo C — bloco visual 1, 2026-11-16
+
+- [x] Paleta, tipografia e espaçamento base ajustados em
+  `biblioteca_mais_nova/biblioteca_mais_nova.py`, mantendo foco visível e os
+  modos de acessibilidade.
+- `python -m reflex compile --dry`: aprovado.
+- `python -m pytest --ignore=evaluation -q`: 201 aprovados.
+- Catálogo visto em captura nos viewports de 360 px e 1366 px; sem rolagem
+  horizontal e com títulos e filtros presentes. As capturas foram realizadas
+  pelo navegador local contra a API demonstrativa.
+- A indicação acessível “Connection Error:” é o `title` permanente da camada
+  do Reflex; o ícone de falha só aparece com erros de conexão. A conexão
+  Socket.IO com o backend alternativo 8011 abriu e o catálogo carregou.
+- Próximo: bloco 2, hierarquia do cabeçalho e navegação por perfil.

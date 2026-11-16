@@ -3559,22 +3559,28 @@ def accessible_page(page: Callable[[], rx.Component]) -> Callable[[], rx.Compone
 
 app = rx.App(
     style={
-        "font_family": "system-ui, sans-serif",
-        "color": "var(--gray-12)",
-        "background_color": "var(--gray-2)",
+        "font_family": "Aptos, 'Segoe UI', system-ui, sans-serif",
+        "color": "#182b49",
+        "background_color": "#f4f7fb",
         "*, *::before, *::after": {
             "box_sizing": "border-box",
         },
         "body": {
             "margin": "0",
-            "color": "var(--gray-12)",
-            "background_color": "var(--gray-2)",
+            "color": "#182b49",
+            "background_color": "#f4f7fb",
+            "line_height": "1.55",
+        },
+        "h1, h2, h3": {
+            "color": "#183153",
+            "line_height": "1.2",
+            "letter_spacing": "-0.02em",
         },
         ".app-shell": {
             "min_height": "100vh",
             "padding": "clamp(0.5rem, 3vw, 2rem)",
-            "color": "var(--gray-12)",
-            "background_color": "var(--gray-2)",
+            "color": "#182b49",
+            "background_color": "#f4f7fb",
         },
         ".site-header": {
             "display": "flex",
@@ -3695,8 +3701,8 @@ app = rx.App(
             "display": "flex",
             "flex_direction": "column",
             "align_items": "flex-start",
-            "gap": "1rem",
-            "padding": "2rem 1rem",
+            "gap": "1.25rem",
+            "padding": "clamp(1.5rem, 3vw, 2.5rem) 1rem",
         },
         ".catalog-section": {
             "width": "100%",
@@ -3927,8 +3933,10 @@ app = rx.App(
         ".site-footer": {
             "max_width": "72rem",
             "margin": "0 auto",
-            "padding": "1rem",
+            "padding": "1.25rem 1rem",
             "border_top": "1px solid var(--gray-6)",
+            "color": "#475569",
+            "font_size": "0.9rem",
         },
         ".skip-link": {
             "position": "absolute",
