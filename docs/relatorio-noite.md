@@ -361,3 +361,19 @@ As fases funcionais avançaram parcialmente. A tentativa de seed remoto foi inte
   os componentes administrativos foram compilados, mas não inspecionados
   visualmente no navegador.
 - Próximo: bloco 5, Minha biblioteca.
+
+## Passo C — bloco visual 5, 2026-11-16
+
+- [x] A área Minha biblioteca recebeu painéis consistentes e estados vazios
+  claramente delimitados, preservando as três seções de empréstimos,
+  solicitações e reservas.
+- `python -m reflex compile --dry`: aprovado.
+- `python -m pytest --ignore=evaluation -q`: 201 aprovados.
+- Na API demo local, o cadastro pela interface redirecionou ao catálogo e a
+  sessão assumiu perfil estudante. Uma solicitação de um título existente foi
+  confirmada pela interface e apareceu em Minha biblioteca após o carregamento
+  dos dados. Nenhuma escrita foi feita no Xano real.
+- Minha biblioteca foi vista em captura nos viewports de 360 px e 1366 px,
+  com uma solicitação, estados vazios de empréstimos/reservas e sem rolagem
+  horizontal; nenhum e-mail ou credencial apareceu no conteúdo.
+- Próximo: bloco 6, estados de carregamento, vazio, erro e sucesso.
