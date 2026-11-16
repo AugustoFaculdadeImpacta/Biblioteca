@@ -126,3 +126,10 @@ O sistema MUST oferecer controles de acessibilidade operáveis por teclado, apli
 #### Scenario: Layout permanece utilizável em telas estreitas e largas
 - **WHEN** a aplicação é exibida nas larguras de 360px ou 1366px
 - **THEN** o conteúdo e os controles de acessibilidade não provocam rolagem horizontal
+
+### Requirement: Telas principais mantêm hierarquia visual coerente
+A aplicação MUST apresentar uma hierarquia visual consistente entre autenticação, catálogo, área pessoal, acervo e circulação, sem reduzir legibilidade ou acessibilidade.
+
+#### Scenario: Navegação entre jornadas principais
+- **WHEN** pessoa navega entre telas públicas, pessoais e administrativas
+- **THEN** cabeçalho, títulos, formulários, ações e mensagens de estado mantêm padrões visuais coerentes e distinguíveis
