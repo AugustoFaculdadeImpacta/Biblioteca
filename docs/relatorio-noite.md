@@ -347,3 +347,17 @@ As fases funcionais avançaram parcialmente. A tentativa de seed remoto foi inte
   horizontal. No navegador local, a busca por título filtrou para 1 cartão e
   a categoria Literatura filtrou para 18.
 - Próximo: bloco 4, formulários e tabelas da bibliotecária.
+
+## Passo C — bloco visual 4, 2026-11-16
+
+- [x] Formulários, cartões de título, exemplares e painéis de circulação
+  receberam superfícies, bordas, espaçamento e estados desabilitados coerentes.
+- `python -m reflex compile --dry`: aprovado.
+- `python -m pytest --ignore=evaluation -q`: 201 aprovados.
+- [B] As telas administrativas não puderam ser vistas na captura: abrir
+  `/admin/acervo` sem sessão redireciona corretamente para `/login`, em 360 px
+  e 1366 px. Não há sessão bibliotecária/admin autenticada no navegador. A
+  verificação DOM confirmou ausência de rolagem horizontal na tela de login;
+  os componentes administrativos foram compilados, mas não inspecionados
+  visualmente no navegador.
+- Próximo: bloco 5, Minha biblioteca.

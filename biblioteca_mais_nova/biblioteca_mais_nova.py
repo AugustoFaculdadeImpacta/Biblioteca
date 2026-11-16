@@ -3763,8 +3763,17 @@ app = rx.App(
         ".admin-catalog-grid": {
             "display": "grid",
             "grid_template_columns": "repeat(auto-fit, minmax(min(100%, 20rem), 1fr))",
-            "gap": "1rem",
+            "gap": "1.1rem",
             "width": "100%",
+        },
+        ".admin-catalog-section": {
+            "width": "min(100%, 72rem)",
+            "margin": "1.5rem auto",
+            "padding": "clamp(1.25rem, 3vw, 2rem)",
+            "border": "1px solid #dbe3ef",
+            "border_radius": "1rem",
+            "background_color": "#ffffff",
+            "box_shadow": "0 0.35rem 1rem rgba(24, 43, 73, 0.05)",
         },
         ".admin-title-card": {
             "display": "flex",
@@ -3772,16 +3781,21 @@ app = rx.App(
             "align_items": "stretch",
             "gap": "0.75rem",
             "min_width": "0",
-            "padding": "1rem",
-            "border": "1px solid var(--gray-6)",
-            "border_radius": "0.75rem",
-            "background_color": "var(--gray-1)",
+            "padding": "1.1rem",
+            "border": "1px solid #dbe3ef",
+            "border_radius": "0.9rem",
+            "background_color": "#ffffff",
+            "box_shadow": "0 0.25rem 0.75rem rgba(24, 43, 73, 0.05)",
         },
         ".admin-title-edit-form": {
             "display": "grid",
             "grid_template_columns": "repeat(auto-fit, minmax(min(100%, 12rem), 1fr))",
             "gap": "0.75rem",
             "width": "100%",
+            "padding": "1rem",
+            "border": "1px solid #e3eaf3",
+            "border_radius": "0.75rem",
+            "background_color": "#f8fafc",
         },
         ".admin-copy-list": {
             "display": "flex",
@@ -3850,9 +3864,18 @@ app = rx.App(
         ".librarian-management-section": {
             "width": "min(100%, 72rem)",
             "margin": "1rem auto",
+            "padding": "clamp(1.25rem, 3vw, 2rem)",
+            "border": "1px solid #dbe3ef",
+            "border_radius": "1rem",
+            "background_color": "#ffffff",
+            "box_shadow": "0 0.35rem 1rem rgba(24, 43, 73, 0.05)",
         },
         ".librarian-form": {
             "width": "min(100%, 34rem)",
+            "padding": "1rem",
+            "border": "1px solid #e3eaf3",
+            "border_radius": "0.75rem",
+            "background_color": "#f8fafc",
         },
         ".librarian-list": {
             "display": "grid",
@@ -3866,11 +3889,20 @@ app = rx.App(
             "align_items": "flex-start",
             "gap": "0.75rem",
             "min_width": "0",
-            "padding": "1rem",
-            "border": "1px solid var(--gray-6)",
-            "border_radius": "0.75rem",
-            "background_color": "var(--gray-1)",
+            "padding": "1.1rem",
+            "border": "1px solid #dbe3ef",
+            "border_radius": "0.85rem",
+            "background_color": "#ffffff",
+            "box_shadow": "0 0.25rem 0.75rem rgba(24, 43, 73, 0.05)",
             "overflow_wrap": "anywhere",
+        },
+        ".librarian-card h2, .librarian-card h3, .admin-title-card h2": {
+            "margin": "0",
+            "line_height": "1.3",
+        },
+        ".librarian-card p, .admin-title-card p": {
+            "margin": "0",
+            "color": "#475569",
         },
         ".signup-form": {
             "display": "flex",
@@ -3964,6 +3996,10 @@ app = rx.App(
         ".focus-demo-button:active": {
             "transform": "translateY(1px)",
         },
+        ".focus-demo-button:disabled, .nav-logout:disabled": {
+            "opacity": "0.65",
+            "cursor": "not-allowed",
+        },
         ".site-nav a": {
             "display": "inline-flex",
             "align_items": "center",
@@ -4036,6 +4072,12 @@ app = rx.App(
             },
             ".librarian-card": {
                 "width": "100%",
+            },
+            ".admin-catalog-section, .librarian-management-section": {
+                "padding": "1.1rem 0.75rem",
+            },
+            ".admin-title-edit-form, .librarian-form": {
+                "padding": "0.75rem",
             },
         },
     }
