@@ -427,3 +427,29 @@ As fases funcionais avançaram parcialmente. A tentativa de seed remoto foi inte
   não foram apagadas.
 - Branch `trabalho-autopilot`. As alterações preexistentes em `.gitignore` e
   `.mcp.json` foram preservadas e não fazem parte deste fechamento.
+
+## Checklist final A–D
+
+- [B] **A — estudante no Xano real:** conta sintética ID 83: cadastro/login
+  200; pedido inicial 200; pedido duplicado também 200 e duas solicitações
+  apareceram na lista; título inexistente 404; token adulterado 401; rotas
+  administrativas testadas responderam 403, exceto `/admin/estudantes`, que
+  respondeu 400 sem o parâmetro obrigatório. O detalhe do título respondeu
+  429 em uma tentativa. A API remota ainda aceita duplicidade e o guard local
+  não foi publicado, pois o MCP oficial falhou por timeout; não foi possível
+  cumprir o critério remoto de rejeição.
+- [x] **B — inventário OpenSpec local:** tarefas e responsáveis pendentes
+  registrados acima; contagens conferidas diretamente nos `tasks.md`:
+  `execucao-reflex-windows` 6/7, `acervo-bibliotecario` 24/25,
+  `reserva-pelo-bibliotecario` 10/12, `perfil-admin-xano` 11/15 e
+  `devolvido-em-nulavel` 0/20. Nenhuma está completa; nenhuma foi arquivada.
+- [x] **C — interface local:** seis blocos visuais implementados e verificados
+  contra a API demo; capturas de telas de estudante em 360 px e 1366 px.
+  [B] A tela administrativa não foi vista por falta de sessão administrativa.
+- [B] **D — fechamento:** pytest 203/203, unittest Xano 17/17, compilação
+  Reflex e validações estritas passaram; relatórios foram atualizados. O shell
+  próprio foi encerrado, mas não foi seguro encerrar os listeners sem processo
+  identificável: 8000/PID 3860, 8001/PID 6296, 8002/PID 3516, 8010/PID 9788
+  e 8011/PID 9240. As portas 3000 e 8765 estão livres. O commit do relatório
+  foi enviado pela branch autorizada; `.gitignore` e `.mcp.json` seguem fora
+  do commit.
