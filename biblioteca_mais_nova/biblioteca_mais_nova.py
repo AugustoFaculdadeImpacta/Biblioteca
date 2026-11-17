@@ -109,7 +109,7 @@ class State(rx.State):
     _session_token: str = ""
     _session_profile: str = ""
     _session_name: str = ""
-    _admin_view_mode: str = "bibliotecaria"
+    _admin_view_mode: str = ""
     accessibility_font_scale_raw: str = rx.LocalStorage(
         "100", name="biblioteca-acessibilidade-fonte", sync=True
     )
@@ -182,7 +182,7 @@ class State(rx.State):
         self._store_session_token(token)
         self._session_profile = profile
         self._session_name = name.strip()
-        self._admin_view_mode = "bibliotecaria"
+        self._admin_view_mode = ""
 
     @rx.var
     def greeting_name(self) -> str:
@@ -254,7 +254,7 @@ class State(rx.State):
         if not self._is_admin():
             return ""
         if self._admin_view_mode not in {"bibliotecaria", "estudante"}:
-            return "bibliotecaria"
+            return ""
         return self._admin_view_mode
 
     @rx.event
@@ -263,11 +263,17 @@ class State(rx.State):
             return
         self._admin_view_mode = mode
 
+    @rx.event
+    def reset_admin_view_mode(self):
+        if not self._is_admin():
+            return
+        self._admin_view_mode = ""
+
     def _clear_session_token(self) -> None:
         self._session_token = ""
         self._session_profile = ""
         self._session_name = ""
-        self._admin_view_mode = "bibliotecaria"
+        self._admin_view_mode = ""
         self.is_authenticated = False
 
     def _is_librarian(self) -> bool:
@@ -1805,6 +1811,52 @@ def site_header() -> rx.Component:
                         ),
                         rx.fragment(),
                     ),
+                    rx.cond(
+                        State.can_manage_librarians,
+                        rx.el.div(
+                            rx.text(
+                                "Modo de visualização: ",
+                                rx.cond(
+                                    State.admin_view_mode == "estudante",
+                                    "Estudante",
+                                    rx.cond(
+                                        State.admin_view_mode == "bibliotecaria",
+                                        "Bibliotecária",
+                                        "Admin",
+                                    ),
+                                ),
+                                role="status",
+                                aria_live="polite",
+                                class_name="admin-view-mode-label",
+                            ),
+                            rx.cond(
+                                State.admin_view_mode != "",
+                                rx.button(
+                                    "Voltar à visão de admin",
+                                    type="button",
+                                    on_click=State.reset_admin_view_mode,
+                                    class_name="admin-view-reset",
+                                ),
+                                rx.fragment(),
+                            ),
+                            rx.button(
+                                "Ver como bibliotecária",
+                                type="button",
+                                on_click=State.set_admin_view_mode("bibliotecaria"),
+                                aria_pressed=State.admin_view_mode == "bibliotecaria",
+                            ),
+                            rx.button(
+                                "Ver como estudante",
+                                type="button",
+                                on_click=State.set_admin_view_mode("estudante"),
+                                aria_pressed=State.admin_view_mode == "estudante",
+                            ),
+                            role="group",
+                            aria_label="Alternar modo de visualização",
+                            class_name="admin-view-mode",
+                        ),
+                        rx.fragment(),
+                    ),
                     rx.button(
                         "Sair",
                         type="button",
@@ -1819,38 +1871,6 @@ def site_header() -> rx.Component:
             ),
             aria_label="Navegação principal",
             class_name="site-nav",
-        ),
-        rx.cond(
-            State.can_manage_librarians,
-            rx.el.div(
-                rx.text(
-                    "Modo de visualização: ",
-                    rx.cond(
-                        State.admin_view_mode == "estudante",
-                        "Estudante",
-                        "Bibliotecária",
-                    ),
-                    role="status",
-                    aria_live="polite",
-                    class_name="admin-view-mode-label",
-                ),
-                rx.button(
-                    "Ver como bibliotecária",
-                    type="button",
-                    on_click=State.set_admin_view_mode("bibliotecaria"),
-                    aria_pressed=State.admin_view_mode == "bibliotecaria",
-                ),
-                rx.button(
-                    "Ver como estudante",
-                    type="button",
-                    on_click=State.set_admin_view_mode("estudante"),
-                    aria_pressed=State.admin_view_mode == "estudante",
-                ),
-                role="group",
-                aria_label="Alternar modo de visualização",
-                class_name="admin-view-mode",
-            ),
-            rx.fragment(),
         ),
         rx.el.details(
             rx.el.summary("Acessibilidade"),
@@ -3608,6 +3628,7 @@ app = rx.App(
             "display": "flex",
             "flex_wrap": "wrap",
             "align_items": "center",
+            "justify_content": "flex-end",
             "gap": "0.35rem",
             "min_width": "0",
             "max_width": "100%",
@@ -3617,7 +3638,7 @@ app = rx.App(
             "flex_wrap": "wrap",
             "align_items": "center",
             "gap": "0.5rem",
-            "width": "100%",
+            "margin_left": "auto",
             "padding": "0.5rem 0.75rem",
             "border": "1px solid var(--blue-7)",
             "border_radius": "0.5rem",
@@ -3625,6 +3646,16 @@ app = rx.App(
         },
         ".admin-view-mode-label": {
             "font_weight": "700",
+        },
+        ".admin-view-reset": {
+            "min_height": "2.5rem",
+            "padding": "0.4rem 0.75rem",
+            "border": "1px solid #b9c9e2",
+            "border_radius": "0.5rem",
+            "background_color": "#ffffff",
+            "color": "#174ea6",
+            "font_weight": "600",
+            "cursor": "pointer",
         },
         ".session-greeting": {
             "font_weight": "700",

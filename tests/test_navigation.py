@@ -87,7 +87,7 @@ def test_admin_view_mode_changes_navigation_without_changing_session():
         ) as root:
             state = await root.get_state(frontend.State)
             state._store_session("token-falso-admin-view", "admin", "Ana")
-            assert state.admin_view_mode == "bibliotecaria"
+            assert state.admin_view_mode == ""
 
             state.set_admin_view_mode("estudante")
 
@@ -123,8 +123,34 @@ def test_admin_view_mode_controls_are_visible_and_accessible():
     assert r"Ver como bibliotec\\u00e1ria" in header
     assert "Ver como estudante" in header
     assert "aria-pressed" in header
-    assert style[".admin-view-mode"]["width"] == "100%"
     assert style[":focus-visible"]["outline"].startswith("3px solid ")
+
+
+def test_admin_view_mode_can_reset_and_is_hidden_for_non_admin():
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"admin-view-reset-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-admin-reset", "admin", "Ana")
+            assert state.admin_view_mode == ""
+            assert state.can_manage_librarians is True
+
+            state.set_admin_view_mode("estudante")
+            assert state.admin_view_mode == "estudante"
+            assert state.is_librarian is True
+            assert state.is_student is False
+
+            state.reset_admin_view_mode()
+            assert state.admin_view_mode == ""
+
+            state._store_session("token-estudante-reset", "estudante", "Bia")
+            assert state.can_manage_librarians is False
+            assert state.admin_view_mode == ""
+            assert state.is_librarian is False
+            assert state.is_student is True
+
+    asyncio.run(verify())
 
 
 def test_student_navigation_has_accessible_labels_focus_and_mobile_layout():
