@@ -6,7 +6,7 @@
 
 ## 2. Cabeçalho e rodapé
 
-- [ ] 2.1 Adicionar slogan, simplificar navegação sem alterar permissões por perfil, padronizar o rodapé com links apenas para destinos oficiais; adicionar `test_site_header_brand_and_footer_links_preserve_profile_access` em `tests/test_navigation.py`, executar compilação e suíte pytest completas, medir DOM nos dois viewports e perfis visitante/estudante/bibliotecário/admin, registrar hash/teste/métricas e se a inspeção visual foi feita, então criar commit pequeno em português.
+- [B] 2.1 Adicionar slogan, simplificar navegação sem alterar permissões por perfil, padronizar o rodapé com links apenas para destinos oficiais; adicionar `test_site_header_brand_and_footer_links_preserve_profile_access` em `tests/test_navigation.py`, executar compilação e suíte pytest completas, medir DOM nos dois viewports e perfis visitante/estudante/bibliotecário/admin, registrar hash/teste/métricas e se a inspeção visual foi feita, então criar commit pequeno em português. Motivo: compilação e testes passaram (206); a sessão Playwright do navegador expirou e a recarga anterior retornou DOM vazio após erro de conexão do Reflex, impedindo métricas por perfil e capturas pós-alteração.
 
 ## 3. Página inicial e seções
 

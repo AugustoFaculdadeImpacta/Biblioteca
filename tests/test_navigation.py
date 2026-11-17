@@ -177,6 +177,31 @@ def test_student_navigation_has_accessible_labels_focus_and_mobile_layout():
     assert mobile[".app-shell"]["padding"] == "0.5rem"
 
 
+def test_site_header_brand_and_footer_links_preserve_profile_access():
+    header = repr(frontend.site_header())
+    footer = repr(frontend.site_footer())
+    homepage = repr(frontend.index())
+    style = frontend.app.style
+
+    assert "Biblioteca escolar" in header
+    assert "Leitura, encontro e conhecimento" in header
+    assert homepage.index("brand-link") < homepage.index("Descubra")
+    assert r"Gest\\u00e3o" in header
+    assert "/admin/acervo" in header
+    assert "/admin/circulacao" in header
+    assert "/admin/reservas" in header
+    assert "/admin/bibliotecarios" in header
+    assert r"Voltar \\u00e0 vis\\u00e3o de admin" in header
+    assert "Sobre a biblioteca" in footer
+    assert r"Links \\u00fateis" in footer
+    assert "/catalogo" in footer
+    assert "/#controles-acessibilidade" in footer
+    assert "contato" not in footer.lower()
+    assert "privacidade" not in footer.lower()
+    assert style[".brand-tagline"]["font_size"] == "0.8rem"
+    assert style[".nav-dropdown summary"]["min_height"] == "2.5rem"
+
+
 def test_accessibility_font_limits_restoration_and_invalid_storage():
     async def verify():
         async with frontend.app.modify_state(

@@ -57,7 +57,8 @@ def test_index_renders_navigable_application_shell():
     assert "Início" not in nav_content
     assert "Acessibilidade" in repr(page)
     assert r"Ver cat\\u00e1logo sem entrar" in repr(page)
-    assert "#conteudo-login" in repr(page.children[0].children)
+    assert "#conteudo-home" in repr(page.children[0].children)
+    assert "#conteudo-login" in repr(page)
     assert all(getattr(link, "tab_index", None) is None for link in links)
     assert {field.id for field in fields} >= {"login-email", "login-senha"}
     assert all(getattr(field, "disabled", None) is None for field in fields)

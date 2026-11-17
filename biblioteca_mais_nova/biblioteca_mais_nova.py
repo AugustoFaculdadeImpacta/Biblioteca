@@ -1756,7 +1756,15 @@ class State(rx.State):
 def site_header() -> rx.Component:
     return rx.el.header(
         rx.link(
-            rx.heading("Biblioteca escolar", size="6"),
+            rx.vstack(
+                rx.heading("Biblioteca escolar", size="6"),
+                rx.text(
+                    "Leitura, encontro e conhecimento",
+                    class_name="brand-tagline",
+                ),
+                align="start",
+                spacing="0",
+            ),
             href="/",
             class_name="brand-link",
         ),
@@ -1780,34 +1788,35 @@ def site_header() -> rx.Component:
                         rx.fragment(),
                     ),
                     rx.cond(
-                        State.is_librarian
-                        & (State.admin_view_mode != "estudante"),
-                        rx.link("Cadastrar livro", href="/admin/acervo"),
-                        rx.fragment(),
-                    ),
-                    rx.cond(
-                        State.is_librarian
-                        & (State.admin_view_mode != "estudante"),
-                        rx.link(
-                            "Circulação",
-                            href="/admin/circulacao",
+                        State.can_manage_librarians
+                        | (
+                            State.is_librarian
+                            & (State.admin_view_mode != "estudante")
                         ),
-                        rx.fragment(),
-                    ),
-                    rx.cond(
-                        State.is_librarian
-                        & (State.admin_view_mode != "estudante"),
-                        rx.link(
-                            "Reservas para estudantes",
-                            href="/admin/reservas",
-                        ),
-                        rx.fragment(),
-                    ),
-                    rx.cond(
-                        State.can_manage_librarians,
-                        rx.link(
-                            "Bibliotecários",
-                            href="/admin/bibliotecarios",
+                        rx.el.details(
+                            rx.el.summary("Gestão"),
+                            rx.cond(
+                                State.is_librarian
+                                & (State.admin_view_mode != "estudante"),
+                                rx.fragment(
+                                    rx.link("Cadastrar livro", href="/admin/acervo"),
+                                    rx.link("Circulação", href="/admin/circulacao"),
+                                    rx.link(
+                                        "Reservas para estudantes",
+                                        href="/admin/reservas",
+                                    ),
+                                ),
+                                rx.fragment(),
+                            ),
+                            rx.cond(
+                                State.can_manage_librarians,
+                                rx.link(
+                                    "Bibliotecários",
+                                    href="/admin/bibliotecarios",
+                                ),
+                                rx.fragment(),
+                            ),
+                            class_name="nav-dropdown",
                         ),
                         rx.fragment(),
                     ),
@@ -1921,8 +1930,26 @@ def site_header() -> rx.Component:
                 aria_label="Controles de acessibilidade",
             ),
             class_name="a11y-menu",
+            id="controles-acessibilidade",
         ),
         class_name="site-header",
+    )
+
+
+def site_footer() -> rx.Component:
+    return rx.el.footer(
+        rx.el.section(
+            rx.heading("Sobre a biblioteca", size="5"),
+            rx.text("Biblioteca escolar • Conhecimento para toda a comunidade."),
+            class_name="footer-about",
+        ),
+        rx.el.nav(
+            rx.link("Catálogo", href="/catalogo"),
+            rx.link("Acessibilidade", href="/#controles-acessibilidade"),
+            aria_label="Links úteis",
+            class_name="footer-links",
+        ),
+        class_name="site-footer",
     )
 
 
@@ -2223,7 +2250,7 @@ def public_catalog() -> rx.Component:
             ),
             class_name="main-content",
         ),
-        rx.el.footer(rx.text("Biblioteca escolar"), class_name="site-footer"),
+        site_footer(),
         class_name="app-shell",
     )
 
@@ -2372,7 +2399,7 @@ def public_catalog_detail() -> rx.Component:
             ),
             class_name="main-content",
         ),
-        rx.el.footer(rx.text("Biblioteca escolar"), class_name="site-footer"),
+        site_footer(),
         class_name="app-shell",
     )
 
@@ -2476,13 +2503,19 @@ def student_library() -> rx.Component:
             ),
             class_name="main-content",
         ),
-        rx.el.footer(rx.text("Biblioteca escolar"), class_name="site-footer"),
+        site_footer(),
         class_name="app-shell",
     )
 
 
 def index() -> rx.Component:
     return rx.box(
+        rx.link(
+            "Pular para o conteúdo",
+            href="#conteudo-home",
+            class_name="skip-link",
+        ),
+        site_header(),
         rx.el.main(
             rx.el.section(
                 rx.hstack(
@@ -2595,16 +2628,7 @@ def index() -> rx.Component:
             ),
             class_name="main-content",
         ),
-        rx.link(
-            "Pular para o conteúdo",
-            href="#conteudo-home",
-            class_name="skip-link",
-        ),
-        site_header(),
-        rx.el.footer(
-            rx.text("Biblioteca escolar • Conhecimento para toda a comunidade"),
-            class_name="site-footer",
-        ),
+        site_footer(),
         class_name="app-shell",
     )
 
@@ -2693,10 +2717,7 @@ def student_signup() -> rx.Component:
             ),
             class_name="main-content",
         ),
-        rx.el.footer(
-            rx.text("Biblioteca escolar"),
-            class_name="site-footer",
-        ),
+        site_footer(),
         class_name="app-shell",
     )
 
@@ -2767,7 +2788,7 @@ def login_page() -> rx.Component:
             ),
             class_name="main-content",
         ),
-        rx.el.footer(rx.text("Biblioteca escolar"), class_name="site-footer"),
+        site_footer(),
         class_name="app-shell",
     )
 
@@ -3202,7 +3223,7 @@ def catalog_admin() -> rx.Component:
             ),
             class_name="main-content",
         ),
-        rx.el.footer(rx.text("Biblioteca escolar"), class_name="site-footer"),
+        site_footer(),
         class_name="app-shell",
     )
 
@@ -3357,7 +3378,7 @@ def librarian_management() -> rx.Component:
             ),
             class_name="main-content",
         ),
-        rx.el.footer(rx.text("Biblioteca escolar"), class_name="site-footer"),
+        site_footer(),
         class_name="app-shell",
     )
 
@@ -3488,7 +3509,7 @@ def staff_reservation_page() -> rx.Component:
             ),
             class_name="main-content",
         ),
-        rx.el.footer(rx.text("Biblioteca escolar"), class_name="site-footer"),
+        site_footer(),
         class_name="app-shell",
     )
 
@@ -3723,7 +3744,7 @@ def circulation_page() -> rx.Component:
             ),
             class_name="main-content",
         ),
-        rx.el.footer(rx.text("Biblioteca escolar"), class_name="site-footer"),
+        site_footer(),
         class_name="app-shell",
     )
 
@@ -3808,12 +3829,21 @@ app = rx.App(
         },
         ".brand-link": {
             "display": "inline-flex",
-            "align_items": "center",
+            "flex_direction": "column",
+            "align_items": "flex-start",
+            "gap": "0.05rem",
             "color": "var(--brand-900)",
             "font_weight": "800",
             "text_decoration": "none",
             "font_family": "Georgia, 'Times New Roman', serif",
             "font_size": "1.4rem",
+        },
+        ".brand-tagline": {
+            "color": "var(--slate-700)",
+            "font_family": "system-ui, 'Segoe UI', sans-serif",
+            "font_size": "0.8rem",
+            "font_weight": "500",
+            "line_height": "1.3",
         },
         ".brand-link:hover": {
             "color": "var(--brand-700)",
@@ -3826,6 +3856,38 @@ app = rx.App(
             "gap": "0.35rem",
             "min_width": "0",
             "max_width": "100%",
+        },
+        ".nav-dropdown": {
+            "max_width": "100%",
+        },
+        ".nav-dropdown summary": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "min_height": "2.5rem",
+            "padding": "0.45rem 0.65rem",
+            "border_radius": "0.5rem",
+            "color": "var(--brand-700)",
+            "font_weight": "600",
+            "cursor": "pointer",
+            "list_style": "none",
+        },
+        ".nav-dropdown[open]": {
+            "display": "flex",
+            "flex_direction": "column",
+            "align_items": "stretch",
+            "gap": "0.25rem",
+            "padding": "0.35rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.75rem",
+            "background_color": "var(--bg-panel)",
+        },
+        ".nav-dropdown a": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "min_height": "2.5rem",
+            "padding": "0.4rem 0.6rem",
+            "border_radius": "0.4rem",
+            "text_decoration": "none",
         },
         ".admin-view-mode": {
             "display": "flex",
@@ -4444,12 +4506,29 @@ app = rx.App(
             "text_underline_offset": "0.2em",
         },
         ".site-footer": {
+            "display": "flex",
+            "flex_wrap": "wrap",
+            "align_items": "flex-start",
+            "justify_content": "space-between",
+            "gap": "1.5rem",
             "max_width": "72rem",
             "margin": "0 auto",
             "padding": "1.25rem 1rem",
             "border_top": "1px solid var(--line)",
             "color": "var(--slate-700)",
             "font_size": "0.9rem",
+        },
+        ".footer-about h5": {
+            "margin": "0 0 0.35rem",
+        },
+        ".footer-about p": {
+            "margin": "0",
+        },
+        ".footer-links": {
+            "display": "flex",
+            "flex_wrap": "wrap",
+            "align_items": "center",
+            "gap": "0.75rem",
         },
         ".skip-link": {
             "position": "absolute",
@@ -4487,6 +4566,12 @@ app = rx.App(
             },
             ".site-nav": {
                 "gap": "0.25rem",
+                "width": "100%",
+            },
+            ".nav-dropdown": {
+                "width": "100%",
+            },
+            ".footer-links": {
                 "width": "100%",
             },
             ".admin-view-mode": {
