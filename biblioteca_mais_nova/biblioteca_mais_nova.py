@@ -347,6 +347,43 @@ class State(rx.State):
         )
 
     @rx.var
+    def home_featured_titles(self) -> list[dict[str, Any]]:
+        category_names = {
+            category["id"]: category["nome"]
+            for category in self.public_catalog_categories
+        }
+        featured: list[dict[str, Any]] = []
+        for entry in self.public_catalog_entries:
+            title = entry["titulo"]
+            if title.get("ativo") is False:
+                continue
+            category_ids = {
+                association["categoria_id"]
+                for association in entry["categorias"]
+            }
+            featured.append(
+                {
+                    "id": title["id"],
+                    "titulo": title["titulo"],
+                    "autores": title["autores"],
+                    "categorias": ", ".join(
+                        category_names[category_id]
+                        for category_id in sorted(category_ids)
+                        if category_id in category_names
+                    )
+                    or "Sem categoria",
+                    "exemplares_disponiveis": entry[
+                        "exemplares_disponiveis"
+                    ],
+                    "href": f"/catalogo/{title['id']}",
+                }
+            )
+        return sorted(
+            featured,
+            key=lambda item: _catalog_search_key(item["titulo"]),
+        )[:4]
+
+    @rx.var
     def public_catalog_detail_categories(self) -> str:
         category_names = {
             category["id"]: category["nome"]
@@ -532,6 +569,12 @@ class State(rx.State):
     def set_public_catalog_sort(self, value: str):
         if value in {"asc", "desc"}:
             self.public_catalog_sort = value
+
+    @rx.event
+    async def load_home(self):
+        if self._session_token:
+            return rx.redirect("/catalogo")
+        await self.load_public_catalog()
 
     @rx.event
     async def load_public_catalog(self):
@@ -2027,6 +2070,10 @@ def public_catalog_category_option(
     return rx.el.option(category["nome"], value=category["id"])
 
 
+def home_category_chip(category: rx.Var[dict[str, Any]]) -> rx.Component:
+    return rx.el.span(category["nome"], class_name="home-category-chip")
+
+
 def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
     title_name = title["titulo"].to(str)
     category_text = title["categorias"].to(str)
@@ -2538,24 +2585,6 @@ def index() -> rx.Component:
                         spacing="3",
                         class_name="hero-copy-wrap",
                     ),
-                    rx.el.div(
-                        rx.el.div(
-                            rx.text("Nova seleção", class_name="hero-stat-label"),
-                            rx.heading("24 títulos", size="5"),
-                            class_name="hero-stat-card",
-                        ),
-                        rx.el.div(
-                            rx.text("Em destaque", class_name="hero-stat-label"),
-                            rx.heading("8 categorias", size="5"),
-                            class_name="hero-stat-card",
-                        ),
-                        rx.el.div(
-                            rx.text("Disponibilidade", class_name="hero-stat-label"),
-                            rx.heading("Exemplares ativos", size="5"),
-                            class_name="hero-stat-card",
-                        ),
-                        class_name="hero-stat-grid",
-                    ),
                     align="center",
                     class_name="hero-layout",
                 ),
@@ -2580,6 +2609,107 @@ def index() -> rx.Component:
                 ),
                 id="conteudo-home",
                 class_name="content-section home-hero",
+            ),
+            rx.el.section(
+                rx.el.div(
+                    rx.vstack(
+                        rx.heading("📚 Estante de livros", size="5"),
+                        rx.text(
+                            "Uma seleção de títulos presentes no catálogo público."
+                        ),
+                        align="start",
+                        spacing="1",
+                    ),
+                    rx.link(
+                        "Ver mais",
+                        href="/catalogo",
+                        class_name="section-more-link",
+                    ),
+                    class_name="home-section-heading",
+                ),
+                rx.cond(
+                    State.public_catalog_pending,
+                    rx.text("Carregando o acervo...", role="status"),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.public_catalog_has_error,
+                    rx.el.p(
+                        State.public_catalog_message,
+                        role="alert",
+                        aria_live="polite",
+                        class_name="signup-feedback signup-feedback-error",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    (~State.public_catalog_pending)
+                    & (~State.public_catalog_has_error)
+                    & (State.home_featured_titles.length() == 0),
+                    rx.text(
+                        "Nenhum título disponível no catálogo no momento.",
+                        role="status",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    (~State.public_catalog_has_error)
+                    & (State.home_featured_titles.length() > 0),
+                    rx.el.div(
+                        rx.foreach(
+                            State.home_featured_titles,
+                            public_catalog_card,
+                        ),
+                        class_name="catalog-grid",
+                    ),
+                    rx.fragment(),
+                ),
+                id="estante-livros",
+                class_name="content-section catalog-section home-catalog-section",
+            ),
+            rx.el.section(
+                rx.el.div(
+                    rx.vstack(
+                        rx.heading("🗂️ Explore por categoria", size="5"),
+                        rx.text(
+                            "Use as categorias do acervo para descobrir outros títulos."
+                        ),
+                        align="start",
+                        spacing="1",
+                    ),
+                    rx.link(
+                        "Ver mais",
+                        href="/catalogo",
+                        class_name="section-more-link",
+                    ),
+                    class_name="home-section-heading",
+                ),
+                rx.cond(
+                    State.public_catalog_pending,
+                    rx.text("Carregando categorias...", role="status"),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.public_catalog_has_error,
+                    rx.fragment(),
+                    rx.cond(
+                        (~State.public_catalog_pending)
+                        & (State.public_catalog_categories.length() == 0),
+                        rx.text(
+                            "Nenhuma categoria disponível no momento.",
+                            role="status",
+                        ),
+                        rx.el.div(
+                            rx.foreach(
+                                State.public_catalog_categories,
+                                home_category_chip,
+                            ),
+                            class_name="home-category-list",
+                        ),
+                    ),
+                ),
+                id="explorar-categorias",
+                class_name="content-section catalog-section home-catalog-section",
             ),
             rx.el.section(
                 rx.heading("Entrar na biblioteca", size="5"),
@@ -4101,6 +4231,50 @@ app = rx.App(
             "max_width": "72rem",
             "margin": "1rem auto",
         },
+        ".home-catalog-section": {
+            "padding": "clamp(1.1rem, 2.5vw, 1.6rem)",
+            "border": "1px solid var(--line)",
+            "border_radius": "1rem",
+            "background_color": "var(--bg-panel)",
+            "box_shadow": "var(--shadow-soft)",
+        },
+        ".home-section-heading": {
+            "display": "flex",
+            "flex_wrap": "wrap",
+            "align_items": "center",
+            "justify_content": "space-between",
+            "gap": "1rem",
+            "width": "100%",
+        },
+        ".section-more-link": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "justify_content": "center",
+            "min_height": "2.75rem",
+            "padding": "0.55rem 0.9rem",
+            "border_radius": "0.65rem",
+            "background_color": "var(--brand-100)",
+            "color": "var(--brand-900)",
+            "font_weight": "700",
+            "text_decoration": "none",
+        },
+        ".home-category-list": {
+            "display": "flex",
+            "flex_wrap": "wrap",
+            "gap": "0.6rem",
+            "width": "100%",
+        },
+        ".home-category-chip": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "min_height": "2.5rem",
+            "padding": "0.4rem 0.75rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "999px",
+            "background_color": "var(--bg-soft)",
+            "color": "var(--slate-900)",
+            "font_weight": "600",
+        },
         ".student-library-section": {
             "display": "flex",
             "flex_direction": "column",
@@ -4602,7 +4776,7 @@ app = rx.App(
 app.add_page(
     accessible_page(index),
     title="Biblioteca escolar",
-    on_load=State.redirect_authenticated_home,
+    on_load=State.load_home,
 )
 app.add_page(
     accessible_page(student_signup),

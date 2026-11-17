@@ -10,7 +10,7 @@
 
 ## 3. Página inicial e seções
 
-- [ ] 3.1 Implementar hero e seções de catálogo com “Ver mais”, dados públicos existentes e estados explícitos sem números ou novidades inventados; adicionar `test_home_sections_use_catalog_data_and_explicit_empty_error_states` em `tests/test_primary_journeys.py`, preservar o redirecionamento de sessões autenticadas, executar compilação e suíte pytest completas, medir DOM a 360 px e 1366 px, registrar hash/teste/métricas e se a inspeção visual foi feita, então criar commit pequeno em português.
+- [B] 3.1 Implementar hero e seções de catálogo com “Ver mais”, dados públicos existentes e estados explícitos sem números ou novidades inventados; adicionar `test_home_sections_use_catalog_data_and_explicit_empty_error_states` em `tests/test_primary_journeys.py`, preservar o redirecionamento de sessões autenticadas, executar compilação e suíte pytest completas, medir DOM a 360 px e 1366 px, registrar hash/teste/métricas e se a inspeção visual foi feita, então criar commit pequeno em português. Motivo: compilação e testes passaram (207); o navegador integrado continua sem sessão ativa e falhou no handshake de conexão do Reflex, portanto não há captura ou métrica DOM pós-alteração verificável.
 
 ## 4. Cartões e catálogo
 

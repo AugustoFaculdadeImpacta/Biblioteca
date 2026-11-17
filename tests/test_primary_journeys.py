@@ -222,6 +222,73 @@ def test_student_login_catalog_request_and_library_use_one_mock_transport(
     )
 
 
+def test_home_sections_use_catalog_data_and_explicit_empty_error_states(
+    monkeypatch,
+):
+    homepage = repr(frontend.index())
+    assert "Estante de livros" in homepage
+    assert "Explore por categoria" in homepage
+    assert homepage.count("Ver mais") == 2
+    assert "Carregando o acervo" in homepage
+    assert "Nenhum" in homepage
+    assert "Exemplares ativos" not in homepage
+    assert "24" not in homepage
+    assert "8 categorias" not in homepage
+
+    calls = {"titles": 0}
+    entries = [_title_entry(81)]
+
+    async def public_titles():
+        calls["titles"] += 1
+        return entries
+
+    async def categories():
+        return [{"id": 3, "nome": "Literatura"}]
+
+    async def failed_public_titles():
+        raise XanoResponseError(503)
+
+    monkeypatch.setattr(frontend, "list_public_titles", public_titles)
+    monkeypatch.setattr(frontend, "list_categories", categories)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"journey-home-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            await state.load_home()
+            assert state.public_catalog_pending is False
+            assert state.public_catalog_has_error is False
+            assert state.home_featured_titles[0]["titulo"] == "A Ilha"
+
+            state.set_public_catalog_search("sem resultado")
+            assert state.filtered_public_catalog == []
+            assert state.home_featured_titles[0]["titulo"] == "A Ilha"
+            state.set_public_catalog_search("")
+
+            entries.clear()
+            await state.load_home()
+            assert state.home_featured_titles == []
+            assert state.public_catalog_message == ""
+            assert state.public_catalog_has_error is False
+
+            monkeypatch.setattr(
+                frontend,
+                "list_public_titles",
+                failed_public_titles,
+            )
+            await state.load_home()
+            assert state.public_catalog_has_error is True
+            assert state.public_catalog_message
+
+            state._store_session("token-falso-home", "estudante")
+            redirect = await state.load_home()
+            assert "/catalogo" in repr(redirect)
+            assert calls["titles"] == 2
+
+    asyncio.run(verify())
+
+
 def test_librarian_creates_catalog_and_registers_pickup_through_mock_transport(
     monkeypatch,
 ):
