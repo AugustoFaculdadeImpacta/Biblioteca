@@ -44,6 +44,10 @@ Acessibilidade e as jornadas de acervo, reserva e gestão de bibliotecários
 estão cobertas localmente com dados simulados; isso não substitui a validação
 integrada dessas operações no Xano.
 
+## Como ler as Changes
+
+Use [docs/mapa-changes.md](docs/mapa-changes.md) como guia curto do que cada Change entrega e quais tarefas ainda dependem do Xano real. Os arquivos em `openspec/changes/` contêm proposta, design e tarefas; os contratos já consolidados ficam em `openspec/specs/`. Essa divisão mantém as tarefas locais separadas do trabalho operacional e da limpeza remota.
+
 ## Demonstração com dados simulados
 
 Abra dois terminais na raiz do projeto. No primeiro, inicie a API em memória:
