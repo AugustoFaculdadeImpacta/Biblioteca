@@ -32,5 +32,5 @@
 
 ## Workflow follow-up
 
-- Aguardar revisão/aprovação humana desta Change antes de iniciar Apply.
-- Arquivar somente após implementação aprovada, verificação de todos os requisitos e validação OpenSpec estrita.
+- A aprovação explícita para Apply foi concedida pelo usuário; os itens sem captura/métricas atuais permanecem [B], não concluídos.
+- Arquivar somente após verificação de todos os requisitos, incluindo evidência visual/DOM pendente, e validação OpenSpec estrita.
