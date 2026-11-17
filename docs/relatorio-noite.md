@@ -403,3 +403,27 @@ As fases funcionais avançaram parcialmente. A tentativa de seed remoto foi inte
 - Não houve comando Xano CLI, dry-run, sincronização ou publicação nesta
   retentativa. O candidato de guarda de duplicidade permanece local e não
   validado oficialmente; não foi arquivado como Change concluída.
+
+## Fechamento final — 2026-11-16
+
+- [x] Suíte final: `pytest --ignore=evaluation -q`: 203 aprovados;
+  `unittest discover -s xano\tests`: 17 aprovados; `reflex compile --dry`:
+  compilação aprovada.
+- [x] OpenSpec estrito: 7 specs, 5 Changes ativas e 17 Changes arquivadas
+  validadas, sem falhas.
+- [B] A validação oficial do XanoScript e a consulta de versão/documentação
+  continuam bloqueadas pelo timeout de inicialização do Xano Developer MCP.
+  Nenhum comando do Xano CLI, chamada ao Xano real ou publicação foi feita
+  neste fechamento.
+- [B] O shell Reflex próprio (PID 8872) foi encerrado. As portas 3000 e 8765
+  estão livres. Permanecem listeners em 8000 (PID 3860), 8001 (PID 6296),
+  8002 (PID 3516), 8010 (PID 9788) e 8011 (PID 9240); a consulta de processo
+  não conseguiu identificar os respectivos proprietários/linhas de comando.
+  Nenhum desses listeners foi encerrado por não ser possível confirmar sua
+  identidade.
+- O candidato Xano local contra solicitações duplicadas não foi publicado.
+  No Xano real, a duplicidade observada na solicitação ID 83 continua pendente
+  de correção/publicação; as contas sintéticas e solicitações já registradas
+  não foram apagadas.
+- Branch `trabalho-autopilot`. As alterações preexistentes em `.gitignore` e
+  `.mcp.json` foram preservadas e não fazem parte deste fechamento.

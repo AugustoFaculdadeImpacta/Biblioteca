@@ -742,3 +742,15 @@ foram alterados `.env`, configurações MCP ou outras rotas Xano.
   novamente com conta sintética nova caso a publicação seja autorizada e
   validar o guard de `/admin/estudantes` com parâmetro válido. Não apagar as
   contas ou solicitações sintéticas nesta execução.
+
+### Fechamento local — 2026-11-16
+
+- A correção local para impedir solicitações duplicadas continua sem validação
+  oficial e sem publicação. A retentativa de validação/documentação e consulta
+  da versão do Xano Developer MCP falhou por timeout na inicialização.
+- O estado remoto não foi alterado neste fechamento: não houve chamada à API
+  do Xano nem comando do Xano CLI. A duplicidade já observada para o estudante
+  sintético permanece pendente; nenhum registro foi apagado.
+- Verificações locais finais: pytest 203/203, unittest Xano 17/17,
+  `reflex compile --dry` aprovado e validação estrita OpenSpec aprovada
+  (7 specs, 5 Changes ativas e 17 arquivadas).
