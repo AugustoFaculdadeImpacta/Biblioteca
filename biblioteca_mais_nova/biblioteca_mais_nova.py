@@ -2001,13 +2001,41 @@ def public_catalog_category_option(
 
 
 def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
+    title_name = title["titulo"].to(str)
+    category_text = title["categorias"].to(str)
+    available_count = title["exemplares_disponiveis"].to(int)
+    initial = "L"
     return rx.el.article(
-        rx.el.h2(title["titulo"], class_name="catalog-card-heading"),
+        rx.el.div(
+            rx.el.span(
+                rx.cond(
+                    category_text != "",
+                    category_text,
+                    "Livro",
+                ),
+                class_name="catalog-tag",
+            ),
+            rx.el.div(
+                rx.el.span(initial, class_name="catalog-cover-initial"),
+                class_name="catalog-card-cover",
+            ),
+            class_name="catalog-card-visual",
+        ),
+        rx.el.h2(title_name, class_name="catalog-card-heading"),
         rx.text("Autoria: ", title["autores"]),
-        rx.text("Categorias: ", title["categorias"]),
-        rx.text(
-            "Exemplares disponíveis: ",
-            title["exemplares_disponiveis"],
+        rx.text("Categorias: ", category_text),
+        rx.el.div(
+            rx.cond(
+                available_count > 0,
+                rx.el.span("Disponível", class_name="status-pill status-pill-success"),
+                rx.el.span("Em espera", class_name="status-pill status-pill-muted"),
+            ),
+            rx.text(
+                "Exemplares disponíveis: ",
+                available_count,
+                class_name="catalog-card-meta",
+            ),
+            class_name="catalog-card-meta-row",
         ),
         rx.link("Ver detalhes", href=title["href"], class_name="catalog-card-link"),
         class_name="catalog-card",
@@ -2016,7 +2044,15 @@ def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
 
 def student_loan_card(loan: rx.Var[dict[str, Any]]) -> rx.Component:
     return rx.el.article(
-        rx.el.h3(f"Empréstimo #{loan['id']}", class_name="catalog-card-heading"),
+        rx.el.div(
+            rx.el.h3(f"Empréstimo #{loan['id']}", class_name="catalog-card-heading"),
+            rx.cond(
+                loan["em_atraso"],
+                rx.el.span("Atrasado", class_name="status-pill status-pill-warning"),
+                rx.el.span("Em andamento", class_name="status-pill status-pill-success"),
+            ),
+            class_name="card-header-row",
+        ),
         rx.text("Exemplar: ", loan["exemplar_id"]),
         rx.text("Retirada: ", loan["retirado_em"]),
         rx.text("Vencimento: ", loan["vence_em"]),
@@ -2026,8 +2062,7 @@ def student_loan_card(loan: rx.Var[dict[str, Any]]) -> rx.Component:
             rx.cond(
                 loan["em_atraso"],
                 rx.el.p(
-                    "Em atraso. Procure a equipe da biblioteca; novas solicitações "
-                    "e reservas podem ser bloqueadas.",
+                    "Em atraso. Procure a equipe da biblioteca; novas solicitações e reservas podem ser bloqueadas.",
                     role="alert",
                     class_name="signup-feedback signup-feedback-error",
                 ),
@@ -2040,9 +2075,13 @@ def student_loan_card(loan: rx.Var[dict[str, Any]]) -> rx.Component:
 
 def student_request_card(request: rx.Var[dict[str, Any]]) -> rx.Component:
     return rx.el.article(
-        rx.el.h3(
-            rx.link(request["titulo"], href=request["href"]),
-            class_name="catalog-card-heading",
+        rx.el.div(
+            rx.el.h3(
+                rx.link(request["titulo"], href=request["href"]),
+                class_name="catalog-card-heading",
+            ),
+            rx.el.span(request["estado"], class_name="status-pill status-pill-muted"),
+            class_name="card-header-row",
         ),
         rx.text("Solicitação: ", request["estado"]),
         rx.text("Enviada em: ", request["solicitada_em"]),
@@ -2052,9 +2091,13 @@ def student_request_card(request: rx.Var[dict[str, Any]]) -> rx.Component:
 
 def student_reservation_card(reservation: rx.Var[dict[str, Any]]) -> rx.Component:
     return rx.el.article(
-        rx.el.h3(
-            rx.link(reservation["titulo"], href=reservation["href"]),
-            class_name="catalog-card-heading",
+        rx.el.div(
+            rx.el.h3(
+                rx.link(reservation["titulo"], href=reservation["href"]),
+                class_name="catalog-card-heading",
+            ),
+            rx.el.span(reservation["estado"], class_name="status-pill status-pill-muted"),
+            class_name="card-header-row",
         ),
         rx.text("Reserva: ", reservation["estado"]),
         rx.text("Prazo: ", reservation["prazo"]),
@@ -2439,7 +2482,131 @@ def student_library() -> rx.Component:
 
 
 def index() -> rx.Component:
-    return login_page()
+    return rx.box(
+        rx.el.main(
+            rx.el.section(
+                rx.hstack(
+                    rx.vstack(
+                        rx.el.span("Biblioteca contemporânea e acolhedora", class_name="eyebrow"),
+                        rx.heading("Descubra o próximo livro que vai mudar seu dia.", size="7"),
+                        rx.text(
+                            "Explore o acervo, acompanhe empréstimos e reservas e aproveite uma biblioteca que combina tradição e praticidade.",
+                            class_name="hero-copy",
+                        ),
+                        rx.hstack(
+                            rx.link("Ver catálogo", href="/catalogo", class_name="primary-cta"),
+                            rx.link("Entrar", href="/login", class_name="secondary-cta"),
+                            rx.link("Ir ao login", href="#conteudo-login", class_name="secondary-cta"),
+                            flex_wrap="wrap",
+                            align="center",
+                            gap="3",
+                        ),
+                        align="start",
+                        spacing="3",
+                        class_name="hero-copy-wrap",
+                    ),
+                    rx.el.div(
+                        rx.el.div(
+                            rx.text("Nova seleção", class_name="hero-stat-label"),
+                            rx.heading("24 títulos", size="5"),
+                            class_name="hero-stat-card",
+                        ),
+                        rx.el.div(
+                            rx.text("Em destaque", class_name="hero-stat-label"),
+                            rx.heading("8 categorias", size="5"),
+                            class_name="hero-stat-card",
+                        ),
+                        rx.el.div(
+                            rx.text("Disponibilidade", class_name="hero-stat-label"),
+                            rx.heading("Exemplares ativos", size="5"),
+                            class_name="hero-stat-card",
+                        ),
+                        class_name="hero-stat-grid",
+                    ),
+                    align="center",
+                    class_name="hero-layout",
+                ),
+                rx.el.div(
+                    rx.link("Catálogo público", href="/catalogo", class_name="feature-card"),
+                    rx.cond(
+                        State.is_authenticated,
+                        rx.link("Minha biblioteca", href="/minha-biblioteca", class_name="feature-card"),
+                        rx.link("Entrar para reservar", href="/login", class_name="feature-card"),
+                    ),
+                    rx.cond(
+                        State.is_librarian,
+                        rx.link("Painel da bibliotecária", href="/admin/acervo", class_name="feature-card"),
+                        rx.fragment(),
+                    ),
+                    rx.cond(
+                        State.can_manage_librarians,
+                        rx.link("Gestão de perfis", href="/admin/bibliotecarios", class_name="feature-card"),
+                        rx.fragment(),
+                    ),
+                    class_name="hero-quick-links",
+                ),
+                id="conteudo-home",
+                class_name="content-section home-hero",
+            ),
+            rx.el.section(
+                rx.heading("Entrar na biblioteca", size="5"),
+                rx.text("Acesse sua conta com e-mail e senha."),
+                rx.form(
+                    rx.el.label(
+                        "E-mail",
+                        html_for="login-email",
+                        class_name="signup-label",
+                    ),
+                    rx.input(
+                        id="login-email",
+                        name="email",
+                        type="email",
+                        required=True,
+                        aria_label="E-mail",
+                        class_name="signup-input",
+                    ),
+                    rx.el.label(
+                        "Senha",
+                        html_for="login-senha",
+                        class_name="signup-label",
+                    ),
+                    rx.input(
+                        id="login-senha",
+                        name="senha",
+                        type="password",
+                        required=True,
+                        aria_label="Senha",
+                        class_name="signup-input",
+                    ),
+                    rx.button(
+                        "Entrar",
+                        type="submit",
+                        class_name="focus-demo-button",
+                    ),
+                    id="form-login-home",
+                    on_submit=State.submit_login,
+                    reset_on_submit=False,
+                    class_name="signup-form",
+                ),
+                rx.link("Ver catálogo sem entrar", href="/catalogo"),
+                rx.link("Não tem conta? Cadastre-se", href="/cadastro"),
+                id="conteudo-login",
+                class_name="content-section signup-section",
+            ),
+            class_name="main-content",
+        ),
+        rx.link(
+            "Pular para o conteúdo",
+            href="#conteudo-home",
+            class_name="skip-link",
+        ),
+        site_header(),
+        rx.el.footer(
+            rx.text("Biblioteca escolar • Conhecimento para toda a comunidade"),
+            class_name="site-footer",
+        ),
+        class_name="app-shell",
+    )
 
 
 def student_signup() -> rx.Component:
@@ -3579,28 +3746,51 @@ def accessible_page(page: Callable[[], rx.Component]) -> Callable[[], rx.Compone
 
 app = rx.App(
     style={
-        "font_family": "Aptos, 'Segoe UI', system-ui, sans-serif",
-        "color": "#182b49",
-        "background_color": "#f4f7fb",
+        ":root": {
+            "--bg-page": "#f5efe4",
+            "--bg-panel": "#fffdf8",
+            "--bg-soft": "#edf4ef",
+            "--brand-900": "#183a4a",
+            "--brand-700": "#245d6d",
+            "--brand-500": "#2d7287",
+            "--brand-100": "#dfeef2",
+            "--success-700": "#245c45",
+            "--success-100": "#dfeee7",
+            "--warning-700": "#8b5e17",
+            "--warning-100": "#f9ebcb",
+            "--danger-700": "#8b2d2d",
+            "--danger-100": "#f9d8d8",
+            "--slate-900": "#1f2c38",
+            "--slate-700": "#405468",
+            "--slate-500": "#607287",
+            "--sand-200": "#efe4d0",
+            "--sand-100": "#f8f4ee",
+            "--line": "#d8d2c7",
+            "--shadow-soft": "0 0.7rem 1.5rem rgba(24, 35, 46, 0.08)",
+        },
+        "font_family": "system-ui, 'Segoe UI', sans-serif",
+        "color": "var(--slate-900)",
+        "background_color": "var(--bg-page)",
         "*, *::before, *::after": {
             "box_sizing": "border-box",
         },
         "body": {
             "margin": "0",
-            "color": "#182b49",
-            "background_color": "#f4f7fb",
+            "color": "var(--slate-900)",
+            "background_color": "var(--bg-page)",
             "line_height": "1.55",
         },
-        "h1, h2, h3": {
-            "color": "#183153",
+        "h1, h2, h3, h4, h5, h6": {
+            "color": "var(--slate-900)",
             "line_height": "1.2",
+            "font_family": "Georgia, 'Times New Roman', serif",
             "letter_spacing": "-0.02em",
         },
         ".app-shell": {
             "min_height": "100vh",
             "padding": "clamp(0.5rem, 3vw, 2rem)",
-            "color": "#182b49",
-            "background_color": "#f4f7fb",
+            "color": "var(--slate-900)",
+            "background_color": "var(--bg-page)",
         },
         ".site-header": {
             "display": "flex",
@@ -3610,19 +3800,23 @@ app = rx.App(
             "gap": "1rem",
             "max_width": "72rem",
             "margin": "0 auto",
-            "padding": "1rem 1.25rem",
-            "border": "1px solid #dbe3ef",
+            "padding": "1rem 1.2rem",
+            "border": "1px solid var(--line)",
             "border_radius": "1rem",
-            "background_color": "#ffffff",
-            "box_shadow": "0 0.35rem 1.25rem rgba(24, 43, 73, 0.06)",
+            "background_color": "var(--bg-panel)",
+            "box_shadow": "var(--shadow-soft)",
         },
         ".brand-link": {
-            "color": "#183153",
+            "display": "inline-flex",
+            "align_items": "center",
+            "color": "var(--brand-900)",
             "font_weight": "800",
             "text_decoration": "none",
+            "font_family": "Georgia, 'Times New Roman', serif",
+            "font_size": "1.4rem",
         },
         ".brand-link:hover": {
-            "color": "#174ea6",
+            "color": "var(--brand-700)",
         },
         ".site-nav": {
             "display": "flex",
@@ -3640,12 +3834,13 @@ app = rx.App(
             "gap": "0.5rem",
             "margin_left": "auto",
             "padding": "0.5rem 0.75rem",
-            "border": "1px solid var(--blue-7)",
+            "border": "1px solid #c9d5df",
             "border_radius": "0.5rem",
-            "background_color": "var(--blue-2)",
+            "background_color": "#edf3f8",
         },
         ".admin-view-mode-label": {
             "font_weight": "700",
+            "color": "var(--brand-900)",
         },
         ".admin-view-reset": {
             "min_height": "2.5rem",
@@ -3747,6 +3942,97 @@ app = rx.App(
             "align_items": "flex-start",
             "gap": "1.25rem",
             "padding": "clamp(1.5rem, 3vw, 2.5rem) 1rem",
+        },
+        ".home-hero": {
+            "width": "100%",
+            "max_width": "72rem",
+            "margin": "1rem auto",
+            "padding": "clamp(1.5rem, 3vw, 2.5rem)",
+            "border": "1px solid var(--line)",
+            "border_radius": "1.2rem",
+            "background_color": "var(--bg-panel)",
+            "box_shadow": "var(--shadow-soft)",
+        },
+        ".hero-layout": {
+            "display": "flex",
+            "flex_wrap": "wrap",
+            "align_items": "center",
+            "justify_content": "space-between",
+            "width": "100%",
+            "gap": "1.5rem",
+        },
+        ".hero-copy-wrap": {
+            "flex": "1 1 20rem",
+            "max_width": "36rem",
+        },
+        ".eyebrow": {
+            "display": "inline-flex",
+            "padding": "0.25rem 0.6rem",
+            "border_radius": "999px",
+            "background_color": "var(--brand-100)",
+            "color": "var(--brand-900)",
+            "font_size": "0.75rem",
+            "font_weight": "700",
+            "text_transform": "uppercase",
+            "letter_spacing": "0.08em",
+        },
+        ".hero-copy": {
+            "color": "var(--slate-700)",
+            "font_size": "1.05rem",
+            "max_width": "32rem",
+        },
+        ".primary-cta, .secondary-cta, .feature-card": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "justify_content": "center",
+            "min_height": "2.75rem",
+            "padding": "0.65rem 1rem",
+            "border_radius": "0.75rem",
+            "text_decoration": "none",
+            "font_weight": "700",
+            "transition": "transform 150ms ease, box-shadow 150ms ease",
+        },
+        ".primary-cta": {
+            "background_color": "var(--brand-900)",
+            "color": "#ffffff",
+            "box_shadow": "0 0.45rem 1rem rgba(24, 58, 74, 0.18)",
+        },
+        ".secondary-cta": {
+            "border": "1px solid var(--line)",
+            "background_color": "var(--bg-soft)",
+            "color": "var(--brand-900)",
+        },
+        ".feature-card": {
+            "flex": "1 1 12rem",
+            "border": "1px solid var(--line)",
+            "background_color": "var(--sand-100)",
+            "color": "var(--brand-900)",
+        },
+        ".hero-stat-grid": {
+            "display": "grid",
+            "grid_template_columns": "repeat(auto-fit, minmax(min(100%, 10rem), 1fr))",
+            "gap": "0.9rem",
+            "flex": "1 1 18rem",
+            "min_width": "0",
+        },
+        ".hero-stat-card": {
+            "padding": "1rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "1rem",
+            "background_color": "var(--sand-100)",
+            "box_shadow": "var(--shadow-soft)",
+        },
+        ".hero-stat-label": {
+            "font_size": "0.7rem",
+            "text_transform": "uppercase",
+            "letter_spacing": "0.08em",
+            "color": "var(--slate-500)",
+        },
+        ".hero-quick-links": {
+            "display": "flex",
+            "flex_wrap": "wrap",
+            "gap": "0.75rem",
+            "width": "100%",
         },
         ".catalog-section": {
             "width": "100%",
@@ -3870,6 +4156,37 @@ app = rx.App(
             "border_color": "#a9bfdf",
             "box_shadow": "0 0.6rem 1.25rem rgba(24, 43, 73, 0.1)",
         },
+        ".catalog-card-visual": {
+            "display": "flex",
+            "flex_direction": "column",
+            "width": "100%",
+            "gap": "0.6rem",
+        },
+        ".catalog-card-cover": {
+            "display": "flex",
+            "align_items": "center",
+            "justify_content": "center",
+            "min_height": "6rem",
+            "border": "1px solid rgba(24, 58, 74, 0.12)",
+            "border_radius": "0.8rem",
+            "background": "linear-gradient(135deg, #183a4a 0%, #2d7287 52%, #dfeef2 100%)",
+            "color": "#ffffff",
+        },
+        ".catalog-cover-initial": {
+            "font_family": "Georgia, 'Times New Roman', serif",
+            "font_size": "2rem",
+            "font_weight": "700",
+        },
+        ".catalog-tag": {
+            "display": "inline-flex",
+            "align_self": "flex-start",
+            "padding": "0.25rem 0.5rem",
+            "border_radius": "999px",
+            "background_color": "var(--brand-100)",
+            "color": "var(--brand-900)",
+            "font_size": "0.75rem",
+            "font_weight": "700",
+        },
         ".catalog-card-heading, .catalog-detail-heading": {
             "overflow_wrap": "anywhere",
             "margin": "0",
@@ -3879,6 +4196,46 @@ app = rx.App(
             "margin": "0",
             "color": "#475569",
             "font_size": "0.95rem",
+        },
+        ".card-header-row": {
+            "display": "flex",
+            "align_items": "center",
+            "justify_content": "space-between",
+            "gap": "0.75rem",
+            "width": "100%",
+        },
+        ".catalog-card-meta-row": {
+            "display": "flex",
+            "align_items": "center",
+            "justify_content": "space-between",
+            "gap": "0.75rem",
+            "width": "100%",
+            "flex_wrap": "wrap",
+        },
+        ".catalog-card-meta": {
+            "color": "var(--slate-700)",
+        },
+        ".status-pill": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "min_height": "1.8rem",
+            "padding": "0.2rem 0.55rem",
+            "border_radius": "999px",
+            "font_size": "0.7rem",
+            "font_weight": "700",
+            "letter_spacing": "0.02em",
+        },
+        ".status-pill-success": {
+            "background_color": "var(--success-100)",
+            "color": "var(--success-700)",
+        },
+        ".status-pill-warning": {
+            "background_color": "var(--warning-100)",
+            "color": "var(--warning-700)",
+        },
+        ".status-pill-muted": {
+            "background_color": "#edf2f7",
+            "color": "var(--slate-700)",
         },
         ".catalog-card-link": {
             "display": "inline-flex",
