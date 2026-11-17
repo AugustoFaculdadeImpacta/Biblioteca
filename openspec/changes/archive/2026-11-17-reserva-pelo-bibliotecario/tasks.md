@@ -9,8 +9,8 @@
 
 - [x] 2.1 Criar busca candidata local por e-mail exato normalizado, restrita no backend a bibliotecário/admin e estudante ativo; responder somente ID e nome.
 - [x] 2.2 Criar endpoint candidato local de reserva para terceiro, revalidando estudante ativo, título ativo, atraso, empréstimo ativo do título e reserva duplicada; sem aceitar prioridade ou posição.
-- [ ] 2.3 NÃO EXECUTADA: confirmar execução e atomicidade FIFO no Xano real; nenhuma publicação ou escrita remota é permitida nesta sessão.
-- [ ] 2.4 NÃO EXECUTADA: executar fixtures, limpeza individual e conferência remota; nenhuma escrita remota é permitida nesta sessão.
+Tarefa 2.3 movida para `validacao-remota-xano`; permanece não executada.
+Tarefa 2.4 movida para `validacao-remota-xano`; permanece não executada.
 
 ## 3. Interface Reflex
 
@@ -24,6 +24,6 @@
 - [x] 4.1 Executar `pytest tests -q` (129 passaram), `python -m unittest discover -s xano\\tests -v` (13 passaram), `reflex compile --dry`, `openspec validate reserva-pelo-bibliotecario --strict` e `openspec validate --specs --strict`; verificações locais e simuladas, sem Xano real.
 - [x] 4.2 Revisar diff e `git status`; branch `trabalho-noturno`, somente arquivos da Change e documentação de publicação, sem segredos/dados reais e sem escrita remota; `devolvido-em-nulavel` permanece intacta.
 
-## Bloqueio de publicação
+## Pendências remotas transferidas
 
-Os endpoints são candidatos somente locais, não confirmados no pull do workspace `151966`, branch `v1` (live). Esta Change permanece ativa até a publicação e a verificação remota serem autorizadas e concluídas.
+As tarefas 2.3 e 2.4 foram movidas, sem conclusão, para `validacao-remota-xano`. Os endpoints continuam candidatos locais; nenhuma publicação ou escrita remota ocorreu.

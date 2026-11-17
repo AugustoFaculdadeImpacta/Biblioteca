@@ -40,3 +40,11 @@
 - Aguardar aprovação humana explícita dos artefatos no Review antes de iniciar Apply.
 - Arquivar somente após todos os gates e cenários passarem e a limpeza ser confirmada; se a prova de nulabilidade falhar, parar e reportar sem arquivar como concluída.
 - Não fazer commit Git, push de `xano/` inteiro, `push --delete --sync` nem alterar `allow_push`.
+
+## Avaliação de necessidade e encerramento — 2026-11-17
+
+- Pull somente de definições do workspace `151966`, branch `v1`, em `C:\Users\User\AppData\Local\Temp\biblioteca-xano-definicoes-20261117`; o pull retornou 67 documentos e não incluiu registros.
+- A definição remota e `xano/table/emprestimo.xs` declaram `timestamp devolvido_em?`. A estrutura nullable já existe nos dois lados, então a migração de schema planejada nesta Change não é necessária.
+- `biblioteca_mais_nova/circulation.py` aceita `None` no campo; o estado da interface trata `None` e `0` como não devolvido. As definições locais dos endpoints também preservam compatibilidade com ambos os valores.
+- Decisão conservadora: arquivar esta Change sem sincronizar specs ou modificar Xano; manter a compatibilidade com `0`, pois esta rodada não leu registros existentes nem provou que o sentinel foi eliminado dos dados.
+- Nenhuma escrita, leitura de registros, alteração de schema ou publicação remota foi realizada. As 20 tarefas originais permanecem sem marcação de conclusão; o arquivamento registra que o objetivo de nulabilidade já está atendido e que a remoção do sentinel não é necessária para preservar o comportamento atual.

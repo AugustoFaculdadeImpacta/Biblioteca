@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Login e perfil usam identidade confiável
-O sistema MUST autenticar por e-mail e senha e obter o perfil confiável da conta autenticada entre `estudante`, `bibliotecario` e `admin`, sem aceitar papel declarado pelo cliente. Admin MUST ter as permissões administrativas de bibliotecário. Contas com `ativo=false` MUST ser recusadas no login com mensagem genérica em português. O e-mail do login MUST seguir a mesma normalização do cadastro: remover espaços externos, converter para minúsculas e rejeitar espaços internos; a senha permanece inalterada.
+O sistema MUST autenticar por e-mail e senha e obter o perfil armazenado (`estudante`, `bibliotecario` ou `admin`), sem aceitar papel do cliente. Admin MUST ter as permissões administrativas de bibliotecário. O login MUST recusar contas com `ativo=false` usando mensagem genérica em português e normalizar o e-mail como no cadastro (remover espaços externos, converter para minúsculas e rejeitar espaços internos), sem alterar a senha.
 
 #### Scenario: Login válido
 - **WHEN** uma conta existente apresenta a senha correta

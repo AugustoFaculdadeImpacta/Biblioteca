@@ -12,7 +12,7 @@
 - [x] 2.2 Criar o candidato local `GET /admin/acervo`, com títulos inativos, categorias e exemplares/estados, protegido no backend para bibliotecário/admin.
 - [x] 2.3 Reutilizar `PATCH /catalogo/titulos/{titulo_id}` para editar e reativar/desativar; impedir desativação com empréstimos não devolvidos ou reservas ativas.
 - [x] 2.4 Ocultar inativos em todas as consultas públicas de títulos e bloquear empréstimos/reservas novos no backend; os arquivos alterados passaram na validação MCP de sintaxe.
-- [ ] 2.5 NÃO EXECUTADA: sincronização, prova de concorrência, testes sintéticos, pull de conferência e limpeza no Xano remoto; sessão explicitamente somente local.
+Tarefa 2.5 movida para `validacao-remota-xano`; permanece não executada.
 
 ## 3. Interface Reflex
 
@@ -49,6 +49,6 @@
 - [x] 8.3 Estender `scripts/demo_api.py` para as consultas/mutações pessoais e administrativas de circulação; testes em `tests/test_demo_api_circulation.py` passaram cobrindo fila, disponibilidade, status de recusa, prazo de 14 dias, limite de três, bloqueio do mesmo título e oferta a estudante com empréstimo de outro título. Verificação simulada, sem acesso remoto.
 - [x] 8.4 Executar `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation` (174 passaram), `unittest discover -s xano\tests` (13 passaram), validar `--specs --strict` e as três Changes (todas válidas); atualizar `docs/relatorio-autopilot.md` e `docs/publicacao-xano-pendente.md`. Nenhuma tarefa remota foi marcada como concluída.
 
-## Bloqueio de publicação
+## Pendência remota transferida
 
-O Apply é local. O workspace `151966`, branch `v1` (live), não recebeu alterações. Os contratos candidatos locais ainda precisam de publicação e testes reais autorizados antes de considerar o backend verificado; não arquivar esta Change enquanto a tarefa 2.5 estiver NÃO EXECUTADA.
+A tarefa 2.5 foi movida, sem conclusão, para `validacao-remota-xano`. O Apply local não publicou nem alterou dados no workspace Xano.

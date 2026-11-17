@@ -7,16 +7,20 @@ Define consulta pública e administração autorizada do acervo, preservando a d
 ## Requirements
 
 ### Requirement: Catálogo é consultável publicamente
-O sistema MUST permitir a visitantes consultar títulos e disponibilidade agregada sem autenticação, derivando disponibilidade dos exemplares elegíveis.
+
+O sistema MUST permitir a visitantes consultar títulos ativos e disponibilidade agregada sem autenticação, derivando disponibilidade dos exemplares elegíveis.
 
 #### Scenario: Consulta pública
 - **WHEN** visitante solicita o catálogo ou um título
-- **THEN** o sistema retorna metadados bibliográficos publicados e disponibilidade agregada, sem dados pessoais de estudantes
+- **THEN** o sistema retorna metadados bibliográficos publicados e disponibilidade agregada de títulos ativos, sem dados pessoais de estudantes
 
 #### Scenario: Disponibilidade por exemplares
-- **WHEN** o sistema informa disponibilidade de um título
+- **WHEN** o sistema informa disponibilidade de um título ativo
 - **THEN** o resultado deriva dos exemplares físicos elegíveis e não de uma quantidade independente mantida no título
 
+#### Scenario: Título desativado não aparece publicamente
+- **WHEN** visitante solicita catálogo ou detalhe de título desativado
+- **THEN** o título não é incluído no catálogo público e seu detalhe não é exposto
 ### Requirement: Título pode relacionar múltiplas categorias e exemplares
 O sistema MUST representar uma obra bibliográfica separada de suas categorias e unidades físicas, permitindo relação muitos-para-muitos entre títulos e categorias e um-para-muitos entre título e exemplar.
 
@@ -39,31 +43,34 @@ O sistema MUST representar uma obra bibliográfica separada de suas categorias e
 #### Scenario: Código de tombo não é informado pelo cliente
 - **WHEN** cliente tenta definir ou alterar o código de tombo em uma operação de exemplar
 - **THEN** o backend gera e preserva o código, sem aceitar valor fornecido ou alteração pelo cliente
-
 ### Requirement: Administração do acervo exige perfil bibliotecário
-O sistema MUST autorizar no backend a criação/atualização de títulos, categorias e associações e a criação de exemplares somente para bibliotecários autenticados. Estados operacionais de exemplares são alterados somente pelos fluxos de empréstimo, reserva e condição.
+
+O sistema MUST autorizar no backend a bibliotecários e admins autenticados consultar e manter metadados do acervo, criar ou atualizar títulos, categorias e associações e criar exemplares. Estados operacionais de exemplares são alterados somente pelos fluxos de empréstimo, reserva e condição.
 
 #### Scenario: Bibliotecário mantém metadados do acervo
 - **WHEN** bibliotecário autenticado cria ou atualiza título/categoria, associa título e categoria ou cria exemplar
 - **THEN** o sistema aplica a alteração solicitada e a consulta posterior reflete o resultado
 
 #### Scenario: Estudante ou visitante tenta administrar acervo
-- **WHEN** estudante autenticado ou visitante tenta criar ou atualizar metadados, associar categorias ou criar exemplar
-- **THEN** o backend recusa a operação sem alterar dados
+- **WHEN** estudante autenticado ou visitante tenta consultar dados administrativos, criar ou atualizar metadados, associar categorias ou criar exemplar
+- **THEN** o backend recusa a operação sem revelar dados administrativos nem alterar dados
 
 #### Scenario: Remoção sem política aprovada
-- **WHEN** uma operação tenta remover título, categoria, associação ou exemplar sem política de exclusão/arquivamento aprovada
-- **THEN** o contrato não oferece a remoção e o estado persistido permanece inalterado
+- **WHEN** uma operação tenta remover fisicamente título, categoria, associação, exemplar, empréstimo ou reserva sem política de exclusão/arquivamento aprovada
+- **THEN** o contrato não oferece a remoção e preserva o registro e seu histórico
 
+#### Scenario: Admin mantém metadados do acervo
+- **WHEN** admin autenticado cria ou atualiza título/categoria, associa título e categoria ou cria exemplar
+- **THEN** o sistema aplica a alteração solicitada e a consulta posterior reflete o resultado
 ### Requirement: API de catálogo valida relações
 O sistema MUST validar existência e compatibilidade das relações de título, categoria e exemplar antes de persistir alterações administrativas.
 
 #### Scenario: Referência inválida
 - **WHEN** pedido administrativo referencia título, categoria ou exemplar inexistente ou incompatível
 - **THEN** o sistema recusa a alteração e preserva o estado anterior
-
 ### Requirement: Interface administrativa do acervo é exclusiva de bibliotecários
-A interface MUST permitir acesso às ações administrativas somente após autenticação com perfil `bibliotecario`; a autorização do backend permanece obrigatória para toda escrita.
+
+A interface MUST permitir acesso às ações administrativas somente após autenticação com perfil `bibliotecario` ou `admin`; a autorização do backend permanece obrigatória para toda leitura administrativa e escrita.
 
 #### Scenario: Bibliotecário autenticado acessa administração do acervo
 - **WHEN** usuário autenticado com perfil `bibliotecario` abre a área de administração
@@ -71,12 +78,15 @@ A interface MUST permitir acesso às ações administrativas somente após auten
 
 #### Scenario: Estudante ou visitante tenta acessar a administração
 - **WHEN** estudante autenticado ou visitante abre uma rota ou tenta uma ação administrativa
-- **THEN** a interface bloqueia ou redireciona o acesso e não envia requisição de escrita
+- **THEN** a interface bloqueia ou redireciona o acesso e não envia requisição administrativa
 
 #### Scenario: Backend recusa operação administrativa
 - **WHEN** o backend recusa a operação por perfil insuficiente
 - **THEN** a interface não indica sucesso e informa a recusa sem expor detalhes internos
 
+#### Scenario: Admin autenticado acessa administração do acervo
+- **WHEN** usuário autenticado com perfil `admin` abre a área de administração
+- **THEN** a interface permite as mesmas ações administrativas disponíveis ao bibliotecário e envia as operações com a sessão autenticada em cada chamada
 ### Requirement: Cadastro de título usa somente os campos definidos
 A interface MUST enviar somente os campos aceitos pelo endpoint local de criação de título e usar o registro retornado para obter seu identificador.
 
@@ -87,7 +97,6 @@ A interface MUST enviar somente os campos aceitos pelo endpoint local de criaç�
 #### Scenario: Envio do título
 - **WHEN** bibliotecário confirma o cadastro com os dados válidos do formulário
 - **THEN** a interface envia somente `titulo`, `autores`, `isbn`, `editora`, `edicao`, `ano_publicacao` e `descricao` para `POST /catalogo/titulos` e obtém `id` do registro retornado
-
 ### Requirement: Título pode ser associado a categorias existentes
 A interface MUST permitir selecionar categorias obtidas da listagem pública e associá-las ao título recém-criado usando os identificadores retornados pelos endpoints.
 
@@ -102,22 +111,25 @@ A interface MUST permitir selecionar categorias obtidas da listagem pública e a
 #### Scenario: Título já associado à categoria ou referência inválida
 - **WHEN** a associação é recusada por duplicidade ou referência inexistente
 - **THEN** a interface informa a falha sem indicar associação inexistente como concluída e permite retomar sem recriar o título
-
 ### Requirement: Bibliotecário pode criar exemplares físicos do título
-A interface MUST permitir criar uma quantidade solicitada de exemplares para um título existente, enviando somente seu `titulo_id` e exibindo o código de tombo gerado pelo servidor para cada exemplar criado.
+
+A interface MUST permitir criar exemplares para título novo ou existente, enviando somente o identificador do título e exibindo o código de tombo gerado pelo servidor para cada unidade.
 
 #### Scenario: Criar exemplares
-- **WHEN** bibliotecário solicita um ou mais exemplares para um título criado
-- **THEN** a interface repete `POST /admin/exemplares` com `titulo_id` para cada unidade e apresenta os registros e códigos de tombo retornados
+- **WHEN** bibliotecário ou admin conclui o cadastro de um título e solicita exemplares
+- **THEN** a interface cria cada unidade para o título e apresenta os registros e códigos de tombo retornados
 
 #### Scenario: Falha parcial ao criar exemplares
-- **WHEN** uma das chamadas sequenciais de criação falha após outras terem sido confirmadas
+- **WHEN** uma chamada sequencial de criação falha após outras terem sido confirmadas
 - **THEN** a interface distingue as unidades criadas das pendentes e não repete automaticamente escritas já confirmadas
 
 #### Scenario: Resposta não contém identificador ou código esperado
 - **WHEN** uma resposta bem-sucedida de criação não contém os campos necessários definidos pela implementação local
 - **THEN** a interface informa que o resultado precisa ser conferido, não presume sucesso completo e não repete automaticamente a escrita
 
+#### Scenario: Adicionar exemplares a título existente
+- **WHEN** bibliotecário ou admin seleciona título existente e solicita um ou mais exemplares
+- **THEN** a interface cria as unidades para o identificador selecionado e apresenta os registros e códigos de tombo retornados
 ### Requirement: Interface pública apresenta títulos e disponibilidade
 A interface MUST permitir que visitantes e estudantes consultem o catálogo público por lista e detalhe, sem autenticação, exibindo a quantidade de exemplares disponíveis informada pelo serviço.
 
@@ -128,7 +140,6 @@ A interface MUST permitir que visitantes e estudantes consultem o catálogo púb
 #### Scenario: Consultar disponibilidade no detalhe
 - **WHEN** visitante ou estudante abre o detalhe de um título
 - **THEN** a interface apresenta a quantidade de exemplares disponíveis retornada pelo serviço, sem expor dados pessoais de estudantes
-
 ### Requirement: Busca, filtros e ordenação do catálogo são aplicados em memória
 A interface MUST permitir refinar os títulos carregados sem enviar filtros ou ordenações adicionais ao backend.
 
@@ -159,7 +170,6 @@ A interface MUST permitir refinar os títulos carregados sem enviar filtros ou o
 #### Scenario: Remover filtro de categoria
 - **WHEN** visitante seleciona novamente todas as categorias
 - **THEN** a interface remove apenas o filtro de categoria e preserva busca, disponibilidade e ordenação
-
 ### Requirement: Estudante inicia solicitação a partir do catálogo
 A interface MUST permitir que estudante autenticado inicie o fluxo de empréstimo ou reserva de um título do catálogo, submetendo a decisão final de disponibilidade e elegibilidade ao backend.
 
@@ -178,3 +188,71 @@ A interface MUST permitir que estudante autenticado inicie o fluxo de empréstim
 #### Scenario: Visitante ou bibliotecário tenta iniciar o fluxo de estudante
 - **WHEN** pessoa sem perfil estudante tenta enviar uma solicitação pelo catálogo
 - **THEN** a interface bloqueia a ação e o backend continua responsável por recusar a operação não autorizada
+### Requirement: Bibliotecário consulta o acervo administrativo completo
+
+O sistema MUST permitir a bibliotecários e admins autenticados consultar todos os títulos, exemplares e estados operacionais, inclusive itens indisponíveis e títulos desativados.
+
+#### Scenario: Consultar acervo completo
+- **WHEN** bibliotecário ou admin abre a área administrativa do acervo
+- **THEN** recebe todos os títulos e seus exemplares com os estados necessários à gestão, sem expor dados pessoais de estudantes
+
+#### Scenario: Consultar título desativado
+- **WHEN** bibliotecário ou admin consulta o acervo que contém título desativado
+- **THEN** o título permanece visível e identificado como desativado, com seu histórico preservado
+
+#### Scenario: Perfil sem privilégio tenta consultar acervo completo
+- **WHEN** visitante ou estudante tenta consultar a listagem administrativa
+- **THEN** o backend recusa a consulta e não revela os dados administrativos
+### Requirement: Bibliotecário edita metadados de título existente
+
+O sistema MUST permitir a bibliotecários e admins autenticados editar os metadados permitidos de um título existente sem alterar seu identificador, exemplares ou histórico.
+
+#### Scenario: Atualização válida
+- **WHEN** bibliotecário ou admin envia metadados válidos para título existente
+- **THEN** os metadados são atualizados e o identificador e os registros relacionados permanecem preservados
+
+#### Scenario: Título inexistente
+- **WHEN** operação de edição referencia título inexistente
+- **THEN** o backend recusa a atualização sem criar outro título
+
+#### Scenario: Perfil sem privilégio tenta editar título
+- **WHEN** estudante ou visitante tenta editar metadados de título
+- **THEN** o backend recusa a alteração sem modificar o acervo
+### Requirement: Título é desativado logicamente e reativado com histórico preservado
+
+O sistema MUST usar o estado `ativo` do título para remoção lógica e reativação, sem excluir fisicamente título ou histórico, e deve revalidar empréstimos e reservas no backend antes da desativação.
+
+#### Scenario: Desativar título sem empréstimo ou reserva ativa
+- **WHEN** bibliotecário ou admin solicita desativar título sem empréstimo ativo e sem reserva ativa associada ao título ou a seus exemplares
+- **THEN** o backend marca o título como inativo, preserva os registros relacionados e remove o título do catálogo público
+
+#### Scenario: Bloquear desativação com empréstimo ativo
+- **WHEN** título ou exemplar associado possui empréstimo não devolvido, considerando `devolvido_em` nulo ou zero como não devolvido
+- **THEN** o backend recusa a desativação e mantém o título ativo e os registros inalterados
+
+#### Scenario: Bloquear desativação com reserva ativa
+- **WHEN** título ou exemplar associado possui reserva ativa segundo os estados definidos pelo contrato de reservas
+- **THEN** o backend recusa a desativação e mantém o título ativo e a fila inalterada
+
+#### Scenario: Reativar título
+- **WHEN** bibliotecário ou admin reativa título desativado
+- **THEN** o título volta a ser elegível para consulta pública, sem recriar o registro nem alterar o histórico existente
+
+#### Scenario: Perfil sem privilégio tenta desativar ou reativar
+- **WHEN** estudante ou visitante solicita desativação ou reativação
+- **THEN** o backend recusa a operação sem alterar o título
+### Requirement: Dados de demonstração são idempotentes
+
+A API simulada MUST oferecer um catálogo de demonstração com metadados bibliográficos, categorias, exemplares e contas de teste, sem texto de obras, e repetir o seed não pode duplicar registros.
+
+#### Scenario: Inicializar catálogo de demonstração
+- **WHEN** a API simulada é inicializada ou o seed local é chamado
+- **THEN** existem cerca de 30 títulos reais com título, autor e pelo menos uma categoria, quantidades variadas de exemplares, pelo menos seis categorias e contas de teste de estudante, bibliotecário e admin com e-mails `@example.invalid`
+
+#### Scenario: Repetir seed local
+- **WHEN** o seed da API simulada é executado mais de uma vez
+- **THEN** títulos, categorias, vínculos, exemplares e contas existentes não são duplicados nem sobrescritos
+
+#### Scenario: Preparar seed Xano
+- **WHEN** o script de seed Xano é preparado para execução futura
+- **THEN** ele usa contratos existentes de catálogo, lê endereço/token do ambiente de execução, inicia sem escritas e não é executado durante esta Change

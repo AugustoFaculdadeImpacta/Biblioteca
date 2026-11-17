@@ -453,3 +453,46 @@ As fases funcionais avançaram parcialmente. A tentativa de seed remoto foi inte
   e 8011/PID 9240. As portas 3000 e 8765 estão livres. O commit do relatório
   foi enviado pela branch autorizada; `.gitignore` e `.mcp.json` seguem fora
   do commit.
+
+## Continuação — redução das Changes, 2026-11-17
+
+### Inventário antes dos archives
+
+`openspec.cmd list --json` antes desta rodada:
+
+```json
+{
+  "changes": [
+    {"name": "devolvido-em-nulavel", "completedTasks": 0, "totalTasks": 20, "status": "in-progress"},
+    {"name": "validacao-remota-xano", "completedTasks": 0, "totalTasks": 15, "status": "in-progress"},
+    {"name": "execucao-reflex-windows", "completedTasks": 6, "totalTasks": 7, "status": "in-progress"},
+    {"name": "perfil-admin-xano", "completedTasks": 11, "totalTasks": 15, "status": "in-progress"},
+    {"name": "acervo-bibliotecario", "completedTasks": 24, "totalTasks": 25, "status": "in-progress"},
+    {"name": "reserva-pelo-bibliotecario", "completedTasks": 10, "totalTasks": 12, "status": "in-progress"}
+  ],
+  "root": {"path": "C:\\Users\\User\\Biblioteca\\Biblioteca\\Biblioteca", "source": "nearest"}
+}
+```
+
+### Resultado
+
+- [x] Os deltas de acervo, reservas, perfil e execução Reflex estão alinhados às specs principais. Comparação dos requisitos delta: 32 verificados, 0 divergências. `openspec.cmd validate --specs --strict` passou com 7 specs e 0 falhas antes do archive.
+- [x] `acervo-bibliotecario`, `reserva-pelo-bibliotecario` e `perfil-admin-xano` arquivadas após confirmar seus artefatos e tarefas locais completos; as tarefas remotas pendentes foram transferidas, sem serem marcadas como feitas, para `validacao-remota-xano`. A validação estrita passou depois de cada archive.
+- [x] `devolvido-em-nulavel` arquivada sem sincronizar specs: o status OpenSpec não lista delta specs; a inspeção anterior via pull somente de definições trouxe 67 documentos. O campo remoto e `xano/table/emprestimo.xs` são nullable e o cliente local aceita `None` e `0`. Não foram consultados registros remotos. As 20 tarefas permanecem não concluídas; a conclusão é que a alteração proposta é desnecessária diante das evidências de schema e código, não que os testes de migração foram executados.
+- [B] `execucao-reflex-windows` permanece ativa em 6/7. A tarefa 1.3 continua aberta porque a corrida conhecida está no Reflex instalado e não há correção segura confirmada no código do projeto; nenhum arquivo de `.venv`/`site-packages` foi alterado.
+- [B] `openspec.cmd validate --archived --strict` encontrou 20 Changes arquivadas válidas e uma inválida: `2026-11-17-devolvido-em-nulavel`, por manter honestamente 20/20 tarefas não realizadas. Não foram marcadas como concluídas nem removidas para mascarar a pendência. As specs estritas passaram após cada archive.
+- [x] `docs/mapa-changes.md` atualizado para refletir as duas Changes ativas e as quatro arquivadas.
+
+Lista final capturada por `openspec.cmd list --json`:
+
+```json
+{
+  "changes": [
+    {"name": "validacao-remota-xano", "completedTasks": 0, "totalTasks": 22, "status": "in-progress"},
+    {"name": "execucao-reflex-windows", "completedTasks": 6, "totalTasks": 7, "status": "in-progress"}
+  ],
+  "root": {"path": "C:\\Users\\User\\Biblioteca\\Biblioteca\\Biblioteca", "source": "nearest"}
+}
+```
+
+Resultado final: 2 Changes ativas; quatro Changes arquivadas; as 7 tarefas transferidas para `validacao-remota-xano` continuam abertas. Os `tasks.md` arquivados mantêm sem conclusão tarefas que não foram realizadas. Validação estrita repetida após cada archive: 7 specs, 0 falhas.

@@ -34,3 +34,15 @@
 - `perfil-admin-xano`: itens remotos de perfil, acesso administrativo e limpeza de contas sintéticas.
 - `devolvido-em-nulavel`: análise do campo `devolvido_em`, bloqueada até confirmação oficial do schema.
 - `execucao-reflex-windows`: acompanhamento da execução local e do problema `psutil.NoSuchProcess` sem alterar `site-packages`.
+
+## Tarefas transferidas das Changes locais
+
+As tarefas abaixo continuam abertas e não foram executadas nesta rodada:
+
+- [ ] `acervo-bibliotecario` 2.5 — sincronização, prova de concorrência, testes sintéticos, pull de conferência e limpeza no Xano remoto.
+- [ ] `reserva-pelo-bibliotecario` 2.3 — confirmar execução e atomicidade FIFO no Xano real.
+- [ ] `reserva-pelo-bibliotecario` 2.4 — executar fixtures, limpeza individual e conferência remota.
+- [ ] `perfil-admin-xano` 1.3 — provar o enum em tabela descartável, confirmar os três perfis, limpar tabela/registro e verificar GET 404.
+- [ ] `perfil-admin-xano` 2.2 — publicar `usuario.xs` com dry-run unitário, push autorizado e pull de conferência.
+- [ ] `perfil-admin-xano` 2.4 — publicar individualmente os endpoints de autorização com dry-run, push e pull de conferência por arquivo.
+- [ ] `perfil-admin-xano` 2.6 — executar testes Xano com contas sintéticas, limpar fixtures pela Metadata API e confirmar respostas 404 e contagens finais.
