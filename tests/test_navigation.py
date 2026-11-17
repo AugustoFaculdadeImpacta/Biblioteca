@@ -199,7 +199,7 @@ def test_site_header_brand_and_footer_links_preserve_profile_access():
     assert "contato" not in footer.lower()
     assert "privacidade" not in footer.lower()
     assert style[".brand-tagline"]["font_size"] == "0.8rem"
-    assert style[".nav-dropdown summary"]["min_height"] == "2.5rem"
+    assert style[".nav-dropdown summary"]["min_height"] == "2.75rem"
 
 
 def test_accessibility_font_limits_restoration_and_invalid_storage():

@@ -102,10 +102,10 @@ def test_text_controls_have_explicit_theme_aware_colors_and_focus():
     controls_style = app.style[
         "input:not([type='checkbox']):not([type='radio']), textarea, select"
     ]
-    assert controls_style["color"] == "var(--gray-12)"
-    assert controls_style["background_color"] == "var(--gray-1)"
-    assert app.style[".signup-input"]["color"] == "var(--gray-12)"
-    assert app.style[".signup-input"]["background_color"] == "var(--gray-1)"
+    assert controls_style["color"] == "var(--slate-900)"
+    assert controls_style["background_color"] == "var(--bg-panel)"
+    assert app.style[".signup-input"]["color"] == "var(--slate-900)"
+    assert app.style[".signup-input"]["background_color"] == "var(--bg-panel)"
     assert any(
         type(plugin).__name__ == "RadixThemesPlugin" and plugin.theme is not None
         for plugin in config.plugins
@@ -114,10 +114,68 @@ def test_text_controls_have_explicit_theme_aware_colors_and_focus():
 
 def test_authentication_forms_use_responsive_cards_and_distinct_feedback():
     assert app.style[".signup-section"]["width"] == "min(100%, 34rem)"
-    assert app.style[".signup-section"]["background_color"] == "var(--gray-1)"
+    assert app.style[".signup-section"]["background_color"] == "var(--bg-panel)"
     assert app.style[".signup-form"]["width"] == "100%"
-    assert app.style[".signup-feedback-error"]["color"] == "var(--red-12)"
-    assert app.style[".signup-feedback-success"]["color"] == "var(--green-12)"
+    assert app.style[".signup-feedback-error"]["color"] == "var(--danger-700)"
+    assert app.style[".signup-feedback-success"]["color"] == "var(--success-700)"
+
+
+def test_forms_and_admin_panels_use_shared_visual_states():
+    tokens = app.style[".a11y-shell"]
+    for selector in (
+        ".student-library-section",
+        ".catalog-controls",
+        ".admin-catalog-section",
+        ".admin-title-card",
+        ".librarian-management-section",
+        ".librarian-card",
+    ):
+        panel = app.style[selector]
+        assert panel["border"].startswith("1px solid var(--line)")
+        assert panel["background_color"] == "var(--bg-panel)"
+        assert panel["box_shadow"] == "var(--shadow-soft)"
+
+    assert app.style[".admin-title-edit-form"]["background_color"] == "var(--bg-soft)"
+    assert app.style[".librarian-form"]["background_color"] == "var(--bg-soft)"
+    assert app.style[".signup-feedback-error"]["background_color"] == (
+        "var(--danger-100)"
+    )
+    assert app.style[".signup-feedback-success"]["background_color"] == (
+        "var(--success-100)"
+    )
+    assert app.style[
+        ".content-section > [role='status'], .catalog-section > [role='status']"
+    ]["background_color"] == "var(--brand-100)"
+    assert app.style[
+        ".content-section > [role='alert']:not(.signup-feedback)"
+    ]["background_color"] == "var(--warning-100)"
+    assert _contrast_ratio(tokens["--danger-700"], tokens["--danger-100"]) >= 4.5
+
+
+def test_touch_targets_and_keyboard_accessibility_at_mobile_viewport():
+    for selector in (
+        "button, [role='button'], [role='checkbox'], [role='switch'], [role='radio']",
+        "input:not([type='checkbox']):not([type='radio']), textarea, select",
+        ".site-nav a",
+        ".nav-dropdown summary",
+        ".nav-dropdown a",
+        ".admin-view-mode button",
+        ".admin-view-reset",
+        ".a11y-menu summary",
+        ".a11y-controls button",
+        ".catalog-card-link",
+        ".footer-links a, .brand-link",
+        ".skip-link",
+    ):
+        assert app.style[selector]["min_height"] == "2.75rem"
+
+    mobile_styles = app.style["@media screen and (max-width: 40rem)"]
+    assert mobile_styles["a"]["min_height"] == "2.75rem"
+    assert mobile_styles["a"]["display"] == "inline-flex"
+    assert app.style[":focus-visible"] == {
+        "outline": "3px solid var(--brand-700)",
+        "outline_offset": "3px",
+    }
 
 
 def test_shared_navigation_is_conditioned_on_private_session_profile():
