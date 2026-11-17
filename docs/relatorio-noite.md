@@ -571,7 +571,7 @@ Saída de `openspec.cmd list --json`:
 ```json
 {
   "changes": [
-    {"name": "refino-visual-biblioteca", "completedTasks": 0, "totalTasks": 6, "lastModified": "2026-11-17T21:33:57.912Z", "status": "in-progress"},
+    {"name": "refino-visual-biblioteca", "completedTasks": 0, "totalTasks": 6, "lastModified": "2026-11-17T21:38:35.608Z", "status": "in-progress"},
     {"name": "validacao-remota-xano", "completedTasks": 0, "totalTasks": 22, "lastModified": "2026-11-17T05:16:18.677Z", "status": "in-progress"},
     {"name": "execucao-reflex-windows", "completedTasks": 6, "totalTasks": 7, "lastModified": "2026-11-15T17:36:02.160Z", "status": "in-progress"}
   ],
