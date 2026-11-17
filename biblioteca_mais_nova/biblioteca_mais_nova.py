@@ -325,19 +325,25 @@ class State(rx.State):
                 f"{title['titulo']} {title['autores']}"
             ):
                 continue
+            category_text = ", ".join(
+                category_names[category_id]
+                for category_id in sorted(category_ids)
+                if category_id in category_names
+            ) or "Sem categoria"
+            cover_initial, cover_variant = _catalog_cover_identity(
+                category_text,
+                title["titulo"],
+            )
             visible.append(
                 {
                     "id": title["id"],
                     "titulo": title["titulo"],
                     "autores": title["autores"],
-                    "categorias": ", ".join(
-                        category_names[category_id]
-                        for category_id in sorted(category_ids)
-                        if category_id in category_names
-                    )
-                    or "Sem categoria",
+                    "categorias": category_text,
                     "exemplares_disponiveis": available,
                     "href": f"/catalogo/{title['id']}",
+                    "cover_initial": cover_initial,
+                    "cover_variant": cover_variant,
                 }
             )
         return sorted(
@@ -361,21 +367,27 @@ class State(rx.State):
                 association["categoria_id"]
                 for association in entry["categorias"]
             }
+            category_text = ", ".join(
+                category_names[category_id]
+                for category_id in sorted(category_ids)
+                if category_id in category_names
+            ) or "Sem categoria"
+            cover_initial, cover_variant = _catalog_cover_identity(
+                category_text,
+                title["titulo"],
+            )
             featured.append(
                 {
                     "id": title["id"],
                     "titulo": title["titulo"],
                     "autores": title["autores"],
-                    "categorias": ", ".join(
-                        category_names[category_id]
-                        for category_id in sorted(category_ids)
-                        if category_id in category_names
-                    )
-                    or "Sem categoria",
+                    "categorias": category_text,
                     "exemplares_disponiveis": entry[
                         "exemplares_disponiveis"
                     ],
                     "href": f"/catalogo/{title['id']}",
+                    "cover_initial": cover_initial,
+                    "cover_variant": cover_variant,
                 }
             )
         return sorted(
@@ -2005,6 +2017,26 @@ def _catalog_search_key(value: str) -> str:
     )
 
 
+def _catalog_cover_identity(category_text: str, title_name: str) -> tuple[str, int]:
+    category_name = category_text.split(",", maxsplit=1)[0].strip()
+    cover_source = (
+        category_name
+        if category_name and category_name != "Sem categoria"
+        else title_name.strip()
+    )
+    initial = next(
+        (character.upper() for character in cover_source if character.isalpha()),
+        "?",
+    )
+    normalized = _catalog_search_key(cover_source)
+    variant = sum(
+        position * ord(character)
+        for position, character in enumerate(normalized, start=1)
+        if character.isalnum()
+    ) % 5
+    return initial, variant
+
+
 def _as_utc_datetime(value: object) -> datetime | None:
     if type(value) in {int, float}:
         try:
@@ -2078,7 +2110,24 @@ def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
     title_name = title["titulo"].to(str)
     category_text = title["categorias"].to(str)
     available_count = title["exemplares_disponiveis"].to(int)
-    initial = "L"
+    cover_variant = title["cover_variant"].to(int)
+    cover_class = rx.cond(
+        cover_variant == 0,
+        "catalog-card-cover catalog-cover-0",
+        rx.cond(
+            cover_variant == 1,
+            "catalog-card-cover catalog-cover-1",
+            rx.cond(
+                cover_variant == 2,
+                "catalog-card-cover catalog-cover-2",
+                rx.cond(
+                    cover_variant == 3,
+                    "catalog-card-cover catalog-cover-3",
+                    "catalog-card-cover catalog-cover-4",
+                ),
+            ),
+        ),
+    )
     return rx.el.article(
         rx.el.div(
             rx.el.span(
@@ -2090,8 +2139,12 @@ def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
                 class_name="catalog-tag",
             ),
             rx.el.div(
-                rx.el.span(initial, class_name="catalog-cover-initial"),
-                class_name="catalog-card-cover",
+                rx.el.span(
+                    title["cover_initial"],
+                    class_name="catalog-cover-initial",
+                ),
+                class_name=cover_class,
+                aria_hidden="true",
             ),
             class_name="catalog-card-visual",
         ),
@@ -2102,7 +2155,10 @@ def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
             rx.cond(
                 available_count > 0,
                 rx.el.span("Disponível", class_name="status-pill status-pill-success"),
-                rx.el.span("Em espera", class_name="status-pill status-pill-muted"),
+                rx.el.span(
+                    "Indisponível",
+                    class_name="status-pill status-pill-muted",
+                ),
             ),
             rx.text(
                 "Exemplares disponíveis: ",
@@ -4381,9 +4437,9 @@ app = rx.App(
             "gap": "0.75rem",
             "min_width": "0",
             "padding": "1.25rem",
-            "border": "1px solid #dbe3ef",
+            "border": "1px solid var(--line)",
             "border_radius": "0.9rem",
-            "background_color": "#ffffff",
+            "background_color": "var(--bg-panel)",
             "box_shadow": "0 0.35rem 1rem rgba(24, 43, 73, 0.06)",
             "transition": "border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease",
         },
@@ -4402,11 +4458,28 @@ app = rx.App(
             "display": "flex",
             "align_items": "center",
             "justify_content": "center",
-            "min_height": "6rem",
+            "width": "100%",
+            "min_height": "11rem",
+            "aspect_ratio": "0.72",
             "border": "1px solid rgba(24, 58, 74, 0.12)",
             "border_radius": "0.8rem",
-            "background": "linear-gradient(135deg, #183a4a 0%, #2d7287 52%, #dfeef2 100%)",
+            "background_color": "var(--brand-900)",
             "color": "#ffffff",
+        },
+        ".catalog-cover-0": {
+            "background_color": "var(--brand-900)",
+        },
+        ".catalog-cover-1": {
+            "background_color": "var(--success-700)",
+        },
+        ".catalog-cover-2": {
+            "background_color": "var(--warning-700)",
+        },
+        ".catalog-cover-3": {
+            "background_color": "var(--danger-700)",
+        },
+        ".catalog-cover-4": {
+            "background_color": "#3f4f6b",
         },
         ".catalog-cover-initial": {
             "font_family": "Georgia, 'Times New Roman', serif",
@@ -4430,7 +4503,7 @@ app = rx.App(
         },
         ".catalog-card p": {
             "margin": "0",
-            "color": "#475569",
+            "color": "var(--slate-700)",
             "font_size": "0.95rem",
         },
         ".card-header-row": {
@@ -4760,6 +4833,10 @@ app = rx.App(
             ".signup-section": {
                 "margin": "1rem auto",
                 "padding": "1.25rem 1rem",
+            },
+            ".catalog-controls": {
+                "grid_template_columns": "minmax(0, 1fr)",
+                "padding": "0.75rem",
             },
             ".librarian-card": {
                 "width": "100%",

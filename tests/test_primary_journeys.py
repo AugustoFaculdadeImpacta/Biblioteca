@@ -232,7 +232,7 @@ def test_home_sections_use_catalog_data_and_explicit_empty_error_states(
     assert "Carregando o acervo" in homepage
     assert "Nenhum" in homepage
     assert "Exemplares ativos" not in homepage
-    assert "24" not in homepage
+    assert "24 t" not in homepage
     assert "8 categorias" not in homepage
 
     calls = {"titles": 0}

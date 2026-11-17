@@ -14,7 +14,7 @@
 
 ## 4. Cartões e catálogo
 
-- [ ] 4.1 Melhorar capa CSS determinística, autoria, disponibilidade, ações, busca e filtros; adicionar `test_catalog_card_derives_cover_fallback_from_category_and_title` e `test_catalog_controls_and_card_states_are_responsive` em `tests/test_catalog.py`, sem ampliar o contrato Xano, executar compilação e suíte pytest completas, medir grade/overflow/alvos em 360 px e 1366 px, registrar hash/testes/métricas e se a inspeção visual foi feita, então criar commit pequeno em português.
+- [B] 4.1 Melhorar capa CSS determinística, autoria, disponibilidade, ações, busca e filtros; adicionar `test_catalog_card_derives_cover_fallback_from_category_and_title` e `test_catalog_controls_and_card_states_are_responsive` em `tests/test_catalog.py`, sem ampliar o contrato Xano, executar compilação e suíte pytest completas, medir grade/overflow/alvos em 360 px e 1366 px, registrar hash/testes/métricas e se a inspeção visual foi feita, então criar commit pequeno em português. Motivo: compilação passou e a suíte completa passou (209) com `REFLEX_SKIP_COMPILE` após o pytest padrão encadear uma tentativa de instalação congelada e falhar por lockfile divergente; não há métricas DOM nem capturas válidas porque o navegador integrado não hidrata a página após o erro de conexão.
 
 ## 5. Formulários, painéis e estados
 

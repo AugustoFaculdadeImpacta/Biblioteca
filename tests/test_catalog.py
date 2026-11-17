@@ -372,6 +372,69 @@ def test_public_catalog_state_loads_data_without_exposing_session(monkeypatch):
     asyncio.run(verify_state())
 
 
+def test_catalog_card_derives_cover_fallback_from_category_and_title():
+    async def verify_card_data():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"catalog-cover-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state.public_catalog_categories = [{"id": 3, "nome": "Literatura"}]
+            state.public_catalog_entries = [
+                {
+                    "titulo": {
+                        "id": 81,
+                        "titulo": "A Ilha",
+                        "autores": "Ana",
+                        "ativo": True,
+                    },
+                    "categorias": [{"categoria_id": 3}],
+                    "exemplares_disponiveis": 1,
+                }
+            ]
+
+            categorized = state.filtered_public_catalog[0]
+            assert categorized["cover_initial"] == "L"
+            assert categorized["cover_variant"] == (
+                frontend._catalog_cover_identity("Literatura", "A Ilha")[1]
+            )
+
+            state.public_catalog_categories = []
+            state.public_catalog_entries[0]["categorias"] = []
+            fallback = state.filtered_public_catalog[0]
+            assert fallback["categorias"] == "Sem categoria"
+            assert fallback["cover_initial"] == "A"
+            assert fallback["cover_variant"] == (
+                frontend._catalog_cover_identity("", "A Ilha")[1]
+            )
+
+    asyncio.run(verify_card_data())
+
+
+def test_catalog_controls_and_card_states_are_responsive():
+    catalog = repr(frontend.public_catalog())
+    style = frontend.app.style
+
+    assert "Buscar por" in catalog
+    assert "Somente dispon" in catalog
+    assert "Dispon" in catalog
+    assert "Indisp" in catalog
+    assert "Ver detalhes" in catalog
+    assert "repeat(auto-fit" in style[".catalog-grid"]["grid_template_columns"]
+    assert "repeat(auto-fit" in style[".catalog-controls"]["grid_template_columns"]
+    assert style[".catalog-card-cover"]["aspect_ratio"] == "0.72"
+    assert style[".catalog-card-cover"]["min_height"] == "11rem"
+    assert style[".catalog-cover-0"]["background_color"] == "var(--brand-900)"
+    assert style[".catalog-cover-1"]["background_color"] == "var(--success-700)"
+    assert style[".catalog-cover-2"]["background_color"] == "var(--warning-700)"
+    assert style[".catalog-cover-3"]["background_color"] == "var(--danger-700)"
+    assert (
+        style["@media screen and (max-width: 40rem)"][".catalog-controls"][
+            "grid_template_columns"
+        ]
+        == "minmax(0, 1fr)"
+    )
+
+
 def test_public_catalog_filters_accented_search_category_availability_and_sort():
     async def verify_filters():
         async with frontend.app.modify_state(
