@@ -73,7 +73,7 @@ def test_signup_route_has_labeled_fields_in_keyboard_order_and_visible_focus():
         and "/login" in repr(component)
     )
     assert frontend.app.style[":focus-visible"] == {
-        "outline": "3px solid var(--blue-9)",
+        "outline": "3px solid var(--brand-700)",
         "outline_offset": "3px",
     }
 

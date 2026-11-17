@@ -3746,7 +3746,7 @@ def accessible_page(page: Callable[[], rx.Component]) -> Callable[[], rx.Compone
 
 app = rx.App(
     style={
-        ":root": {
+        ".a11y-shell": {
             "--bg-page": "#f5efe4",
             "--bg-panel": "#fffdf8",
             "--bg-soft": "#edf4ef",
@@ -3762,7 +3762,7 @@ app = rx.App(
             "--danger-100": "#f9d8d8",
             "--slate-900": "#1f2c38",
             "--slate-700": "#405468",
-            "--slate-500": "#607287",
+            "--slate-500": "#526371",
             "--sand-200": "#efe4d0",
             "--sand-100": "#f8f4ee",
             "--line": "#d8d2c7",
@@ -3845,10 +3845,10 @@ app = rx.App(
         ".admin-view-reset": {
             "min_height": "2.5rem",
             "padding": "0.4rem 0.75rem",
-            "border": "1px solid #b9c9e2",
+            "border": "1px solid var(--line)",
             "border_radius": "0.5rem",
-            "background_color": "#ffffff",
-            "color": "#174ea6",
+            "background_color": "var(--bg-panel)",
+            "color": "var(--brand-700)",
             "font_weight": "600",
             "cursor": "pointer",
         },
@@ -3865,9 +3865,9 @@ app = rx.App(
             "padding": "0.5rem 0.75rem",
             "font_weight": "600",
             "cursor": "pointer",
-            "border": "1px solid #dbe3ef",
+            "border": "1px solid var(--line)",
             "border_radius": "0.55rem",
-            "background_color": "#f8fafc",
+            "background_color": "var(--bg-panel)",
         },
         ".a11y-controls": {
             "display": "flex",
@@ -3880,10 +3880,10 @@ app = rx.App(
             "min_height": "2.5rem",
             "max_width": "100%",
             "padding": "0.4rem 0.65rem",
-            "border": "1px solid var(--gray-7)",
+            "border": "1px solid var(--line)",
             "border_radius": "0.4rem",
-            "background_color": "var(--gray-1)",
-            "color": "var(--gray-12)",
+            "background_color": "var(--bg-panel)",
+            "color": "var(--slate-900)",
             "cursor": "pointer",
             "overflow_wrap": "anywhere",
         },
@@ -3921,15 +3921,15 @@ app = rx.App(
         ".nav-logout": {
             "min_height": "2.5rem",
             "padding": "0.4rem 0.75rem",
-            "border": "1px solid #b9c9e2",
+            "border": "1px solid var(--line)",
             "border_radius": "0.5rem",
-            "background_color": "#eef4ff",
-            "color": "#174ea6",
+            "background_color": "var(--brand-100)",
+            "color": "var(--brand-900)",
             "font_weight": "600",
             "cursor": "pointer",
         },
         ".nav-logout:hover": {
-            "background_color": "#dce9fb",
+            "background_color": "var(--bg-soft)",
         },
         ".main-content": {
             "width": "100%",
@@ -4430,25 +4430,25 @@ app = rx.App(
             "min_height": "2.5rem",
             "padding": "0.45rem 0.65rem",
             "border_radius": "0.5rem",
-            "color": "#174ea6",
+            "color": "var(--brand-700)",
             "font_weight": "600",
             "font_size": "0.95rem",
             "text_decoration": "none",
             "overflow_wrap": "anywhere",
         },
         ".site-nav a:hover": {
-            "background_color": "#eef4ff",
+            "background_color": "var(--brand-100)",
         },
         "a": {
-            "color": "var(--blue-11)",
+            "color": "var(--brand-700)",
             "text_underline_offset": "0.2em",
         },
         ".site-footer": {
             "max_width": "72rem",
             "margin": "0 auto",
             "padding": "1.25rem 1rem",
-            "border_top": "1px solid var(--gray-6)",
-            "color": "#475569",
+            "border_top": "1px solid var(--line)",
+            "color": "var(--slate-700)",
             "font_size": "0.9rem",
         },
         ".skip-link": {
@@ -4458,15 +4458,23 @@ app = rx.App(
             "z_index": "10",
             "padding": "0.75rem 1rem",
             "border_radius": "0.5rem",
-            "background_color": "var(--gray-1)",
-            "color": "var(--blue-11)",
+            "background_color": "var(--bg-panel)",
+            "color": "var(--brand-700)",
         },
         ".skip-link:focus-visible": {
             "top": "1rem",
         },
         ":focus-visible": {
-            "outline": "3px solid var(--blue-9)",
+            "outline": "3px solid var(--brand-700)",
             "outline_offset": "3px",
+        },
+        "@media (prefers-reduced-motion: reduce)": {
+            "*, *::before, *::after": {
+                "animation_duration": "0.01ms !important",
+                "animation_iteration_count": "1 !important",
+                "scroll_behavior": "auto !important",
+                "transition_duration": "0.01ms !important",
+            },
         },
         "@media screen and (max-width: 40rem)": {
             ".app-shell": {

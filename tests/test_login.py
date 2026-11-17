@@ -60,7 +60,7 @@ def test_login_page_has_only_labeled_email_and_password_fields():
         and "/cadastro" in repr(component)
     )
     assert frontend.app.style[":focus-visible"] == {
-        "outline": "3px solid var(--blue-9)",
+        "outline": "3px solid var(--brand-700)",
         "outline_offset": "3px",
     }
 

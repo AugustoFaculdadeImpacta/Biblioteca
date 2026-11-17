@@ -11,6 +11,26 @@ def _components(component: rx.Component):
             yield from _components(child)
 
 
+def _contrast_ratio(foreground: str, background: str) -> float:
+    def luminance(color: str) -> float:
+        channels = [int(color[index : index + 2], 16) / 255 for index in (1, 3, 5)]
+        linear = [
+            channel / 12.92
+            if channel <= 0.04045
+            else ((channel + 0.055) / 1.055) ** 2.4
+            for channel in channels
+        ]
+        return sum(
+            weight * channel
+            for weight, channel in zip(linear, (0.2126, 0.7152, 0.0722))
+        )
+
+    light, dark = sorted(
+        (luminance(foreground), luminance(background)), reverse=True
+    )
+    return (light + 0.05) / (dark + 0.05)
+
+
 def test_index_renders_navigable_application_shell():
     page = index()
     components = list(_components(page))
@@ -52,9 +72,29 @@ def test_focusable_field_and_button_have_visible_keyboard_focus_style():
     assert "RadixThemesTextField.Root" in aliases
     assert "RadixThemesButton" in aliases
     assert app.style[":focus-visible"] == {
-        "outline": "3px solid var(--blue-9)",
+        "outline": "3px solid var(--brand-700)",
         "outline_offset": "3px",
     }
+
+
+def test_visual_tokens_keep_accessible_contrast_and_reduced_motion():
+    tokens = app.style[".a11y-shell"]
+    assert tokens["--bg-page"] == "#f5efe4"
+    assert tokens["--brand-900"] == "#183a4a"
+    assert tokens["--success-700"] == "#245c45"
+    assert tokens["--warning-700"] == "#8b5e17"
+    assert _contrast_ratio(tokens["--slate-500"], tokens["--bg-page"]) >= 4.5
+    assert _contrast_ratio(tokens["--brand-700"], tokens["--bg-panel"]) >= 4.5
+    assert _contrast_ratio(tokens["--success-700"], tokens["--success-100"]) >= 4.5
+    assert _contrast_ratio(tokens["--warning-700"], tokens["--warning-100"]) >= 4.5
+    assert app.style["font_family"] == "system-ui, 'Segoe UI', sans-serif"
+    assert app.style["h1, h2, h3, h4, h5, h6"]["font_family"] == (
+        "Georgia, 'Times New Roman', serif"
+    )
+    assert app.style[":focus-visible"]["outline"].startswith("3px solid")
+    assert app.style["@media (prefers-reduced-motion: reduce)"][
+        "*, *::before, *::after"
+    ]["transition_duration"] == "0.01ms !important"
 
 
 def test_text_controls_have_explicit_theme_aware_colors_and_focus():

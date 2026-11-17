@@ -79,7 +79,7 @@ def test_catalog_form_has_only_defined_fields_and_category_selection():
     )
     assert description.name._var_value == "descricao"
     assert frontend.app.style[":focus-visible"] == {
-        "outline": "3px solid var(--blue-9)",
+        "outline": "3px solid var(--brand-700)",
         "outline_offset": "3px",
     }
 
