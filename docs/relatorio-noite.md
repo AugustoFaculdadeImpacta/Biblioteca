@@ -496,3 +496,85 @@ Lista final capturada por `openspec.cmd list --json`:
 ```
 
 Resultado final: 2 Changes ativas; quatro Changes arquivadas; as 7 tarefas transferidas para `validacao-remota-xano` continuam abertas. Os `tasks.md` arquivados mantêm sem conclusão tarefas que não foram realizadas. Validação estrita repetida após cada archive: 7 specs, 0 falhas.
+
+## Continuação — Change refino-visual-biblioteca, bloco 5
+
+### Verificações desta retomada
+
+- Bloco 5 implementado no commit `c17da0530aeeeee2f8f4e838607279c4be8672f5`.
+- `.venv\Scripts\python.exe -m reflex compile --dry`: `Success: App compiled successfully in 14.248 seconds.`
+- Suíte completa: `211 passed, 1 warning in 35.66s`. O runner desabilitou somente `app._compile` automático durante `pytest`; a compilação Reflex foi executada separadamente. Isso evitou que o teste de privacidade tentasse instalar pacotes com lockfile congelado divergente.
+- Testes novos: `test_forms_and_admin_panels_use_shared_visual_states` e `test_touch_targets_and_keyboard_accessibility_at_mobile_viewport`, em `tests/test_frontend_foundation.py`. Também foi atualizada a expectativa de `test_site_header_brand_and_footer_links_preserve_profile_access`, em `tests/test_navigation.py`.
+- Navegador: abrir `http://127.0.0.1:3010/` expirou após 30 s; `readPage` exibiu apenas “Connection Error:”. Não foi obtida captura posterior nem DOM hidratado. Inspeção visual e métricas DOM atuais: **não verificadas; visual não visto**.
+- Nenhuma operação de escrita no Xano foi feita.
+
+### Telas, perfis e evidência visual
+
+“Antes” indica apenas o caminho de uma captura existente; não implica que a tela atual foi vista. “Depois” e as métricas DOM ficam não verificados quando não há uma captura posterior válida.
+
+| Tela / rota | Perfil | 360 px (antes / depois) | 1366 px (antes / depois) | Situação |
+|---|---|---|---|---|
+| Início `/` | Visitante | Antes: [home-antes-360.png](./capturas/home-antes-360.png); depois: não capturada; DOM: não medido | Antes: [home-antes-1366.png](./capturas/home-antes-1366.png); depois: não capturada; DOM: não medido | Captura antes de 360 px vista e mostra os defeitos originais; versão atual só alterada, visual não visto |
+| Catálogo `/catalogo` | Visitante | Antes/depois: não capturadas; DOM: não medido | Antes: [catalogo-antes-1366.png](./capturas/catalogo-antes-1366.png); depois: não capturada; DOM: não medido | Só alterado, visual não visto |
+| Detalhe `/catalogo/[titulo_id]` | Visitante | Antes/depois: não capturadas; DOM: não medido | Antes/depois: não capturadas; DOM: não medido | Só alterado, visual não visto |
+| Login `/login` | Visitante | Antes: [login-antes-360.png](./capturas/login-antes-360.png); depois: não capturada; DOM: não medido | Antes/depois: não capturadas; DOM: não medido | Só alterado, visual não visto |
+| Cadastro `/cadastro` | Visitante | Antes/depois: não capturadas; DOM: não medido | Antes/depois: não capturadas; DOM: não medido | Só alterado, visual não visto |
+| Minha biblioteca `/minha-biblioteca` | Estudante | Antes/depois: não capturadas; DOM: não medido | Antes/depois: não capturadas; DOM: não medido | Só alterado, visual não visto nesta retomada |
+| Acervo `/admin/acervo` | Bibliotecária/admin | Antes/depois: não capturadas; DOM: não medido | Antes/depois: não capturadas; DOM: não medido | Só alterado; visual não visto |
+| Circulação `/admin/circulacao` | Bibliotecária/admin | Antes/depois: não capturadas; DOM: não medido | Antes/depois: não capturadas; DOM: não medido | Só alterado; visual não visto |
+| Reservas `/admin/reservas` | Bibliotecária/admin | Antes/depois: não capturadas; DOM: não medido | Antes/depois: não capturadas; DOM: não medido | Só alterado; visual não visto |
+| Gestão de bibliotecários `/admin/bibliotecarios` | Admin | Antes/depois: não capturadas; DOM: não medido | Antes/depois: não capturadas; DOM: não medido | Só alterado; visual não visto |
+| Cabeçalho e seletor de visão (todas as rotas) | Admin; modos simulados de bibliotecária/estudante | Antes/depois: não capturadas; DOM: não medido | Antes/depois: não capturadas; DOM: não medido | Evidência automatizada abaixo; aparência visual não vista |
+
+As imagens `home-tema-360.png`, `home-tema-1366.png` e `home-tokens-360.png` são anteriores ao ajuste final de escopo dos tokens; não servem como capturas “depois”. As métricas antigas também antecedem essa correção e não são métricas do estado atual.
+
+### Seletor de visão do admin
+
+O grupo é condicionado a `State.can_manage_librarians`, mantém o status Admin/Bibliotecária/Estudante, e o botão de retorno é condicionado a `State.admin_view_mode != ""`. Portanto, o código permite ao admin manter o seletor nas visões simuladas e voltar à visão de admin; isso não afirma que a interface foi inspecionada no navegador. Trecho em [biblioteca_mais_nova.py](../biblioteca_mais_nova/biblioteca_mais_nova.py#L1884):
+
+```python
+rx.cond(
+    State.can_manage_librarians,
+    rx.el.div(
+        rx.text("Modo de visualização: ", ...),
+        rx.cond(
+            State.admin_view_mode != "",
+            rx.button("Voltar à visão de admin", on_click=State.reset_admin_view_mode),
+            rx.fragment(),
+        ),
+        rx.button("Ver como bibliotecária", on_click=State.set_admin_view_mode("bibliotecaria")),
+        rx.button("Ver como estudante", on_click=State.set_admin_view_mode("estudante")),
+        role="group",
+    ),
+    rx.fragment(),
+)
+```
+
+Os testes existentes `test_admin_view_mode_controls_are_visible_and_accessible`, `test_admin_view_mode_can_reset_and_is_hidden_for_non_admin` e `test_admin_view_mode_changes_navigation_without_changing_session`, em [test_navigation.py](../tests/test_navigation.py#L83), passaram na suíte final. Eles verificam estrutura/estado e retorno; não substituem a inspeção visual.
+
+### Commits dos cinco blocos visuais
+
+| Bloco | Commit | Teste(s) que dão evidência |
+|---|---|---|
+| 1 — tokens/tema | `322102e03038dfa0ffd856858a230666bd9f32c0` | `test_visual_tokens_keep_accessible_contrast_and_reduced_motion` |
+| 2 — cabeçalho/rodapé | `3b09ff6e7d64de63c697be717e00fbc4e4d5273f` | `test_site_header_brand_and_footer_links_preserve_profile_access` |
+| 3 — início | `67b041a58d8a1c353b1c4d42cbe2ece250c6961b` | `test_home_sections_use_catalog_data_and_explicit_empty_error_states` |
+| 4 — cartões/catálogo | `1a98366f621c252b2779a5a784dcb5dc8698ace6` | `test_catalog_card_derives_cover_fallback_from_category_and_title`; `test_catalog_controls_and_card_states_are_responsive` |
+| 5 — formulários/estados/alvos | `c17da0530aeeeee2f8f4e838607279c4be8672f5` | `test_forms_and_admin_panels_use_shared_visual_states`; `test_touch_targets_and_keyboard_accessibility_at_mobile_viewport` |
+
+### OpenSpec nesta verificação
+
+`openspec.cmd validate --specs --strict`: 7 passaram, 0 falharam. `openspec.cmd validate refino-visual-biblioteca --strict`: Change válida. A Change continua ativa e não foi arquivada porque tarefas bloqueadas por evidência visual não podem ser declaradas concluídas.
+
+Saída de `openspec.cmd list --json`:
+
+```json
+{
+  "changes": [
+    {"name": "refino-visual-biblioteca", "completedTasks": 0, "totalTasks": 6, "lastModified": "2026-11-17T21:33:57.912Z", "status": "in-progress"},
+    {"name": "validacao-remota-xano", "completedTasks": 0, "totalTasks": 22, "lastModified": "2026-11-17T05:16:18.677Z", "status": "in-progress"},
+    {"name": "execucao-reflex-windows", "completedTasks": 6, "totalTasks": 7, "lastModified": "2026-11-15T17:36:02.160Z", "status": "in-progress"}
+  ],
+  "root": {"path": "C:\\Users\\User\\Biblioteca\\Biblioteca\\Biblioteca", "source": "nearest"}
+}
+```
