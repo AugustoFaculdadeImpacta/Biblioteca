@@ -1944,7 +1944,13 @@ def admin_view_status() -> rx.Component:
 def profile_menu() -> rx.Component:
     return rx.menu.root(
         rx.menu.trigger(
-            "Perfil",
+            rx.button(
+                "Perfil",
+                type="button",
+                aria_label="Abrir menu Perfil",
+                class_name="profile-menu-trigger",
+            ),
+            as_child=True,
             aria_label="Abrir menu Perfil",
             class_name="profile-menu-trigger",
         ),

@@ -418,11 +418,19 @@ def test_page_bodies_do_not_duplicate_global_navigation():
 
 
 def test_profile_menu_for_visitor_has_login_and_signup():
-    menu = _readable(frontend.profile_menu())
+    component = frontend.profile_menu()
+    menu = _readable(component)
+    trigger = next(
+        item
+        for item in _components(component)
+        if item.alias == "RadixThemesDropdownMenu.Trigger"
+    )
 
     assert "RadixThemesDropdownMenu.Root" in menu
     assert "RadixThemesDropdownMenu.Trigger" in menu
     assert "RadixThemesDropdownMenu.Content" in menu
+    assert len(trigger.children) == 1
+    assert trigger.children[0].alias == "RadixThemesButton"
     assert "Perfil" in menu
     assert "Entrar" in menu
     assert "Cadastrar-se" in menu
