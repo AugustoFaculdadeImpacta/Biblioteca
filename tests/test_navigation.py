@@ -123,6 +123,41 @@ def test_home_has_no_login_or_signup_form_and_keeps_profile_shortcuts():
     asyncio.run(verify_search())
 
 
+def test_login_page_contains_only_login_form():
+    page = _readable(frontend.login_page())
+    components = list(_components(frontend.login_page()))
+    input_ids = {
+        component.id
+        for component in components
+        if component.alias == "RadixThemesTextField.Root"
+    }
+
+    assert "form-login" in page
+    assert "login-email" in input_ids
+    assert "login-senha" in input_ids
+    assert "form-cadastro-estudante" not in page
+    assert "signup-nome" not in input_ids
+    assert "signup-email" not in input_ids
+    assert "Ver catálogo sem entrar" in page
+
+
+def test_signup_page_contains_only_signup_form():
+    page = _readable(frontend.student_signup())
+    components = list(_components(frontend.student_signup()))
+    input_ids = {
+        component.id
+        for component in components
+        if component.alias == "RadixThemesTextField.Root"
+    }
+
+    assert "form-cadastro-estudante" in page
+    assert {"signup-nome", "signup-email", "signup-senha"} <= input_ids
+    assert "form-login" not in page
+    assert "login-email" not in input_ids
+    assert "login-senha" not in input_ids
+    assert "Já tem conta? Entrar" in page
+
+
 def test_navigation_changes_by_profile_and_logout_clears_session():
     async def verify():
         async with frontend.app.modify_state(
