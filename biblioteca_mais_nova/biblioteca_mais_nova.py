@@ -605,6 +605,14 @@ class State(rx.State):
         self.public_catalog_search = value
 
     @rx.event
+    def search_home_catalog(self, form_data: dict[str, Any]):
+        value = form_data.get("busca", "")
+        if not isinstance(value, str):
+            raise ValueError("O termo de busca precisa ser um texto.")
+        self.public_catalog_search = value.strip()
+        return rx.redirect("/catalogo")
+
+    @rx.event
     def set_public_catalog_category(self, value: str):
         if not value:
             self.public_catalog_category_id = ""
@@ -2726,10 +2734,44 @@ def index() -> rx.Component:
                             "Explore o acervo, acompanhe empréstimos e reservas e aproveite uma biblioteca que combina tradição e praticidade.",
                             class_name="hero-copy",
                         ),
+                        rx.form(
+                            rx.el.label(
+                                "Buscar no catálogo",
+                                html_for="home-catalog-search",
+                                class_name="signup-label",
+                            ),
+                            rx.hstack(
+                                rx.input(
+                                    id="home-catalog-search",
+                                    name="busca",
+                                    type="search",
+                                    aria_label="Buscar livros por título ou autoria",
+                                    class_name="signup-input",
+                                ),
+                                rx.button(
+                                    "Buscar",
+                                    type="submit",
+                                    class_name="primary-cta",
+                                ),
+                                align="center",
+                                width="100%",
+                                class_name="home-search-controls",
+                            ),
+                            id="form-busca-home",
+                            on_submit=State.search_home_catalog,
+                            reset_on_submit=False,
+                            class_name="home-search-form",
+                        ),
                         rx.hstack(
                             rx.link("Ver catálogo", href="/catalogo", class_name="primary-cta"),
-                            rx.link("Entrar", href="/login", class_name="secondary-cta"),
-                            rx.link("Ir ao login", href="#conteudo-login", class_name="secondary-cta"),
+                            rx.cond(
+                                State.is_authenticated,
+                                rx.fragment(),
+                                rx.fragment(
+                                    rx.link("Entrar", href="/login", class_name="secondary-cta"),
+                                    rx.link("Cadastrar-se", href="/cadastro", class_name="secondary-cta"),
+                                ),
+                            ),
                             flex_wrap="wrap",
                             align="center",
                             gap="3",
@@ -2742,20 +2784,45 @@ def index() -> rx.Component:
                     class_name="hero-layout",
                 ),
                 rx.el.div(
-                    rx.link("Catálogo público", href="/catalogo", class_name="feature-card"),
                     rx.cond(
-                        State.is_authenticated,
-                        rx.link("Minha biblioteca", href="/minha-biblioteca", class_name="feature-card"),
-                        rx.link("Entrar para reservar", href="/login", class_name="feature-card"),
-                    ),
-                    rx.cond(
-                        State.is_librarian,
-                        rx.link("Painel da bibliotecária", href="/admin/acervo", class_name="feature-card"),
+                        State.active_navigation_role == "Estudante",
+                        rx.link(
+                            "Minha biblioteca",
+                            href="/minha-biblioteca",
+                            class_name="feature-card",
+                        ),
                         rx.fragment(),
                     ),
                     rx.cond(
-                        State.can_manage_librarians,
-                        rx.link("Gestão de perfis", href="/admin/bibliotecarios", class_name="feature-card"),
+                        State.active_navigation_role == "Bibliotecária",
+                        rx.fragment(
+                            rx.link(
+                                "Acervo",
+                                href="/admin/acervo",
+                                class_name="feature-card",
+                            ),
+                            rx.link(
+                                "Circulação",
+                                href="/admin/circulacao",
+                                class_name="feature-card",
+                            ),
+                        ),
+                        rx.fragment(),
+                    ),
+                    rx.cond(
+                        State.active_navigation_role == "Admin",
+                        rx.fragment(
+                            rx.link(
+                                "Acervo",
+                                href="/admin/acervo",
+                                class_name="feature-card",
+                            ),
+                            rx.link(
+                                "Contas",
+                                href="/admin/bibliotecarios",
+                                class_name="feature-card",
+                            ),
+                        ),
                         rx.fragment(),
                     ),
                     class_name="hero-quick-links",
@@ -2863,51 +2930,6 @@ def index() -> rx.Component:
                 ),
                 id="explorar-categorias",
                 class_name="content-section catalog-section home-catalog-section",
-            ),
-            rx.el.section(
-                rx.heading("Entrar na biblioteca", size="5"),
-                rx.text("Acesse sua conta com e-mail e senha."),
-                rx.form(
-                    rx.el.label(
-                        "E-mail",
-                        html_for="login-email",
-                        class_name="signup-label",
-                    ),
-                    rx.input(
-                        id="login-email",
-                        name="email",
-                        type="email",
-                        required=True,
-                        aria_label="E-mail",
-                        class_name="signup-input",
-                    ),
-                    rx.el.label(
-                        "Senha",
-                        html_for="login-senha",
-                        class_name="signup-label",
-                    ),
-                    rx.input(
-                        id="login-senha",
-                        name="senha",
-                        type="password",
-                        required=True,
-                        aria_label="Senha",
-                        class_name="signup-input",
-                    ),
-                    rx.button(
-                        "Entrar",
-                        type="submit",
-                        class_name="focus-demo-button",
-                    ),
-                    id="form-login-home",
-                    on_submit=State.submit_login,
-                    reset_on_submit=False,
-                    class_name="signup-form",
-                ),
-                rx.link("Ver catálogo sem entrar", href="/catalogo"),
-                rx.link("Não tem conta? Cadastre-se", href="/cadastro"),
-                id="conteudo-login",
-                class_name="content-section signup-section",
             ),
             class_name="main-content",
         ),

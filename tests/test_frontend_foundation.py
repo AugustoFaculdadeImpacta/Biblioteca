@@ -55,13 +55,16 @@ def test_index_renders_navigable_application_shell():
     assert "/admin/acervo" in nav_content
     assert "Início" not in repr(page)
     assert "Acessibilidade" in repr(page)
-    assert r"Ver cat\\u00e1logo sem entrar" in repr(page)
     assert "#conteudo-home" in repr(page.children[0].children)
-    assert "#conteudo-login" in repr(page)
-    assert {field.id for field in fields} >= {"login-email", "login-senha"}
+    assert "form-busca-home" in repr(page)
+    assert {field.id for field in fields} == {"home-catalog-search"}
     assert all(getattr(field, "disabled", None) is None for field in fields)
     assert getattr(button, "disabled", None) is None
-    assert any(component.id == "conteudo-login" for component in components)
+    assert not any(component.id == "conteudo-login" for component in components)
+    assert not any(
+        component.id in {"login-email", "login-senha"}
+        for component in components
+    )
 
 
 def test_focusable_field_and_button_have_visible_keyboard_focus_style():

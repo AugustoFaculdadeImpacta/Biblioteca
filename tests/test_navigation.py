@@ -70,11 +70,14 @@ def _readable(component: rx.Component) -> str:
     )
 
 
-def test_homepage_is_login_and_authenticated_sessions_go_to_catalog():
+def test_homepage_is_storefront_and_authenticated_sessions_go_to_catalog():
     homepage = repr(frontend.index())
     assert "Entrar" in homepage
-    assert "login-email" in homepage
-    assert "login-senha" in homepage
+    assert "Cadastrar-se" in homepage
+    assert "home-catalog-search" in homepage
+    assert "login-email" not in homepage
+    assert "login-senha" not in homepage
+    assert "form-login-home" not in homepage
     assert "/cadastro" in homepage
 
     async def verify():
@@ -92,6 +95,32 @@ def test_homepage_is_login_and_authenticated_sessions_go_to_catalog():
             assert state.greeting_name == "Ana Silva"
 
     asyncio.run(verify())
+
+
+def test_home_has_no_login_or_signup_form_and_keeps_profile_shortcuts():
+    homepage = _readable(frontend.index())
+    assert "form-busca-home" in homepage
+    assert "Buscar no catálogo" in homepage
+    assert "home-catalog-search" in homepage
+    assert "type:\"password\"" not in homepage
+    assert "login-email" not in homepage
+    assert "login-senha" not in homepage
+    assert "Entrar" in homepage
+    assert "Cadastrar-se" in homepage
+    assert "Minha biblioteca" in homepage
+    assert "Acervo" in homepage
+    assert "Contas" in homepage
+
+    async def verify_search():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"home-search-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            redirect = state.search_home_catalog({"busca": "  A Ilha  "})
+            assert state.public_catalog_search == "A Ilha"
+            assert "/catalogo" in repr(redirect)
+
+    asyncio.run(verify_search())
 
 
 def test_navigation_changes_by_profile_and_logout_clears_session():
