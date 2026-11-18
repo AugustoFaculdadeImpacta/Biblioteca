@@ -283,7 +283,8 @@ def test_home_sections_use_catalog_data_and_explicit_empty_error_states(
 
             state._store_session("token-falso-home", "estudante")
             redirect = await state.load_home()
-            assert "/catalogo" in repr(redirect)
+            assert redirect is None
+            assert state.public_catalog_has_error is True
             assert calls["titles"] == 2
 
     asyncio.run(verify())

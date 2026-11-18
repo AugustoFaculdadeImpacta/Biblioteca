@@ -548,10 +548,22 @@ class State(rx.State):
             return rx.redirect("/login")
         return rx.redirect("/")
 
+    def _profile_home_path(self) -> str:
+        if self._is_admin() and self.admin_view_mode == "estudante":
+            return "/"
+        if self._is_librarian():
+            return "/admin/acervo"
+        return "/"
+
+    @rx.event
+    def redirect_authenticated_auth_page(self):
+        if self._session_token:
+            return rx.redirect(self._profile_home_path())
+
     @rx.event
     def redirect_authenticated_home(self):
         if self._session_token:
-            return rx.redirect("/catalogo")
+            return rx.redirect(self._profile_home_path())
 
     @rx.event
     def logout(self):
@@ -633,8 +645,6 @@ class State(rx.State):
 
     @rx.event
     async def load_home(self):
-        if self._session_token:
-            return rx.redirect("/catalogo")
         await self.load_public_catalog()
 
     @rx.event
@@ -906,9 +916,7 @@ class State(rx.State):
             session["usuario"]["perfil"],
             session["usuario"]["nome"],
         )
-        if self._is_librarian():
-            return rx.redirect("/admin/acervo")
-        return rx.redirect("/")
+        return rx.redirect(self._profile_home_path())
 
     @rx.event
     async def load_librarians(self):
@@ -5108,8 +5116,14 @@ app.add_page(
     accessible_page(student_signup),
     route="/cadastro",
     title="Cadastro de estudante",
+    on_load=State.redirect_authenticated_auth_page,
 )
-app.add_page(accessible_page(login_page), route="/login", title="Entrar")
+app.add_page(
+    accessible_page(login_page),
+    route="/login",
+    title="Entrar",
+    on_load=State.redirect_authenticated_auth_page,
+)
 app.add_page(
     accessible_page(public_catalog),
     route="/catalogo",

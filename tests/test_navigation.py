@@ -91,8 +91,39 @@ def test_homepage_is_storefront_and_authenticated_sessions_go_to_catalog():
                 "token-falso-estudante", "estudante", "Ana Silva"
             )
             redirect = state.redirect_authenticated_home()
-            assert "/catalogo" in repr(redirect)
+            assert "'/'" in repr(redirect)
             assert state.greeting_name == "Ana Silva"
+
+    asyncio.run(verify())
+
+
+def test_authenticated_users_redirect_from_auth_pages_to_profile_home():
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"auth-page-redirect-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            assert state.redirect_authenticated_auth_page() is None
+
+            state._store_session("token-estudante-redirect", "estudante")
+            redirect = state.redirect_authenticated_auth_page()
+            assert "'/'" in repr(redirect)
+
+            state._store_session("token-bibliotecario-redirect", "bibliotecario")
+            redirect = state.redirect_authenticated_auth_page()
+            assert "/admin/acervo" in repr(redirect)
+
+            state._store_session("token-admin-redirect", "admin")
+            redirect = state.redirect_authenticated_auth_page()
+            assert "/admin/acervo" in repr(redirect)
+
+            state.set_admin_view_mode("bibliotecaria")
+            redirect = state.redirect_authenticated_auth_page()
+            assert "/admin/acervo" in repr(redirect)
+
+            state.set_admin_view_mode("estudante")
+            redirect = state.redirect_authenticated_auth_page()
+            assert "'/'" in repr(redirect)
 
     asyncio.run(verify())
 
