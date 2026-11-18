@@ -284,6 +284,7 @@ def test_signup_event_keeps_token_and_password_out_of_client_state_and_logs(
             public_state = state.dict()
             assert state._read_session_token() == session_token
             assert state.is_authenticated is True
+            assert state.session_email == "ana@escola.edu.br"
             assert state.signup_has_error is False
             assert state.signup_success_message == (
                 "Cadastro realizado. Seu acesso de estudante está ativo."

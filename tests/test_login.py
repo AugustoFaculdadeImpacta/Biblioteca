@@ -277,6 +277,7 @@ def test_login_event_keeps_token_profile_and_password_private(
             assert state._session_profile == profile
             assert state.is_authenticated is True
             assert state.login_has_error is False
+            assert state.session_email == payload["email"]
             for value in (session_token, password):
                 assert value not in json.dumps(delta, default=str)
                 assert value not in json.dumps(public_state, default=str)

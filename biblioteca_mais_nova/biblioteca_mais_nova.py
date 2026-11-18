@@ -198,6 +198,10 @@ class State(rx.State):
         return self._session_name if self._session_token else ""
 
     @rx.var
+    def session_email(self) -> str:
+        return self._session_email if self._session_token else ""
+
+    @rx.var
     def session_role_label(self) -> str:
         return {
             "estudante": "Estudante",
@@ -561,6 +565,11 @@ class State(rx.State):
             return rx.redirect(self._profile_home_path())
 
     @rx.event
+    def require_authenticated_user(self):
+        if not self._session_token:
+            return rx.redirect("/login")
+
+    @rx.event
     def redirect_authenticated_home(self):
         if self._session_token:
             return rx.redirect(self._profile_home_path())
@@ -887,6 +896,7 @@ class State(rx.State):
             session["authToken"],
             "estudante",
             str(session["usuario"]["nome"]),
+            str(session["usuario"]["email"]),
         )
         self.signup_success_message = (
             "Cadastro realizado. Seu acesso de estudante está ativo."
@@ -915,6 +925,7 @@ class State(rx.State):
             session["authToken"],
             session["usuario"]["perfil"],
             session["usuario"]["nome"],
+            session["usuario"]["email"],
         )
         return rx.redirect(self._profile_home_path())
 
@@ -3106,6 +3117,127 @@ def login_page() -> rx.Component:
     )
 
 
+def profile_page() -> rx.Component:
+    return rx.box(
+        rx.link(
+            "Pular para o conteúdo",
+            href="#conteudo-perfil",
+            class_name="skip-link",
+        ),
+        site_header(),
+        rx.el.main(
+            rx.el.section(
+                rx.heading("Meu perfil", size="7"),
+                rx.text(
+                    "Informações da conta vinculada à sua sessão.",
+                    class_name="hero-copy",
+                ),
+                rx.el.dl(
+                    rx.el.dt("Nome"),
+                    rx.el.dd(State.greeting_name),
+                    rx.el.dt("E-mail"),
+                    rx.el.dd(State.session_email),
+                    rx.el.dt("Papel"),
+                    rx.el.dd(State.session_role_label),
+                    class_name="profile-details",
+                ),
+                id="conteudo-perfil",
+                class_name="content-section signup-section",
+            ),
+            class_name="main-content",
+        ),
+        site_footer(),
+        class_name="app-shell",
+    )
+
+
+def accessibility_controls() -> rx.Component:
+    return rx.el.section(
+        rx.heading("Controles de acessibilidade", size="5"),
+        rx.text(
+            "Tamanho atual da fonte: ",
+            State.accessibility_font_size,
+            role="status",
+            aria_live="polite",
+        ),
+        rx.el.div(
+            rx.button(
+                "Diminuir fonte",
+                type="button",
+                on_click=State.decrease_accessibility_font,
+                disabled=State.accessibility_font_scale <= 100,
+                class_name="a11y-control-button",
+            ),
+            rx.button(
+                "Tamanho padrão",
+                type="button",
+                on_click=State.reset_accessibility_font,
+                class_name="a11y-control-button",
+            ),
+            rx.button(
+                "Aumentar fonte",
+                type="button",
+                on_click=State.increase_accessibility_font,
+                disabled=State.accessibility_font_scale >= 150,
+                class_name="a11y-control-button",
+            ),
+            class_name="a11y-controls",
+        ),
+        rx.el.div(
+            rx.button(
+                rx.cond(
+                    State.accessibility_high_contrast,
+                    "Alto contraste: ativo",
+                    "Ativar alto contraste",
+                ),
+                type="button",
+                aria_pressed=State.accessibility_high_contrast,
+                on_click=State.toggle_accessibility_high_contrast,
+                class_name="a11y-control-button",
+            ),
+            rx.button(
+                rx.cond(
+                    State.accessibility_reduce_motion,
+                    "Movimento reduzido: ativo",
+                    "Reduzir movimento",
+                ),
+                type="button",
+                aria_pressed=State.accessibility_reduce_motion,
+                on_click=State.toggle_accessibility_reduce_motion,
+                class_name="a11y-control-button",
+            ),
+            class_name="a11y-controls",
+        ),
+        id="controles-acessibilidade",
+        class_name="content-section accessibility-controls-section",
+    )
+
+
+def accessibility_page() -> rx.Component:
+    return rx.box(
+        rx.link(
+            "Pular para o conteúdo",
+            href="#conteudo-acessibilidade",
+            class_name="skip-link",
+        ),
+        site_header(),
+        rx.el.main(
+            rx.el.section(
+                rx.heading("Acessibilidade", size="7"),
+                rx.text(
+                    "Personalize a leitura para tornar a navegação mais confortável."
+                ),
+                accessibility_controls(),
+                id="conteudo-acessibilidade",
+                class_name="content-section",
+            ),
+            class_name="main-content",
+        ),
+        site_footer(),
+        class_name="app-shell",
+    )
+
+
 def catalog_category_option(category: rx.Var[dict[str, Any]]) -> rx.Component:
     return rx.checkbox(
         text=category["nome"],
@@ -4310,6 +4442,25 @@ app = rx.App(
             "margin": "0.3rem 0",
             "background_color": "var(--line)",
         },
+        ".profile-details": {
+            "display": "grid",
+            "grid_template_columns": "minmax(7rem, 0.35fr) minmax(0, 1fr)",
+            "gap": "0.75rem 1rem",
+            "max_width": "100%",
+            "padding": "1rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.75rem",
+            "background_color": "var(--bg-panel)",
+        },
+        ".profile-details dt": {
+            "font_weight": "700",
+            "color": "var(--slate-700)",
+        },
+        ".profile-details dd": {
+            "margin": "0",
+            "overflow_wrap": "anywhere",
+            "color": "var(--slate-900)",
+        },
         ".admin-view-band": {
             "display": "flex",
             "flex_wrap": "wrap",
@@ -5123,6 +5274,17 @@ app.add_page(
     route="/login",
     title="Entrar",
     on_load=State.redirect_authenticated_auth_page,
+)
+app.add_page(
+    accessible_page(profile_page),
+    route="/perfil",
+    title="Meu perfil",
+    on_load=State.require_authenticated_user,
+)
+app.add_page(
+    accessible_page(accessibility_page),
+    route="/acessibilidade",
+    title="Acessibilidade",
 )
 app.add_page(
     accessible_page(public_catalog),

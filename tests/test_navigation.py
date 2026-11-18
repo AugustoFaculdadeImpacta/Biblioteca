@@ -363,6 +363,8 @@ def _route_components():
         "/": frontend.index,
         "/login": frontend.login_page,
         "/cadastro": frontend.student_signup,
+        "/perfil": frontend.profile_page,
+        "/acessibilidade": frontend.accessibility_page,
         "/catalogo": frontend.public_catalog,
         "/catalogo/[titulo_id]": frontend.public_catalog_detail,
         "/minha-biblioteca": frontend.student_library,
@@ -403,6 +405,62 @@ def test_profile_menu_for_authenticated_user_has_profile_accessibility_and_logou
     assert "Meu perfil" in menu
     assert "Acessibilidade" in menu
     assert "Sair" in menu
+
+
+def test_profile_page_shows_session_identity_read_only():
+    page = frontend.profile_page()
+    text = _readable(page)
+    components = list(_components(page))
+
+    assert "Meu perfil" in text
+    assert "Nome" in text
+    assert "E-mail" in text
+    assert "Papel" in text
+    assert "greeting_name_rx_state_" in text
+    assert "session_email_rx_state_" in text
+    assert "session_role_label_rx_state_" in text
+    assert not any(
+        component.alias == "RadixThemesTextField.Root"
+        for component in components
+    )
+    assert "type:\"password\"" not in text
+
+    async def verify_session_identity():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"profile-readonly-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            assert "'/login'" in repr(state.require_authenticated_user())
+            state._store_session(
+                "token-profile-readonly",
+                "estudante",
+                "Pessoa de teste",
+                "perfil@example.test",
+            )
+            assert state.require_authenticated_user() is None
+            assert state.greeting_name == "Pessoa de teste"
+            assert state.session_email == "perfil@example.test"
+            assert state.session_role_label == "Estudante"
+
+    asyncio.run(verify_session_identity())
+
+
+def test_accessibility_page_reuses_existing_controls():
+    page = _readable(frontend.accessibility_page())
+    style = frontend.app.style
+
+    assert "Acessibilidade" in page
+    assert "Controles de acessibilidade" in page
+    assert "Diminuir fonte" in page
+    assert "Tamanho padrão" in page
+    assert "Aumentar fonte" in page
+    assert "Ativar alto contraste" in page
+    assert "Reduzir movimento" in page
+    assert "increase_accessibility_font" in page
+    assert "toggle_accessibility_high_contrast" in page
+    assert "toggle_accessibility_reduce_motion" in page
+    assert "aria-pressed" in page
+    assert style[".a11y-controls button"]["min_height"] == "2.75rem"
 
 
 def test_navigation_items_follow_profile_and_active_view():
