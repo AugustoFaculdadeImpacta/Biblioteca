@@ -35,7 +35,7 @@ def test_index_renders_navigable_application_shell():
     page = index()
     components = list(_components(page))
     nav = next(component for component in components if type(component).__name__ == "Nav")
-    links = nav.children
+    nav_content = repr(nav)
     fields = [
         component
         for component in components
@@ -48,18 +48,16 @@ def test_index_renders_navigable_application_shell():
     )
 
     assert nav.custom_attrs["aria-label"] == "Navegação principal"
-    assert len(links) == 2
-    nav_content = repr(links)
     assert "/catalogo" in nav_content
-    assert "/cadastro" in nav_content
-    assert "/login" in nav_content
+    assert "active_navigation_role_rx_state_" in nav_content
+    assert "/cadastro" in repr(page)
+    assert "/login" in repr(page)
     assert "/admin/acervo" in nav_content
-    assert "Início" not in nav_content
+    assert "Início" not in repr(page)
     assert "Acessibilidade" in repr(page)
     assert r"Ver cat\\u00e1logo sem entrar" in repr(page)
     assert "#conteudo-home" in repr(page.children[0].children)
     assert "#conteudo-login" in repr(page)
-    assert all(getattr(link, "tab_index", None) is None for link in links)
     assert {field.id for field in fields} >= {"login-email", "login-senha"}
     assert all(getattr(field, "disabled", None) is None for field in fields)
     assert getattr(button, "disabled", None) is None
@@ -156,12 +154,11 @@ def test_touch_targets_and_keyboard_accessibility_at_mobile_viewport():
     for selector in (
         "button, [role='button'], [role='checkbox'], [role='switch'], [role='radio']",
         "input:not([type='checkbox']):not([type='radio']), textarea, select",
-        ".site-nav a",
-        ".nav-dropdown summary",
-        ".nav-dropdown a",
-        ".admin-view-mode button",
+        ".site-primary-nav a",
+        ".site-menu-toggle",
+        ".profile-menu-trigger",
+        ".profile-menu-content [role='menuitem']",
         ".admin-view-reset",
-        ".a11y-menu summary",
         ".a11y-controls button",
         ".catalog-card-link",
         ".footer-links a, .brand-link",
@@ -172,6 +169,10 @@ def test_touch_targets_and_keyboard_accessibility_at_mobile_viewport():
     mobile_styles = app.style["@media screen and (max-width: 40rem)"]
     assert mobile_styles["a"]["min_height"] == "2.75rem"
     assert mobile_styles["a"]["display"] == "inline-flex"
+    assert mobile_styles[".site-header"]["grid_template_columns"] == (
+        "minmax(0, 1fr) auto"
+    )
+    assert mobile_styles[".site-menu-toggle"]["display"] == "inline-flex"
     assert app.style[":focus-visible"] == {
         "outline": "3px solid var(--brand-700)",
         "outline_offset": "3px",
@@ -181,19 +182,24 @@ def test_touch_targets_and_keyboard_accessibility_at_mobile_viewport():
 def test_shared_navigation_is_conditioned_on_private_session_profile():
     header = site_header()
     components = list(_components(header))
-    nav = next(component for component in components if type(component).__name__ == "Nav")
+    navs = [
+        component
+        for component in components
+        if type(component).__name__ == "Nav"
+    ]
 
-    assert nav.custom_attrs["aria-label"] == "Navegação principal"
-    nav_content = repr(nav)
-    assert "is_authenticated_rx_state_" in nav_content
-    assert "is_librarian_rx_state_" in nav_content
-    assert "greeting_name_rx_state_" in nav_content
-    assert "Início" not in nav_content
-    assert "logout" in nav_content
+    assert len(navs) == 2
+    assert all(
+        nav.custom_attrs["aria-label"] == "Navegação principal"
+        for nav in navs
+    )
+    nav_content = repr(navs[0])
+    assert "active_navigation_role_rx_state_" in nav_content
+    assert "Início" not in repr(header)
+    assert "Meu perfil" in repr(header)
     assert "Acessibilidade" in repr(header)
-    assert "Aumentar fonte" in repr(header)
-    assert "Alto contraste" in repr(header)
-    assert "accessibility_reduce_motion_rx_state_" in repr(header)
+    assert "Aumentar fonte" not in repr(header)
+    assert "aria-controls" in repr(header)
 
 
 def test_accessibility_high_contrast_and_reduced_motion_styles():

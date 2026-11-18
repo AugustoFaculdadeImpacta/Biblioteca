@@ -355,7 +355,7 @@ def test_reservation_page_exposes_accessible_controls_and_visible_focus():
     header = repr(frontend.site_header())
 
     assert "/admin/reservas" in header
-    assert "Reservas para estudantes" in header
+    assert "site-primary-nav" in header
     assert "E-mail completo do estudante" in page
     assert r"T\\u00edtulo ativo" in page
     assert "Registrar reserva na fila" in page

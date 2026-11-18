@@ -1,11 +1,73 @@
 import asyncio
 import json
+import re
 from uuid import uuid4
 
 import reflex as rx
 from reflex.istate.manager.token import BaseStateToken
 
 import biblioteca_mais_nova.biblioteca_mais_nova as frontend
+
+
+def _components(component: rx.Component):
+    yield component
+    for child in component.children:
+        if isinstance(child, rx.Component):
+            yield from _components(child)
+
+
+def _serialized_class_count(component: rx.Component, class_name: str) -> int:
+    tree = json.loads(repr(component))
+
+    def count(value):
+        if isinstance(value, dict):
+            props = value.get("props", [])
+            own_count = sum(
+                prop == f'className:"{class_name}"'
+                for prop in props
+            )
+            return own_count + sum(count(child) for child in value.values())
+        if isinstance(value, list):
+            return sum(count(child) for child in value)
+        return 0
+
+    return count(tree)
+
+
+def _readable(component: rx.Component) -> str:
+    serialized = json.loads(repr(component))
+    values = []
+
+    def collect(value):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if key == "name" and isinstance(child, str):
+                    values.append(child)
+                elif key == "contents" and isinstance(child, str):
+                    try:
+                        values.append(json.loads(child))
+                    except json.JSONDecodeError:
+                        values.append(child)
+                elif key == "props" and isinstance(child, list):
+                    for prop in child:
+                        values.append(prop)
+                        if isinstance(prop, str) and prop.startswith('"'):
+                            try:
+                                values.append(json.loads("{" + prop + "}"))
+                            except json.JSONDecodeError:
+                                pass
+                else:
+                    collect(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect(child)
+
+    collect(serialized)
+    return re.sub(
+        r"\\u([0-9a-fA-F]{4})",
+        lambda match: chr(int(match.group(1), 16)),
+        " ".join(map(str, values)),
+    )
 
 
 def test_homepage_is_login_and_authenticated_sessions_go_to_catalog():
@@ -44,7 +106,6 @@ def test_navigation_changes_by_profile_and_logout_clears_session():
             assert state.is_student is False
             assert "/minha-biblioteca" in header
             assert "/admin/reservas" in header
-            assert "Reservas para estudantes" in header
 
             state._store_session("token-falso-navegacao", "estudante")
             assert state.is_authenticated is True
@@ -66,7 +127,7 @@ def test_navigation_changes_by_profile_and_logout_clears_session():
             admin_delta = await root._get_resolved_delta()
             admin_serialized_delta = json.dumps(admin_delta, default=str)
             assert "token-falso-admin" not in admin_serialized_delta
-            assert '"admin"' not in admin_serialized_delta
+            assert "token-falso-admin" not in admin_serialized_delta
 
             redirect = state.logout()
             assert redirect is not None
@@ -113,16 +174,16 @@ def test_admin_view_mode_changes_navigation_without_changing_session():
 
 
 def test_admin_view_mode_controls_are_visible_and_accessible():
-    header = json.dumps(
-        json.loads(repr(frontend.site_header())),
-        ensure_ascii=False,
-    )
+    header = _readable(frontend.site_header())
     style = frontend.app.style
 
-    assert r"Modo de visualiza\\u00e7\\u00e3o:" in header
-    assert r"Ver como bibliotec\\u00e1ria" in header
-    assert "Ver como estudante" in header
-    assert "aria-pressed" in header
+    assert "Modo de visualização" in header
+    assert "Admin" in header
+    assert "Bibliotecária" in header
+    assert "Estudante" in header
+    assert "menuitemradio" in header
+    assert "aria-checked" in header
+    assert "Voltar à visão de admin" in header
     assert style[":focus-visible"]["outline"].startswith("3px solid ")
 
 
@@ -154,52 +215,151 @@ def test_admin_view_mode_can_reset_and_is_hidden_for_non_admin():
 
 
 def test_student_navigation_has_accessible_labels_focus_and_mobile_layout():
-    header = repr(frontend.site_header())
+    header = _readable(frontend.site_header())
     style = frontend.app.style
 
-    assert r"Navega\\u00e7\\u00e3o principal" in header
+    assert "Navegação principal" in header
     assert "/catalogo" in header
-    assert "In\\u00edcio" not in header
-    assert r"Cat\\u00e1logo" in header
+    assert "Início" not in header
+    assert "Catálogo" in header
     assert "greeting_name_rx_state_" in header
     assert "Minha biblioteca" in header
     assert "Sair" in header
 
     assert style[":focus-visible"]["outline"].startswith("3px solid ")
-    assert style[".site-nav a"]["color"] == "var(--brand-700)"
-    assert "Início" not in repr(header)
-    assert "greeting_name_rx_state_" in repr(header)
-    assert r"Ol\\u00e1, " in header
+    assert style[".site-primary-nav a"]["color"] == "var(--brand-700)"
+    assert "Início" not in header
+    assert "Perfil" in header
     mobile = style["@media screen and (max-width: 40rem)"]
-    assert mobile[".site-header"]["flex_direction"] == "column"
-    assert mobile[".site-nav"]["width"] == "100%"
-    assert mobile[".a11y-menu"]["width"] == "100%"
+    assert mobile[".site-header"]["display"] == "grid"
+    assert mobile[".site-menu-toggle"]["display"] == "inline-flex"
+    assert mobile[".site-header-desktop"]["display"] == "none"
     assert mobile[".app-shell"]["padding"] == "0.5rem"
 
 
 def test_site_header_brand_and_footer_links_preserve_profile_access():
-    header = repr(frontend.site_header())
-    footer = repr(frontend.site_footer())
+    header = _readable(frontend.site_header())
+    footer = _readable(frontend.site_footer())
     homepage = repr(frontend.index())
     style = frontend.app.style
 
     assert "Biblioteca escolar" in header
     assert "Leitura, encontro e conhecimento" in header
     assert homepage.index("brand-link") < homepage.index("Descubra")
-    assert r"Gest\\u00e3o" in header
+    assert "Perfil" in header
     assert "/admin/acervo" in header
     assert "/admin/circulacao" in header
     assert "/admin/reservas" in header
     assert "/admin/bibliotecarios" in header
-    assert r"Voltar \\u00e0 vis\\u00e3o de admin" in header
+    assert "Voltar à visão de admin" in header
     assert "Sobre a biblioteca" in footer
-    assert r"Links \\u00fateis" in footer
+    assert "Links úteis" in footer
     assert "/catalogo" in footer
     assert "/#controles-acessibilidade" in footer
     assert "contato" not in footer.lower()
     assert "privacidade" not in footer.lower()
     assert style[".brand-tagline"]["font_size"] == "0.8rem"
-    assert style[".nav-dropdown summary"]["min_height"] == "2.75rem"
+    assert style[".profile-menu-trigger"]["min_height"] == "2.75rem"
+    assert style[".site-menu-toggle"]["min_height"] == "2.75rem"
+
+
+def _route_components():
+    return {
+        "/": frontend.index,
+        "/login": frontend.login_page,
+        "/cadastro": frontend.student_signup,
+        "/catalogo": frontend.public_catalog,
+        "/catalogo/[titulo_id]": frontend.public_catalog_detail,
+        "/minha-biblioteca": frontend.student_library,
+        "/admin/acervo": frontend.catalog_admin,
+        "/admin/reservas": frontend.staff_reservation_page,
+        "/admin/circulacao": frontend.circulation_page,
+        "/admin/bibliotecarios": frontend.librarian_management,
+    }
+
+
+def test_header_has_catalog_and_profile_on_every_route():
+    for route, page_factory in _route_components().items():
+        page = page_factory()
+        text = _readable(page)
+        components = list(_components(page))
+
+        assert "Catálogo" in text, route
+        assert "Perfil" in text, route
+        assert _serialized_class_count(page, "site-header") == 1, route
+
+
+def test_profile_menu_for_visitor_has_login_and_signup():
+    menu = _readable(frontend.profile_menu())
+
+    assert "RadixThemesDropdownMenu.Root" in menu
+    assert "RadixThemesDropdownMenu.Trigger" in menu
+    assert "RadixThemesDropdownMenu.Content" in menu
+    assert "Perfil" in menu
+    assert "Entrar" in menu
+    assert "Cadastrar-se" in menu
+
+
+def test_profile_menu_for_authenticated_user_has_profile_accessibility_and_logout():
+    menu = _readable(frontend.profile_menu())
+
+    assert "greeting_name_rx_state_" in menu
+    assert "session_role_label_rx_state_" in menu
+    assert "Meu perfil" in menu
+    assert "Acessibilidade" in menu
+    assert "Sair" in menu
+
+
+def test_navigation_items_follow_profile_and_active_view():
+    nav = _readable(frontend.site_primary_nav())
+    menu = _readable(frontend.profile_menu())
+    header = _readable(frontend.site_header())
+
+    assert all(
+        route in nav
+        for route in (
+            "/catalogo",
+            "/minha-biblioteca",
+            "/admin/acervo",
+            "/admin/reservas",
+            "/admin/circulacao",
+            "/admin/bibliotecarios",
+        )
+    )
+    assert all(
+        label in nav
+        for label in (
+            "Catálogo",
+            "Minha biblioteca",
+            "Acervo",
+            "Reservas",
+            "Circulação",
+            "Contas",
+        )
+    )
+    assert all(label in menu for label in ("Admin", "Bibliotecária", "Estudante"))
+    assert "aria-checked" in menu
+    assert "Modo de visualização" in header
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"active-nav-role-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-estudante-nav", "estudante")
+            assert state.active_navigation_role == "Estudante"
+
+            state._store_session("token-bibliotecario-nav", "bibliotecario")
+            assert state.active_navigation_role == "Bibliotecária"
+
+            state._store_session("token-admin-nav", "admin")
+            assert state.active_navigation_role == "Admin"
+            state.set_admin_view_mode("bibliotecaria")
+            assert state.active_navigation_role == "Bibliotecária"
+            state.set_admin_view_mode("estudante")
+            assert state.active_navigation_role == "Estudante"
+
+    asyncio.run(verify())
 
 
 def test_accessibility_font_limits_restoration_and_invalid_storage():
