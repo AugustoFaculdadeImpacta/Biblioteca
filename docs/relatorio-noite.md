@@ -474,6 +474,85 @@ As fases funcionais avançaram parcialmente. A tentativa de seed remoto foi inte
 }
 ```
 
+## Atualização final — navegação e rotas
+
+### Estado e evidência
+
+- Branch: `trabalho-autopilot`.
+- Código da navegação entregue em commits pequenos: `e934ad83f1d5448a1d880cb9ffa5a5a8b03055d3` (cabeçalho/menu), `8bf937f6a1b46f8fd9ec5ac909caa9adf98bd27b` (home), `490a0f183d927b9d6a3d1b896b969da9216e2b10` (formulários), `1bb4a6307a44db628e0ade66ca5af28860421125` (redirecionamentos), `8d263cec87bdff0125d9492be4a172bcd661510e` (perfil/acessibilidade), `96bdfbb980e459d42580d9c13cab92e0f6ef862d` (rodapé) e `7cdf51a3e576a03e79df7408f15c554ce97654ba` (gatilho do menu).
+- `.\.venv\Scripts\python.exe -m reflex compile --dry`: sucesso, compilação concluída.
+- `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`: `223 passed`, 0 falhas.
+- `openspec.cmd validate --specs --strict`: 7 passaram, 0 falharam. `openspec.cmd validate refino-visual-biblioteca --strict`: Change válida.
+- Status OpenSpec: 1/13 tarefas concluída; as demais continuam bloqueadas por evidência visual/DOM pendente. Não arquivada.
+- Xano real: nenhuma escrita foi feita.
+- Inspeção atual: `openBrowserPage` em `http://127.0.0.1:3010/` retornou somente “Connection Error:”. Não houve hidratação, captura posterior, DOM mensurável ou inspeção visual das telas. O HTTP 200 anteriormente observado no frontend não prova que o navegador renderizou a aplicação.
+
+### Rotas solicitadas
+
+“Implementado/testado” abaixo significa que o componente/rota está no código e os testes automatizados correspondentes passaram; não significa que a tela atual foi vista no navegador. Nenhuma rota possui captura “depois” válida.
+
+| Rota / tela | Perfil | Antes | Depois | 360 px | 1366 px | Estado visual |
+|---|---|---|---|---|---|---|
+| `/` — vitrine, busca e seções públicas | Visitante; atalhos conforme sessão | [home-antes-360.png](./capturas/home-antes-360.png), [home-antes-1366.png](./capturas/home-antes-1366.png); também há [home-tokens-360.png](./capturas/home-tokens-360.png) e [home-before-nav-1366.png](./capturas/home-before-nav-1366.png) de estados anteriores | Não capturada | A imagem `home-tokens-360.png` é 360×900, mas anterior à navegação final; DOM atual não medido | `home-before-nav-1366.png` é 1366×900, mas anterior à navegação final; DOM atual não medido | Só alterado; versão atual não vista |
+| `/login` — somente formulário de login | Visitante; sessão autenticada redireciona | [login-antes-360.png](./capturas/login-antes-360.png) | Não capturada | A imagem existente é 450×1125, não prova viewport de 360 px; DOM atual não medido | Não capturada; DOM atual não medido | Só alterado; não visto |
+| `/cadastro` — somente formulário de cadastro | Visitante; sessão autenticada redireciona | Não capturada | Não capturada | Não capturada; DOM não medido | Não capturada; DOM não medido | Só alterado; não visto |
+| `/catalogo` — busca, filtros e cartões | Visitante | [catalogo-antes-1366.png](./capturas/catalogo-antes-1366.png) | Não capturada | Não capturada; DOM não medido | A imagem existente é 1280×960, não prova viewport de 1366 px; DOM atual não medido | Só alterado; não visto |
+| `/catalogo/[titulo_id]` — detalhe do título | Visitante | Não capturada | Não capturada | Não capturada; DOM não medido | Não capturada; DOM não medido | Só alterado; não visto |
+| `/minha-biblioteca` — empréstimos e reservas | Estudante | Não capturada | Não capturada | Não capturada; DOM não medido | Não capturada; DOM não medido | Só alterado; não visto |
+| `/admin/acervo` — acervo | Bibliotecária/admin; menu segue visão ativa | Não capturada | Não capturada | Não capturada; DOM não medido | Não capturada; DOM não medido | Só alterado; não visto |
+| `/admin/reservas` — reservas | Bibliotecária/admin; menu segue visão ativa | Não capturada | Não capturada | Não capturada; DOM não medido | Não capturada; DOM não medido | Só alterado; não visto |
+| `/admin/circulacao` — circulação | Bibliotecária/admin; menu segue visão ativa | Não capturada | Não capturada | Não capturada; DOM não medido | Não capturada; DOM não medido | Só alterado; não visto |
+| `/admin/bibliotecarios` — gestão de bibliotecários | Admin | Não capturada | Não capturada | Não capturada; DOM não medido | Não capturada; DOM não medido | Só alterado; não visto |
+| `/perfil` — identidade somente leitura da sessão | Usuário autenticado | Não existia nesta Change | Não capturada | Não capturada; DOM não medido | Não capturada; DOM não medido | Implementado/testado; não visto |
+| `/acessibilidade` — controles locais | Visitante e usuários autenticados | Não existia nesta Change | Não capturada | Não capturada; DOM não medido | Não capturada; DOM não medido | Implementado/testado; não visto |
+| Menu “Perfil” aberto por visitante/estudante/bibliotecária/admin | Todos os perfis conforme sessão/visão | Não capturada | Não capturada | Não capturada; interação/DOM não medidos | Não capturada; interação/DOM não medidos | Estrutura/state testados; interação visual não vista |
+
+As capturas antigas com “360” ou “1366” no nome nem sempre têm exatamente essas dimensões ou representam a versão atual. Não foram reaproveitadas como capturas “depois”. Caminhos de capturas posteriores: **nenhum**.
+
+### Cabeçalho, menu Perfil e retorno à visão admin
+
+O código usa `rx.menu` em [profile_menu](../biblioteca_mais_nova/biblioteca_mais_nova.py#L1944). Visitante recebe “Entrar” e “Cadastrar-se”; usuário autenticado recebe identidade somente leitura, “Meu perfil”, “Acessibilidade” e “Sair”. O menu admin inclui as opções de visão com `aria_checked` e ações de seleção. A navegação principal é condicional ao perfil/visão em [site_primary_nav](../biblioteca_mais_nova/biblioteca_mais_nova.py#L1879).
+
+Sim: o código mantém o seletor disponível ao admin nas visões simuladas e permite retornar à visão de admin. A faixa e o botão “Voltar à visão de admin” são renderizados fora do conteúdo suspenso do menu, no cabeçalho, em [admin_view_status](../biblioteca_mais_nova/biblioteca_mais_nova.py#L1907). Isso é confirmado estruturalmente por `test_navigation_items_follow_profile_and_active_view`, `test_admin_view_mode_controls_are_visible_and_accessible`, `test_admin_view_mode_can_reset_and_is_hidden_for_non_admin` e `test_admin_view_mode_changes_navigation_without_changing_session`, em [test_navigation.py](../tests/test_navigation.py#L239). O cabeçalho por rota também é coberto por `test_header_has_catalog_and_profile_on_every_route` e `test_all_routes_use_one_shared_header_and_footer`. Não foi possível confirmar por interação real no navegador que Esc fecha o menu e devolve foco ao gatilho.
+
+### Testes específicos de navegação
+
+Passaram na suíte final: `test_home_has_no_login_or_signup_form_and_keeps_profile_shortcuts`, `test_login_page_contains_only_login_form`, `test_signup_page_contains_only_signup_form`, `test_authenticated_users_redirect_from_auth_pages_to_profile_home`, `test_profile_page_shows_session_identity_read_only`, `test_accessibility_page_reuses_existing_controls`, `test_profile_menu_for_visitor_has_login_and_signup`, `test_profile_menu_for_authenticated_user_has_profile_accessibility_and_logout`, `test_navigation_items_follow_profile_and_active_view`, `test_all_routes_use_one_shared_header_and_footer` e `test_page_bodies_do_not_duplicate_global_navigation`. Os testes são automatizados de estrutura/estado e não substituem a inspeção visual/teclado no navegador.
+
+### Saída final de `openspec.cmd list --json`
+
+```json
+{
+  "changes": [
+    {
+      "name": "refino-visual-biblioteca",
+      "completedTasks": 1,
+      "totalTasks": 13,
+      "lastModified": "2026-11-18T19:29:45.836Z",
+      "status": "in-progress"
+    },
+    {
+      "name": "validacao-remota-xano",
+      "completedTasks": 0,
+      "totalTasks": 22,
+      "lastModified": "2026-11-17T05:16:18.677Z",
+      "status": "in-progress"
+    },
+    {
+      "name": "execucao-reflex-windows",
+      "completedTasks": 6,
+      "totalTasks": 7,
+      "lastModified": "2026-11-15T17:36:02.160Z",
+      "status": "in-progress"
+    }
+  ],
+  "root": {
+    "path": "C:\\Users\\User\\Biblioteca\\Biblioteca\\Biblioteca",
+    "source": "nearest"
+  }
+}
+```
+
 ### Resultado
 
 - [x] Os deltas de acervo, reservas, perfil e execução Reflex estão alinhados às specs principais. Comparação dos requisitos delta: 32 verificados, 0 divergências. `openspec.cmd validate --specs --strict` passou com 7 specs e 0 falhas antes do archive.
@@ -530,27 +609,22 @@ As imagens `home-tema-360.png`, `home-tema-1366.png` e `home-tokens-360.png` sã
 
 ### Seletor de visão do admin
 
-O grupo é condicionado a `State.can_manage_librarians`, mantém o status Admin/Bibliotecária/Estudante, e o botão de retorno é condicionado a `State.admin_view_mode != ""`. Portanto, o código permite ao admin manter o seletor nas visões simuladas e voltar à visão de admin; isso não afirma que a interface foi inspecionada no navegador. Trecho em [biblioteca_mais_nova.py](../biblioteca_mais_nova/biblioteca_mais_nova.py#L1884):
+Correção do trecho registrado anteriormente: o seletor atual fica dentro do menu `rx.menu` “Perfil”. A faixa “Modo de visualização” e o botão “Voltar à visão de admin” ficam fora do conteúdo suspenso do menu, no cabeçalho. Ambos são renderizados quando `State.can_manage_librarians` é verdadeiro; o botão de retorno aparece enquanto `State.admin_view_mode != ""`. A lógica está em [biblioteca_mais_nova.py](../biblioteca_mais_nova.py#L1907) e [biblioteca_mais_nova.py](../biblioteca_mais_nova.py#L1944).
 
 ```python
 rx.cond(
-    State.can_manage_librarians,
-    rx.el.div(
-        rx.text("Modo de visualização: ", ...),
-        rx.cond(
-            State.admin_view_mode != "",
-            rx.button("Voltar à visão de admin", on_click=State.reset_admin_view_mode),
-            rx.fragment(),
-        ),
-        rx.button("Ver como bibliotecária", on_click=State.set_admin_view_mode("bibliotecaria")),
-        rx.button("Ver como estudante", on_click=State.set_admin_view_mode("estudante")),
-        role="group",
+    State.admin_view_mode != "",
+    rx.button(
+        "Voltar à visão de admin",
+        type="button",
+        on_click=State.reset_admin_view_mode,
+        class_name="admin-view-reset",
     ),
     rx.fragment(),
 )
 ```
 
-Os testes existentes `test_admin_view_mode_controls_are_visible_and_accessible`, `test_admin_view_mode_can_reset_and_is_hidden_for_non_admin` e `test_admin_view_mode_changes_navigation_without_changing_session`, em [test_navigation.py](../tests/test_navigation.py#L83), passaram na suíte final. Eles verificam estrutura/estado e retorno; não substituem a inspeção visual.
+O menu mantém as opções Admin, Bibliotecária e Estudante marcadas com `aria_checked` e seus `on_select` mudam/restauram a visão. Os testes `test_navigation_items_follow_profile_and_active_view`, `test_admin_view_mode_controls_are_visible_and_accessible`, `test_admin_view_mode_can_reset_and_is_hidden_for_non_admin` e `test_admin_view_mode_changes_navigation_without_changing_session`, em [test_navigation.py](../tests/test_navigation.py#L239), passam na suíte final. Isso demonstra o estado e a estrutura em testes, não a interação real de teclado/Esc/foco nem a aparência visual, que não foram vistas no navegador.
 
 ### Commits dos cinco blocos visuais
 
@@ -562,19 +636,40 @@ Os testes existentes `test_admin_view_mode_controls_are_visible_and_accessible`,
 | 4 — cartões/catálogo | `1a98366f621c252b2779a5a784dcb5dc8698ace6` | `test_catalog_card_derives_cover_fallback_from_category_and_title`; `test_catalog_controls_and_card_states_are_responsive` |
 | 5 — formulários/estados/alvos | `c17da0530aeeeee2f8f4e838607279c4be8672f5` | `test_forms_and_admin_panels_use_shared_visual_states`; `test_touch_targets_and_keyboard_accessibility_at_mobile_viewport` |
 
-### OpenSpec nesta verificação
+### OpenSpec — estado final desta retomada
 
-`openspec.cmd validate --specs --strict`: 7 passaram, 0 falharam. `openspec.cmd validate refino-visual-biblioteca --strict`: Change válida. A Change continua ativa e não foi arquivada porque tarefas bloqueadas por evidência visual não podem ser declaradas concluídas.
+`openspec.cmd validate --specs --strict`: 7 passaram, 0 falharam. `openspec.cmd validate refino-visual-biblioteca --strict`: Change válida. A Change continua ativa, com 1/13 tarefas concluída; não foi arquivada porque a inspeção visual/DOM permanece bloqueada. A tentativa mais recente do navegador retornou “Connection Error:”.
 
-Saída de `openspec.cmd list --json`:
+Saída final de `openspec.cmd list --json`:
 
 ```json
 {
   "changes": [
-    {"name": "refino-visual-biblioteca", "completedTasks": 0, "totalTasks": 6, "lastModified": "2026-11-17T21:38:35.608Z", "status": "in-progress"},
-    {"name": "validacao-remota-xano", "completedTasks": 0, "totalTasks": 22, "lastModified": "2026-11-17T05:16:18.677Z", "status": "in-progress"},
-    {"name": "execucao-reflex-windows", "completedTasks": 6, "totalTasks": 7, "lastModified": "2026-11-15T17:36:02.160Z", "status": "in-progress"}
+    {
+      "name": "refino-visual-biblioteca",
+      "completedTasks": 1,
+      "totalTasks": 13,
+      "lastModified": "2026-11-18T19:29:45.836Z",
+      "status": "in-progress"
+    },
+    {
+      "name": "validacao-remota-xano",
+      "completedTasks": 0,
+      "totalTasks": 22,
+      "lastModified": "2026-11-17T05:16:18.677Z",
+      "status": "in-progress"
+    },
+    {
+      "name": "execucao-reflex-windows",
+      "completedTasks": 6,
+      "totalTasks": 7,
+      "lastModified": "2026-11-15T17:36:02.160Z",
+      "status": "in-progress"
+    }
   ],
-  "root": {"path": "C:\\Users\\User\\Biblioteca\\Biblioteca\\Biblioteca", "source": "nearest"}
+  "root": {
+    "path": "C:\\Users\\User\\Biblioteca\\Biblioteca\\Biblioteca",
+    "source": "nearest"
+  }
 }
 ```
