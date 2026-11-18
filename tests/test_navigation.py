@@ -350,7 +350,8 @@ def test_site_header_brand_and_footer_links_preserve_profile_access():
     assert "Sobre a biblioteca" in footer
     assert "Links úteis" in footer
     assert "/catalogo" in footer
-    assert "/#controles-acessibilidade" in footer
+    assert "/acessibilidade" in footer
+    assert "/#controles-acessibilidade" not in footer
     assert "contato" not in footer.lower()
     assert "privacidade" not in footer.lower()
     assert style[".brand-tagline"]["font_size"] == "0.8rem"
@@ -384,6 +385,36 @@ def test_header_has_catalog_and_profile_on_every_route():
         assert "Catálogo" in text, route
         assert "Perfil" in text, route
         assert _serialized_class_count(page, "site-header") == 1, route
+
+
+def test_all_routes_use_one_shared_header_and_footer():
+    for route, page_factory in _route_components().items():
+        page = page_factory()
+        assert _serialized_class_count(page, "site-header") == 1, route
+        assert _serialized_class_count(page, "site-footer") == 1, route
+
+    footer = _readable(frontend.site_footer())
+    assert "Sobre a biblioteca" in footer
+    assert "Catálogo" in footer
+    assert "Acessibilidade" in footer
+    assert "/acessibilidade" in footer
+    assert "/#controles-acessibilidade" not in footer
+
+
+def test_page_bodies_do_not_duplicate_global_navigation():
+    detail = _readable(frontend.public_catalog_detail())
+    student_library = _readable(frontend.student_library())
+    home = _readable(frontend.index())
+    login = _readable(frontend.login_page())
+    signup = _readable(frontend.student_signup())
+
+    assert "Voltar ao catálogo" not in detail
+    assert "Acompanhar em Minha biblioteca" not in detail
+    assert "Voltar ao catálogo" not in student_library
+    assert "Ver catálogo" in home
+    assert "Ver catálogo sem entrar" in login
+    assert "Não tem conta? Cadastre-se" in login
+    assert "Já tem conta? Entrar" in signup
 
 
 def test_profile_menu_for_visitor_has_login_and_signup():
