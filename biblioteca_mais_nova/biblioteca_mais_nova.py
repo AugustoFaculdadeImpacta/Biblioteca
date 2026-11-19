@@ -205,8 +205,8 @@ class State(rx.State):
     def session_role_label(self) -> str:
         return {
             "estudante": "Estudante",
-            "bibliotecario": "Bibliotecária",
-            "admin": "Admin",
+            "bibliotecario": "Bibliotecário",
+            "admin": "Administrador",
         }.get(self._session_profile, "")
 
     @rx.var
@@ -1955,17 +1955,71 @@ def profile_menu() -> rx.Component:
                             class_name="profile-menu-identity",
                         ),
                         rx.el.div(
+                            State.session_email,
+                            class_name="profile-menu-identity",
+                        ),
+                        rx.el.div(
                             State.session_role_label,
                             class_name="profile-menu-identity",
                         ),
-                        rx.link(
-                            "Meu perfil",
-                            href="/perfil",
+                        rx.el.div(
+                            "Tamanho da fonte",
+                            class_name="profile-menu-identity",
+                        ),
+                        rx.el.div(
+                            rx.button(
+                                "A−",
+                                type="button",
+                                aria_label="Diminuir fonte",
+                                on_click=State.decrease_accessibility_font,
+                                disabled=State.accessibility_font_scale <= 100,
+                                class_name="profile-menu-item",
+                            ),
+                            rx.button(
+                                State.accessibility_font_size,
+                                type="button",
+                                aria_label="Tamanho atual da fonte",
+                                on_click=State.reset_accessibility_font,
+                                class_name="profile-menu-item",
+                            ),
+                            rx.button(
+                                "A+",
+                                type="button",
+                                aria_label="Aumentar fonte",
+                                on_click=State.increase_accessibility_font,
+                                disabled=State.accessibility_font_scale >= 150,
+                                class_name="profile-menu-item",
+                            ),
+                            class_name="profile-menu-controls",
+                        ),
+                        rx.button(
+                            rx.cond(
+                                State.accessibility_high_contrast,
+                                "Alto contraste: ativo",
+                                "Ativar alto contraste",
+                            ),
+                            type="button",
+                            aria_pressed=State.accessibility_high_contrast,
+                            on_click=State.toggle_accessibility_high_contrast,
                             class_name="profile-menu-item",
                         ),
-                        rx.link(
-                            "Acessibilidade",
-                            href="/acessibilidade",
+                        rx.button(
+                            rx.cond(
+                                State.accessibility_reduce_motion,
+                                "Movimento reduzido: ativo",
+                                "Reduzir movimento",
+                            ),
+                            type="button",
+                            aria_pressed=State.accessibility_reduce_motion,
+                            on_click=State.toggle_accessibility_reduce_motion,
+                            class_name="profile-menu-item",
+                        ),
+                        rx.el.button(
+                            "Modo escuro",
+                            type="button",
+                            role="switch",
+                            aria_checked=False,
+                            data_dark_mode_toggle="true",
                             class_name="profile-menu-item",
                         ),
                         rx.cond(
@@ -2063,11 +2117,54 @@ def profile_menu() -> rx.Component:
                 event.preventDefault();
               });
               document.addEventListener("click", (event) => {
+                const toggle = event.target.closest(
+                  "[data-dark-mode-toggle]"
+                );
+                if (toggle) {
+                  const shell = toggle.closest(".a11y-shell");
+                  if (shell) {
+                    const dark = shell.classList.contains("a11y-dark") ||
+                      (!shell.classList.contains("a11y-light") &&
+                        window.matchMedia(
+                          "(prefers-color-scheme: dark)"
+                        ).matches);
+                    shell.classList.toggle("a11y-dark", !dark);
+                    shell.classList.toggle("a11y-light", dark);
+                    document.querySelectorAll(
+                      "[data-dark-mode-toggle]"
+                    ).forEach((button) => {
+                      button.setAttribute("aria-checked", String(!dark));
+                    });
+                  }
+                }
                 document.querySelectorAll("details.profile-menu[open]")
                   .forEach((item) => {
                     if (!item.contains(event.target)) item.open = false;
                   });
               });
+              const initializeThemeSwitches = () => {
+                const shell = document.querySelector(".a11y-shell");
+                if (!shell) return;
+                const dark = shell.classList.contains("a11y-dark") ||
+                  (!shell.classList.contains("a11y-light") &&
+                    window.matchMedia(
+                      "(prefers-color-scheme: dark)"
+                    ).matches);
+                document.querySelectorAll(
+                  "[data-dark-mode-toggle]"
+                ).forEach((button) => {
+                  button.setAttribute("aria-checked", String(dark));
+                });
+              };
+              if (document.readyState === "loading") {
+                document.addEventListener(
+                  "DOMContentLoaded",
+                  initializeThemeSwitches,
+                  { once: true }
+                );
+              } else {
+                initializeThemeSwitches();
+              }
             })();
             """
         ),
@@ -4223,6 +4320,30 @@ def accessible_page(page: Callable[[], rx.Component]) -> Callable[[], rx.Compone
     return wrapped
 
 
+dark_theme_tokens = {
+    "--bg-page": "#111827",
+    "--bg-panel": "#1f2937",
+    "--bg-soft": "#273449",
+    "--brand-900": "#0f172a",
+    "--brand-700": "#9bd6e3",
+    "--brand-500": "#70bfd2",
+    "--brand-100": "#243e4b",
+    "--success-700": "#a3e6bf",
+    "--success-100": "#1f4533",
+    "--warning-700": "#f5ca75",
+    "--warning-100": "#4a391c",
+    "--danger-700": "#ffb4ab",
+    "--danger-100": "#512b31",
+    "--slate-900": "#f3f4f6",
+    "--slate-700": "#cbd5e1",
+    "--slate-500": "#c3ced8",
+    "--sand-200": "#364152",
+    "--sand-100": "#283342",
+    "--line": "#475569",
+    "--shadow-soft": "0 0.7rem 1.5rem rgba(0, 0, 0, 0.3)",
+}
+
+
 app = rx.App(
     style={
         ".a11y-shell": {
@@ -4246,6 +4367,10 @@ app = rx.App(
             "--sand-100": "#f8f4ee",
             "--line": "#d8d2c7",
             "--shadow-soft": "0 0.7rem 1.5rem rgba(24, 35, 46, 0.08)",
+        },
+        ".a11y-shell.a11y-dark": dark_theme_tokens,
+        "@media (prefers-color-scheme: dark)": {
+            ".a11y-shell:not(.a11y-light):not(.a11y-dark)": dark_theme_tokens,
         },
         "font_family": "system-ui, 'Segoe UI', sans-serif",
         "color": "var(--slate-900)",
@@ -4458,6 +4583,11 @@ app = rx.App(
             "padding": "0.45rem 0.65rem",
             "color": "var(--slate-700)",
             "overflow_wrap": "anywhere",
+        },
+        ".profile-menu-controls": {
+            "display": "grid",
+            "grid_template_columns": "repeat(3, minmax(0, 1fr))",
+            "gap": "0.2rem",
         },
         ".profile-menu-content [role='separator']": {
             "height": "1px",

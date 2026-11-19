@@ -467,14 +467,50 @@ def test_application_contains_no_rx_menu():
     )
 
 
-def test_profile_menu_for_authenticated_user_has_profile_accessibility_and_logout():
+def test_profile_disclosure_for_visitor_and_authenticated_users():
     menu = _readable(frontend.profile_menu())
 
+    assert "Entrar" in menu
+    assert "Cadastrar-se" in menu
+    assert "Modo escuro" in menu
     assert "greeting_name_rx_state_" in menu
+    assert "session_email_rx_state_" in menu
     assert "session_role_label_rx_state_" in menu
-    assert "Meu perfil" in menu
-    assert "Acessibilidade" in menu
+    assert "Diminuir fonte" in menu
+    assert "Aumentar fonte" in menu
+    assert "Ativar alto contraste" in menu
+    assert "Reduzir movimento" in menu
     assert "Sair" in menu
+    assert "Meu perfil" not in menu
+    assert "href:\"/acessibilidade\"" not in menu
+
+    async def verify_session_role_labels():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"profile-role-labels-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            assert state.is_authenticated is False
+            state._store_session(
+                "token-profile-student", "estudante", "Leitora", "leitura@example.test"
+            )
+            assert state.greeting_name == "Leitora"
+            assert state.session_email == "leitura@example.test"
+            assert state.session_role_label == "Estudante"
+
+            state._store_session(
+                "token-profile-librarian",
+                "bibliotecario",
+                "Bibliotecário",
+                "acervo@example.test",
+            )
+            assert state.session_role_label == "Bibliotecário"
+
+            state._store_session(
+                "token-profile-admin", "admin", "Admin", "gestao@example.test"
+            )
+            assert state.session_role_label == "Administrador"
+
+    asyncio.run(verify_session_role_labels())
 
 
 def test_profile_page_shows_session_identity_read_only():
@@ -639,6 +675,31 @@ def test_accessibility_toggle_state_is_validated_and_reflected_globally():
             assert state.accessibility_classes == "a11y-shell"
 
     asyncio.run(verify())
+
+
+def test_dark_mode_toggles_scoped_theme_tokens():
+    menu = _readable(frontend.profile_menu())
+    style = frontend.app.style
+    script = menu
+
+    assert "Modo escuro" in menu
+    assert "data-dark-mode-toggle" in menu
+    assert "a11y-dark" in script
+    assert "a11y-light" in script
+    assert ".a11y-shell.a11y-dark" in style
+    assert "--bg-page" in style[".a11y-shell.a11y-dark"]
+    assert "background_color" not in style.get(":root", {})
+
+
+def test_dark_mode_follows_system_without_persistence():
+    menu = _readable(frontend.profile_menu())
+    script = menu
+
+    assert "prefers-color-scheme: dark" in script
+    assert "window.matchMedia" in script
+    assert "localStorage" not in script
+    assert "sessionStorage" not in script
+    assert "document.cookie" not in script
 
 
 def test_session_name_is_private_and_never_uses_email_or_token_as_greeting():

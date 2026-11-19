@@ -54,7 +54,7 @@ def test_index_renders_navigable_application_shell():
     assert "/login" in repr(page)
     assert "/admin/acervo" in nav_content
     assert "Início" not in repr(page)
-    assert "Acessibilidade" in repr(page)
+    assert "Modo escuro" in repr(page)
     assert "#conteudo-home" in repr(page.children[0].children)
     assert "form-busca-home" in repr(page)
     assert {field.id for field in fields} == {"home-catalog-search"}
@@ -97,6 +97,19 @@ def test_visual_tokens_keep_accessible_contrast_and_reduced_motion():
     assert app.style["@media (prefers-reduced-motion: reduce)"][
         "*, *::before, *::after"
     ]["transition_duration"] == "0.01ms !important"
+
+
+def test_dark_and_high_contrast_tokens_meet_wcag_aa():
+    dark = app.style[".a11y-shell.a11y-dark"]
+    assert _contrast_ratio(dark["--slate-900"], dark["--bg-page"]) >= 4.5
+    assert _contrast_ratio(dark["--slate-900"], dark["--bg-panel"]) >= 4.5
+    assert _contrast_ratio(dark["--slate-700"], dark["--bg-panel"]) >= 4.5
+    assert _contrast_ratio(dark["--brand-700"], dark["--bg-panel"]) >= 4.5
+    assert _contrast_ratio(dark["--success-700"], dark["--success-100"]) >= 4.5
+    assert _contrast_ratio(dark["--warning-700"], dark["--warning-100"]) >= 4.5
+    assert _contrast_ratio(dark["--danger-700"], dark["--danger-100"]) >= 4.5
+    assert _contrast_ratio("#000000", "#ffffff") >= 7
+    assert _contrast_ratio("#00008b", "#ffffff") >= 7
 
 
 def test_text_controls_have_explicit_theme_aware_colors_and_focus():
@@ -199,9 +212,10 @@ def test_shared_navigation_is_conditioned_on_private_session_profile():
     nav_content = repr(navs[0])
     assert "active_navigation_role_rx_state_" in nav_content
     assert "Início" not in repr(header)
-    assert "Meu perfil" in repr(header)
-    assert "Acessibilidade" in repr(header)
-    assert "Aumentar fonte" not in repr(header)
+    assert "Meu perfil" not in repr(header)
+    assert "Acessibilidade" not in repr(header)
+    assert "Aumentar fonte" in repr(header)
+    assert "Modo escuro" in repr(header)
     assert "aria-controls" in repr(header)
 
 
