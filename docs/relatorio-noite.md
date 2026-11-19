@@ -673,3 +673,61 @@ Saída final de `openspec.cmd list --json`:
   }
 }
 ```
+
+## Continuação — Change simplifica-navegacao, 2026-11-19
+
+### Evidências dos itens concluídos nesta rodada
+
+| Item | Commit | Testes novos/alterados ou regressões | Status |
+|---|---|---|---|
+| Área pessoal `/reservas` e redirecionamento de `/minha-biblioteca` | `e370506` | `test_student_reservations_has_four_sections_and_empty_states`; `test_my_library_redirects_to_reservations_without_personal_gets`; `test_student_reservation_groups_order_overdue_and_show_neutral_missing_data`; `test_student_library_page_and_navigation_are_profile_gated` | Feito, aguarda conferência visual do usuário |
+| Abas de pedidos/circulação e busca de contas | `6abd99b` | `test_staff_reservations_tabs_reuse_current_operations`; `test_admin_accounts_search_and_supported_actions`; `test_staff_operational_counts_use_loaded_records`; atualizado `test_circulation_page_has_accessible_actions_and_focus_style` | Feito, aguarda conferência visual do usuário |
+| Pendências do contrato Xano | `ca1cf27` | Nenhum teste foi criado ou alterado; regressões incluídas na suíte: `test_cover_url_is_optional_and_validated_as_https`, `test_title_payload_omits_empty_optional_cover`, `test_student_reservation_groups_order_overdue_and_show_neutral_missing_data` | Pendente de validação Xano; nenhuma operação remota executada |
+
+### Verificações locais
+
+- `.\.venv\Scripts\python.exe -m reflex compile --dry`: aprovado após as alterações.
+- `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`: 243 passaram. Uma execução concorrente com a compilação falhou durante coleta por corrida nos arquivos temporários do Reflex; a repetição isolada passou.
+- `openspec.cmd validate --specs --strict`: 7 specs aprovadas, 0 falhas.
+- `openspec.cmd validate simplifica-navegacao --strict`: Change válida.
+- Navegador e capturas não foram usados, conforme solicitado. A aparência das telas desta rodada não foi vista; itens visuais ficam “feito, aguarda conferência do usuário”.
+
+### Pendências sem escrita no Xano
+
+O backlog em `openspec/changes/validacao-remota-xano/tasks.md` agora mantém abertas as validações de `capa_url` e `descricao` em `titulo`, título/`titulo_id` nos empréstimos pessoais, `solicitada_em` quando exigida, contagem de empréstimos por título e endpoint para mudança genérica de perfil. Não houve consulta nem escrita no Xano real.
+
+### Saída do inventário OpenSpec antes do archive
+
+```json
+{
+  "changes": [
+    {
+      "name": "simplifica-navegacao",
+      "completedTasks": 9,
+      "totalTasks": 10,
+      "status": "in-progress"
+    },
+    {
+      "name": "validacao-remota-xano",
+      "completedTasks": 0,
+      "totalTasks": 28,
+      "status": "in-progress"
+    },
+    {
+      "name": "refino-visual-biblioteca",
+      "completedTasks": 1,
+      "totalTasks": 13,
+      "status": "in-progress"
+    },
+    {
+      "name": "execucao-reflex-windows",
+      "completedTasks": 6,
+      "totalTasks": 7,
+      "status": "in-progress"
+    }
+  ],
+  "root": {
+    "source": "nearest"
+  }
+}
+```
