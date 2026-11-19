@@ -14,7 +14,7 @@
 
 ## 4. Organizar home com dados reais
 
-- [ ] 4.1 Colocar boas-vindas/busca à esquerda e estatísticas derivadas à direita; apresentar destaques e “Sobre a biblioteca”, com atalhos para visitante e cada perfil. Não exibir “Livros que mais saem” sem contagem real por título. Adicionar `test_home_statistics_are_derived_from_public_catalog`, `test_home_shows_profile_shortcuts_and_about_section` e `test_home_omits_popularity_without_loan_counts`; executar `.\.venv\Scripts\python.exe -m reflex compile --dry` e `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`, revisar diff e criar commit em português. Classificar conferência visual como “feito, aguarda conferência do usuário”.
+- [x] 4.1 Home com boas-vindas/busca e estatísticas do catálogo público (títulos ativos, exemplares disponíveis e categorias), destaques, seção “Sobre a biblioteca” e atalhos para cada perfil/visão. Não há “Livros que mais saem” sem contagem real por título; os estados de carregamento/erro não exibem números falsos. Commit `8d69cc7accace6b0044623f6eff2c0d9dd8b0fbf` (`Organiza home com estatísticas do catálogo`). Testes novos/atualizados: `test_home_statistics_are_derived_from_public_catalog`, `test_home_shows_profile_shortcuts_and_about_section`, `test_home_omits_popularity_without_loan_counts`, `test_home_sections_use_catalog_data_and_explicit_empty_error_states`, `test_home_has_no_login_or_signup_form_and_keeps_profile_shortcuts`. Verificação: `.\.venv\Scripts\python.exe -m reflex compile --dry` aprovado; `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`: 232 passed. Status visual: feito, aguarda conferência do usuário.
 
 ## 5. Melhorar cartões, detalhes e metadados opcionais
 
