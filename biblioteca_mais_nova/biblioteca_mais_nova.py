@@ -2783,11 +2783,7 @@ def public_catalog_detail() -> rx.Component:
                             ),
                         ),
                         rx.button(
-                            rx.cond(
-                                State.public_catalog_has_available_copies,
-                                "Solicitar empréstimo",
-                                "Entrar na fila de reserva",
-                            ),
+                            "Reservar",
                             type="button",
                             disabled=State.student_request_pending,
                             on_click=State.request_catalog_title(
@@ -2802,8 +2798,9 @@ def public_catalog_detail() -> rx.Component:
                         State.is_authenticated,
                         rx.fragment(),
                         rx.link(
-                            "Entre como estudante para solicitar este título",
+                            "Entrar para reservar",
                             href="/login",
+                            class_name="primary-cta",
                         ),
                     ),
                 ),

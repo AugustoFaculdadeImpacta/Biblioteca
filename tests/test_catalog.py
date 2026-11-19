@@ -744,6 +744,36 @@ def test_title_detail_shows_description_fallback_and_cover(monkeypatch):
     assert "catalog-description" in detail
 
 
+def test_title_detail_actions_follow_effective_role():
+    detail = repr(frontend.public_catalog_detail())
+
+    assert "Reservar" in detail
+    assert "Entrar para reservar" in detail
+    assert "Solicitar empréstimo" not in detail
+    assert "Entrar na fila de reserva" not in detail
+    assert "is_student_rx_state_" in detail
+    assert "is_authenticated_rx_state_" in detail
+
+    async def verify_effective_role():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"title-action-role-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-title-student", "estudante")
+            assert state.is_student is True
+
+            state._store_session("token-title-librarian", "bibliotecario")
+            assert state.is_librarian is True
+            assert state.is_student is False
+
+            state._store_session("token-title-admin", "admin")
+            state.set_admin_view_mode("estudante")
+            assert state.active_navigation_role == "Estudante"
+            assert state.is_student is False
+
+    asyncio.run(verify_effective_role())
+
+
 def test_public_catalog_routes_have_labeled_controls_and_return_links():
     assert "catalogo" in frontend.app._unevaluated_pages
     assert "catalogo/[titulo_id]" in frontend.app._unevaluated_pages
