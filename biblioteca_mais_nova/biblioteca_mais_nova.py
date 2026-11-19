@@ -1881,23 +1881,20 @@ def site_primary_nav() -> rx.Component:
         rx.link("Catálogo", href="/catalogo"),
         rx.cond(
             State.active_navigation_role == "Estudante",
-            rx.link("Minha biblioteca", href="/minha-biblioteca"),
+            rx.link("Reservas", href="/reservas"),
             rx.fragment(),
         ),
         rx.cond(
-            (State.active_navigation_role == "Bibliotecária")
-            | (State.active_navigation_role == "Admin"),
+            State.active_navigation_role == "Bibliotecária",
             rx.fragment(
                 rx.link("Acervo", href="/admin/acervo"),
                 rx.link("Reservas", href="/admin/reservas"),
-                rx.link("Circulação", href="/admin/circulacao"),
             ),
-            rx.fragment(),
-        ),
-        rx.cond(
-            State.active_navigation_role == "Admin",
-            rx.link("Contas", href="/admin/bibliotecarios"),
-            rx.fragment(),
+            rx.cond(
+                State.active_navigation_role == "Admin",
+                rx.link("Contas", href="/admin/bibliotecarios"),
+                rx.fragment(),
+            ),
         ),
         aria_label="Navegação principal",
         class_name="site-primary-nav",
@@ -2079,15 +2076,7 @@ def profile_menu() -> rx.Component:
 
 def site_header() -> rx.Component:
     brand = rx.link(
-        rx.vstack(
-            rx.heading("Biblioteca escolar", size="6"),
-            rx.text(
-                "Leitura, encontro e conhecimento",
-                class_name="brand-tagline",
-            ),
-            align="start",
-            spacing="0",
-        ),
+        "Biblioteca escolar",
         href="/",
         class_name="brand-link",
     )
@@ -2144,13 +2133,15 @@ def site_header() -> rx.Component:
 def site_footer() -> rx.Component:
     return rx.el.footer(
         rx.el.section(
-            rx.heading("Sobre a biblioteca", size="5"),
-            rx.text("Biblioteca escolar • Conhecimento para toda a comunidade."),
+            rx.text(
+                "Sobre a biblioteca",
+                class_name="footer-about-title",
+            ),
+            rx.text("Biblioteca escolar."),
             class_name="footer-about",
         ),
         rx.el.nav(
             rx.link("Catálogo", href="/catalogo"),
-            rx.link("Acessibilidade", href="/acessibilidade"),
             aria_label="Links úteis",
             class_name="footer-links",
         ),
@@ -4297,21 +4288,13 @@ app = rx.App(
         },
         ".brand-link": {
             "display": "inline-flex",
-            "flex_direction": "column",
-            "align_items": "flex-start",
-            "gap": "0.05rem",
+            "align_items": "center",
+            "white_space": "nowrap",
             "color": "var(--brand-900)",
             "font_weight": "800",
             "text_decoration": "none",
             "font_family": "Georgia, 'Times New Roman', serif",
             "font_size": "1.4rem",
-        },
-        ".brand-tagline": {
-            "color": "var(--slate-700)",
-            "font_family": "system-ui, 'Segoe UI', sans-serif",
-            "font_size": "0.8rem",
-            "font_weight": "500",
-            "line_height": "1.3",
         },
         ".brand-link:hover": {
             "color": "var(--brand-700)",
@@ -4414,6 +4397,9 @@ app = rx.App(
             "background_color": "var(--brand-100)",
         },
         ".profile-menu-trigger": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "justify_content": "center",
             "min_height": "2.75rem",
             "padding": "0.45rem 0.9rem",
             "border": "1px solid var(--brand-700)",
@@ -4421,10 +4407,22 @@ app = rx.App(
             "background_color": "var(--brand-900)",
             "color": "#ffffff",
             "font_weight": "700",
+            "list_style": "none",
             "cursor": "pointer",
         },
+        ".profile-menu-trigger::-webkit-details-marker": {
+            "display": "none",
+        },
+        ".profile-menu": {
+            "position": "relative",
+        },
         ".profile-menu-content": {
+            "position": "absolute",
+            "top": "calc(100% + 0.4rem)",
+            "right": "0",
             "z_index": "20",
+            "display": "grid",
+            "gap": "0.2rem",
             "min_width": "13rem",
             "max_width": "min(20rem, calc(100vw - 1rem))",
             "padding": "0.4rem",
@@ -4433,31 +4431,33 @@ app = rx.App(
             "background_color": "var(--bg-panel)",
             "box_shadow": "var(--shadow-soft)",
         },
-        ".profile-menu-content [role='menuitem']": {
-            "display": "flex",
-            "align_items": "center",
-            "min_height": "2.75rem",
-            "padding": "0.45rem 0.65rem",
-            "border_radius": "0.4rem",
-            "color": "var(--slate-900)",
-            "overflow_wrap": "anywhere",
-        },
-        ".profile-menu-content [role='menuitem']:focus-visible": {
-            "outline": "3px solid var(--brand-700)",
-            "outline_offset": "2px",
-        },
-        ".profile-menu-content [role='menuitem'][data-disabled]": {
-            "color": "var(--slate-700)",
-            "opacity": "1",
-            "cursor": "default",
-        },
-        ".profile-menu-content a": {
+        ".profile-menu-item": {
             "display": "flex",
             "align_items": "center",
             "width": "100%",
             "min_height": "2.75rem",
-            "color": "inherit",
+            "padding": "0.45rem 0.65rem",
+            "border": "0",
+            "border_radius": "0.4rem",
+            "background_color": "transparent",
+            "color": "var(--slate-900)",
+            "font": "inherit",
+            "text_align": "left",
+            "overflow_wrap": "anywhere",
             "text_decoration": "none",
+            "cursor": "pointer",
+        },
+        ".profile-menu-item:hover": {
+            "background_color": "var(--brand-100)",
+        },
+        ".profile-menu-item:focus-visible": {
+            "outline": "3px solid var(--brand-700)",
+            "outline_offset": "2px",
+        },
+        ".profile-menu-identity": {
+            "padding": "0.45rem 0.65rem",
+            "color": "var(--slate-700)",
+            "overflow_wrap": "anywhere",
         },
         ".profile-menu-content [role='separator']": {
             "height": "1px",
@@ -5147,21 +5147,28 @@ app = rx.App(
         ".site-footer": {
             "display": "flex",
             "flex_wrap": "wrap",
-            "align_items": "flex-start",
+            "align_items": "center",
             "justify_content": "space-between",
-            "gap": "1.5rem",
+            "gap": "0.75rem 1.5rem",
             "max_width": "72rem",
             "margin": "0 auto",
-            "padding": "1.25rem 1rem",
+            "padding": "0.75rem 1rem",
             "border_top": "1px solid var(--line)",
             "color": "var(--slate-700)",
             "font_size": "0.9rem",
         },
-        ".footer-about h5": {
-            "margin": "0 0 0.35rem",
-        },
-        ".footer-about p": {
+        ".footer-about": {
+            "display": "flex",
+            "align_items": "baseline",
+            "gap": "0.4rem",
             "margin": "0",
+        },
+        ".footer-about p, .footer-about-title": {
+            "margin": "0",
+        },
+        ".footer-about-title": {
+            "font_weight": "700",
+            "color": "var(--slate-900)",
         },
         ".footer-links": {
             "display": "flex",
@@ -5215,6 +5222,7 @@ app = rx.App(
                 "display": "grid",
                 "grid_template_columns": "minmax(0, 1fr) auto",
                 "align_items": "center",
+                "gap": "0.5rem",
                 "padding": "0.75rem",
             },
             ".site-header-desktop": {
@@ -5226,9 +5234,6 @@ app = rx.App(
             ".brand-link": {
                 "min_width": "0",
                 "font_size": "1.2rem",
-            },
-            ".brand-tagline": {
-                "font_size": "0.72rem",
             },
             ".site-primary-nav": {
                 "align_items": "stretch",

@@ -267,7 +267,7 @@ def test_circulation_page_has_accessible_actions_and_focus_style():
     assert r"Oferecer ao pr\\u00f3ximo da fila" in page
     assert r"Registrar devolu\\u00e7\\u00e3o" in page
     assert "Atrasados" in page
-    assert "/admin/circulacao" in header
+    assert "/admin/circulacao" not in header
     assert frontend.app.style[":focus-visible"]["outline"].startswith("3px solid ")
 
 

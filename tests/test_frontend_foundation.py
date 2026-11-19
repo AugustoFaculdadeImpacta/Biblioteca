@@ -160,7 +160,7 @@ def test_touch_targets_and_keyboard_accessibility_at_mobile_viewport():
         ".site-primary-nav a",
         ".site-menu-toggle",
         ".profile-menu-trigger",
-        ".profile-menu-content [role='menuitem']",
+        ".profile-menu-item",
         ".admin-view-reset",
         ".a11y-controls button",
         ".catalog-card-link",

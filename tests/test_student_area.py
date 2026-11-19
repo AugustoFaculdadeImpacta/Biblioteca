@@ -598,5 +598,5 @@ def test_student_library_page_and_navigation_are_profile_gated():
     assert "empr" in page
     assert "solicita" in page
     assert "reservas" in page
-    assert "minha-biblioteca" in header
+    assert "/reservas" in header
     assert "minha-biblioteca" in frontend.app._unevaluated_pages

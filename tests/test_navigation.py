@@ -200,14 +200,14 @@ def test_navigation_changes_by_profile_and_logout_clears_session():
             assert state.is_authenticated is False
             assert state.is_librarian is False
             assert state.is_student is False
-            assert "/minha-biblioteca" in header
+            assert "/reservas" in header
             assert "/admin/reservas" in header
 
             state._store_session("token-falso-navegacao", "estudante")
             assert state.is_authenticated is True
             assert state.is_librarian is False
             assert state.is_student is True
-            assert "/minha-biblioteca" in header
+            assert "/reservas" in header
 
             state._store_session("token-falso-bibliotecario", "bibliotecario")
             assert state.is_librarian is True
@@ -319,13 +319,17 @@ def test_student_navigation_has_accessible_labels_focus_and_mobile_layout():
     assert "Início" not in header
     assert "Catálogo" in header
     assert "greeting_name_rx_state_" in header
-    assert "Minha biblioteca" in header
+    assert "Reservas" in header
+    assert "/reservas" in header
     assert "Sair" in header
 
     assert style[":focus-visible"]["outline"].startswith("3px solid ")
     assert style[".site-primary-nav a"]["color"] == "var(--brand-700)"
     assert "Início" not in header
     assert "Perfil" in header
+    assert style[".brand-link"]["white_space"] == "nowrap"
+    assert style[".profile-menu"]["position"] == "relative"
+    assert style[".profile-menu-content"]["position"] == "absolute"
     mobile = style["@media screen and (max-width: 40rem)"]
     assert mobile[".site-header"]["display"] == "grid"
     assert mobile[".site-menu-toggle"]["display"] == "inline-flex"
@@ -340,22 +344,21 @@ def test_site_header_brand_and_footer_links_preserve_profile_access():
     style = frontend.app.style
 
     assert "Biblioteca escolar" in header
-    assert "Leitura, encontro e conhecimento" in header
+    assert "Leitura, encontro e conhecimento" not in header
     assert homepage.index("brand-link") < homepage.index("Descubra")
     assert "Perfil" in header
     assert "/admin/acervo" in header
-    assert "/admin/circulacao" in header
     assert "/admin/reservas" in header
     assert "/admin/bibliotecarios" in header
     assert "Voltar à visão de admin" in header
+    assert "/admin/circulacao" not in header
     assert "Sobre a biblioteca" in footer
     assert "Links úteis" in footer
     assert "/catalogo" in footer
-    assert "/acessibilidade" in footer
+    assert "/acessibilidade" not in footer
     assert "/#controles-acessibilidade" not in footer
     assert "contato" not in footer.lower()
     assert "privacidade" not in footer.lower()
-    assert style[".brand-tagline"]["font_size"] == "0.8rem"
     assert style[".profile-menu-trigger"]["min_height"] == "2.75rem"
     assert style[".site-menu-toggle"]["min_height"] == "2.75rem"
 
@@ -397,8 +400,8 @@ def test_all_routes_use_one_shared_header_and_footer():
     footer = _readable(frontend.site_footer())
     assert "Sobre a biblioteca" in footer
     assert "Catálogo" in footer
-    assert "Acessibilidade" in footer
-    assert "/acessibilidade" in footer
+    assert "Acessibilidade" not in footer
+    assert "/acessibilidade" not in footer
     assert "/#controles-acessibilidade" not in footer
 
 
@@ -530,19 +533,19 @@ def test_accessibility_page_reuses_existing_controls():
     assert style[".a11y-controls button"]["min_height"] == "2.75rem"
 
 
-def test_navigation_items_follow_profile_and_active_view():
+def test_header_navigation_by_profile_and_view():
     nav = _readable(frontend.site_primary_nav())
     menu = _readable(frontend.profile_menu())
-    header = _readable(frontend.site_header())
+    header = frontend.site_header()
+    header_text = _readable(header)
 
     assert all(
         route in nav
         for route in (
             "/catalogo",
-            "/minha-biblioteca",
+            "/reservas",
             "/admin/acervo",
             "/admin/reservas",
-            "/admin/circulacao",
             "/admin/bibliotecarios",
         )
     )
@@ -550,16 +553,17 @@ def test_navigation_items_follow_profile_and_active_view():
         label in nav
         for label in (
             "Catálogo",
-            "Minha biblioteca",
-            "Acervo",
             "Reservas",
-            "Circulação",
+            "Acervo",
             "Contas",
         )
     )
+    assert "Minha biblioteca" not in nav
+    assert "Circulação" not in nav
+    assert _serialized_class_count(header, "site-primary-nav") == 2
     assert all(label in menu for label in ("Admin", "Bibliotecária", "Estudante"))
     assert "aria-checked" in menu
-    assert "Modo de visualização" in header
+    assert "Modo de visualização" in header_text
 
     async def verify():
         async with frontend.app.modify_state(
