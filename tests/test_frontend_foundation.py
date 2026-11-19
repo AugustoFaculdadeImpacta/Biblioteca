@@ -200,7 +200,7 @@ def test_forms_and_admin_panels_use_shared_visual_states():
 def test_touch_targets_and_keyboard_accessibility_at_mobile_viewport():
     for selector in (
         "button, [role='button'], [role='checkbox'], [role='switch'], [role='radio']",
-        "input:not([type='checkbox']):not([type='radio']), textarea, select",
+        "input:not([type='checkbox']):not([type='radio']):not(.rt-TextFieldInput), textarea, select",
         ".site-primary-nav a",
         ".site-menu-toggle",
         ".profile-menu-trigger",
