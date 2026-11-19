@@ -271,14 +271,18 @@ def test_admin_view_mode_changes_navigation_without_changing_session():
 
 def test_admin_view_mode_controls_are_visible_and_accessible():
     header = _readable(frontend.site_header())
+    menu = _readable(frontend.profile_menu())
     style = frontend.app.style
 
     assert "Modo de visualização" in header
+    assert "Modo de visualização" in menu
     assert "Admin" in header
     assert "Bibliotecária" in header
     assert "Estudante" in header
     assert 'role:"radio"' in header
     assert "aria-checked" in header
+    assert "Modo escuro" in menu
+    assert "Voltar à visão de admin" not in menu
     assert "Voltar à visão de admin" in header
     assert style[":focus-visible"]["outline"].startswith("3px solid ")
 
