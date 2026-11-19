@@ -114,7 +114,7 @@ def test_dark_and_high_contrast_tokens_meet_wcag_aa():
 
 def test_text_controls_have_explicit_theme_aware_colors_and_focus():
     controls_style = app.style[
-        "input:not([type='checkbox']):not([type='radio']), textarea, select"
+        "input:not([type='checkbox']):not([type='radio']):not(.rt-TextFieldInput), textarea, select"
     ]
     assert controls_style["color"] == "var(--slate-900)"
     assert controls_style["background_color"] == "var(--bg-panel)"
@@ -124,6 +124,37 @@ def test_text_controls_have_explicit_theme_aware_colors_and_focus():
         type(plugin).__name__ == "RadixThemesPlugin" and plugin.theme is not None
         for plugin in config.plugins
     )
+
+
+def test_text_fields_have_single_container_border_and_visible_container_focus():
+    container = app.style[".signup-input"]
+    inner = app.style[".signup-input input, .rt-TextFieldInput"]
+    focused_container = app.style[
+        ".signup-input:focus-within, .rt-TextFieldRoot:focus-within, .rt-SelectTrigger:focus-visible, input:not([type='checkbox']):not([type='radio']):not(.rt-TextFieldInput):focus-visible, textarea:focus-visible, select:focus-visible"
+    ]
+
+    assert container["border"] == "1px solid var(--line)"
+    assert container["border_radius"] == "0.5rem"
+    assert container["min_height"] == "2.75rem"
+    assert inner["border"] == "0 !important"
+    assert inner["box_shadow"] == "none !important"
+    assert inner["outline"] == "none !important"
+    assert inner["background_color"] == "transparent !important"
+    assert focused_container["outline"] == "3px solid var(--brand-700)"
+    assert focused_container["outline_offset"] == "2px"
+
+
+def test_form_controls_keep_keyboard_focus_visible():
+    for selector in (
+        "input:not([type='checkbox']):not([type='radio']):not(.rt-TextFieldInput), textarea, select",
+        ".rt-SelectTrigger",
+    ):
+        assert app.style[selector]["min_height"] == "2.75rem"
+        assert app.style[selector]["border"] == "1px solid var(--line)"
+    assert app.style[":focus-visible"] == {
+        "outline": "3px solid var(--brand-700)",
+        "outline_offset": "3px",
+    }
 
 
 def test_authentication_forms_use_responsive_cards_and_distinct_feedback():

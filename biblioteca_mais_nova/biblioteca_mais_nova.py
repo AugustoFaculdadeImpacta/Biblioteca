@@ -5944,20 +5944,42 @@ app = rx.App(
             "border_radius": "0.5rem",
             "color": "var(--slate-900)",
             "background_color": "var(--bg-panel)",
+            "box_shadow": "none",
             "transition": "border-color 120ms ease, box-shadow 120ms ease",
         },
-        ".signup-input input": {
+        ".signup-input input, .rt-TextFieldInput": {
             "color": "var(--slate-900)",
-            "background_color": "transparent",
+            "border": "0 !important",
+            "border_radius": "0 !important",
+            "box_shadow": "none !important",
+            "outline": "none !important",
+            "background_color": "transparent !important",
             "min_height": "2.75rem",
         },
-        "input:not([type='checkbox']):not([type='radio']), textarea, select": {
+        "input:not([type='checkbox']):not([type='radio']):not(.rt-TextFieldInput), textarea, select": {
             "min_height": "2.75rem",
             "color": "var(--slate-900)",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.5rem",
             "background_color": "var(--bg-panel)",
             "caret_color": "var(--slate-900)",
         },
-        ".signup-input input::placeholder, input:not([type='checkbox']):not([type='radio'])::placeholder, textarea::placeholder": {
+        ".rt-SelectTrigger": {
+            "min_height": "2.75rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.5rem",
+            "color": "var(--slate-900)",
+            "background_color": "var(--bg-panel)",
+            "box_shadow": "none",
+        },
+        ".signup-input:focus-within, .rt-TextFieldRoot:focus-within, .rt-SelectTrigger:focus-visible, input:not([type='checkbox']):not([type='radio']):not(.rt-TextFieldInput):focus-visible, textarea:focus-visible, select:focus-visible": {
+            "outline": "3px solid var(--brand-700)",
+            "outline_offset": "2px",
+        },
+        ".signup-input input:focus-visible, .rt-TextFieldInput:focus-visible": {
+            "outline": "none !important",
+        },
+        ".signup-input input::placeholder, .rt-TextFieldInput::placeholder, input:not([type='checkbox']):not([type='radio']):not(.rt-TextFieldInput)::placeholder, textarea::placeholder": {
             "color": "var(--slate-700)",
             "opacity": "1",
         },
