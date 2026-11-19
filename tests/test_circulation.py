@@ -34,6 +34,30 @@ def _loan(*, returned: str | None = None) -> dict[str, object]:
     }
 
 
+def _readable_component(component):
+    tree = json.loads(repr(component))
+    values = []
+
+    def collect(value):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if key == "contents" and isinstance(child, str):
+                    try:
+                        values.append(json.loads(child))
+                    except json.JSONDecodeError:
+                        values.append(child)
+                elif key == "props" and isinstance(child, list):
+                    values.extend(prop for prop in child if isinstance(prop, str))
+                else:
+                    collect(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect(child)
+
+    collect(tree)
+    return " ".join(values)
+
+
 def test_admin_lists_use_typed_contracts_and_bearer_auth(monkeypatch):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
     requests = []
@@ -262,13 +286,55 @@ def test_circulation_page_has_accessible_actions_and_focus_style():
     page = repr(frontend.circulation_page())
     header = repr(frontend.site_header())
 
-    assert r"Painel de circula\\u00e7\\u00e3o" in page
+    assert "Reservas e circula" in page
     assert "Registrar retirada" in page
     assert r"Oferecer ao pr\\u00f3ximo da fila" in page
     assert r"Registrar devolu\\u00e7\\u00e3o" in page
     assert "Atrasados" in page
     assert "/admin/circulacao" not in header
     assert frontend.app.style[":focus-visible"]["outline"].startswith("3px solid ")
+
+
+def test_staff_reservations_tabs_reuse_current_operations():
+    page = _readable_component(frontend.circulation_page())
+
+    assert 'role:"tablist"' in page
+    assert 'role:"tab"' in page
+    assert "aria-controls" in page
+    assert "Pedidos" in page
+    assert "Empréstimos e devoluções" in page
+    assert "Solicitações pendentes" in page
+    assert "Registrar retirada" in page
+    assert "Oferecer ao próximo da fila" in page
+    assert "Reservar para estudante" in page
+    assert "Registrar devolução" in page
+    assert frontend.app.style[".circulation-tab"]["min_height"] == "44px"
+    assert frontend.app.style["@media screen and (max-width: 40rem)"][
+        ".circulation-tab"
+    ]["width"] == "100%"
+
+
+def test_staff_operational_counts_use_loaded_records(monkeypatch):
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"operational-counts-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-falso", "bibliotecario")
+            state.circulation_requests = [
+                {"estado": "pendente"},
+                {"estado": "atendida"},
+            ]
+            state.circulation_loans = [
+                {"atrasado": True},
+                {"atrasado": False},
+            ]
+
+            assert state.circulation_pending_request_count == 1
+            assert state.circulation_overdue_loan_count == 1
+            assert state.circulation_active_loan_count == 2
+
+    asyncio.run(verify())
 
 
 @pytest.mark.parametrize("profile", ["", "estudante"])

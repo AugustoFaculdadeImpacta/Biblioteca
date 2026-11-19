@@ -276,6 +276,41 @@ def test_management_handlers_require_admin_and_keep_session_private(monkeypatch)
     asyncio.run(verify())
 
 
+def test_admin_accounts_search_and_supported_actions():
+    page = repr(frontend.librarian_management())
+    assert "Buscar conta por nome ou e-mail" in page
+    assert "Cadastrar" in page
+    assert "Desativar" in page
+    assert "Reativar" in page
+    assert "Promover" not in page
+    assert "Rebaixar" not in page
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"librarian-search-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-falso-admin", "admin")
+            state.managed_librarians = [
+                _librarian(),
+                {
+                    "id": 13,
+                    "nome": "Beatriz",
+                    "email": "bia@escola.edu.br",
+                    "ativo": False,
+                },
+            ]
+            state.librarian_management_search = "ANA"
+
+            assert state.filtered_managed_librarians == [_librarian()]
+            state.librarian_management_search = "@escola.edu.br"
+            assert len(state.filtered_managed_librarians) == 2
+            state.librarian_management_search = "inexistente"
+            assert state.filtered_managed_librarians == []
+
+    asyncio.run(verify())
+
+
 def test_non_admin_cannot_load_or_mutate_librarians(monkeypatch):
     async def verify():
         session_id = f"user-management-denied-{uuid4()}"

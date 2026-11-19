@@ -454,7 +454,7 @@ def _route_components():
         "/reservas": frontend.student_reservations,
         "/minha-biblioteca": frontend.student_library_redirect,
         "/admin/acervo": frontend.catalog_admin,
-        "/admin/reservas": frontend.staff_reservation_page,
+        "/admin/reservas": frontend.circulation_page,
         "/admin/circulacao": frontend.circulation_page,
         "/admin/bibliotecarios": frontend.librarian_management,
     }

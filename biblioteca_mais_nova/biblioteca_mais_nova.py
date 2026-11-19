@@ -154,6 +154,7 @@ class State(rx.State):
     librarian_management_message: str = ""
     librarian_management_has_error: bool = False
     librarian_management_success: bool = False
+    librarian_management_search: str = ""
     managed_librarians: list[dict[str, Any]] = []
     staff_reservation_pending: bool = False
     staff_reservation_message: str = ""
@@ -164,6 +165,7 @@ class State(rx.State):
     staff_reservation_title_id: str = ""
     staff_reservation_needs_manual_check: bool = False
     circulation_pending: bool = False
+    circulation_active_tab: str = "pedidos"
     circulation_message: str = ""
     circulation_has_error: bool = False
     circulation_needs_manual_check: bool = False
@@ -602,6 +604,27 @@ class State(rx.State):
     @rx.var
     def circulation_overdue_loan_count(self) -> int:
         return sum(bool(loan["atrasado"]) for loan in self.circulation_loans)
+
+    @rx.var
+    def circulation_pending_request_count(self) -> int:
+        return sum(
+            request["estado"] == "pendente"
+            for request in self.circulation_requests
+        )
+
+    @rx.var
+    def filtered_managed_librarians(self) -> list[dict[str, Any]]:
+        query = _catalog_search_key(self.librarian_management_search.strip())
+        if not query:
+            return self.managed_librarians
+        return [
+            librarian
+            for librarian in self.managed_librarians
+            if query
+            in _catalog_search_key(
+                f'{librarian["nome"]} {librarian["email"]}'
+            )
+        ]
 
     def _redirect_non_librarian(self):
         if not self._session_token:
@@ -1156,6 +1179,22 @@ class State(rx.State):
         self.staff_reservation_title_id = value
 
     @rx.event
+    def update_librarian_management_search(self, value: str):
+        if not self._is_admin():
+            return self._redirect_non_admin()
+        self.librarian_management_search = value
+
+    @rx.event
+    def select_circulation_tab(self, tab: str):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        if tab not in {"pedidos", "emprestimos"}:
+            self.circulation_message = "A aba selecionada não é válida."
+            self.circulation_has_error = True
+            return
+        self.circulation_active_tab = tab
+
+    @rx.event
     async def load_staff_reservation_page(self):
         if not self._is_librarian():
             return self._redirect_non_librarian()
@@ -1352,6 +1391,37 @@ class State(rx.State):
         self.circulation_message = ""
         self.circulation_has_error = False
         await self._refresh_circulation_data()
+
+    @rx.event
+    async def load_staff_reservations_dashboard(self):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        self.circulation_active_tab = "pedidos"
+        self.staff_reservation_message = ""
+        self.staff_reservation_has_error = False
+        self.staff_reservation_email = ""
+        self.staff_reservation_student = {}
+        self.staff_reservation_title_id = ""
+        self.staff_reservation_needs_manual_check = False
+        await self.load_circulation_page()
+        self.staff_reservation_title_options = [
+            {
+                "id": str(entry["titulo"]["id"]),
+                "label": entry["titulo"]["titulo"],
+            }
+            for entry in self.circulation_catalog_entries
+            if entry["titulo"].get("ativo") is not False
+        ]
+        if not self.staff_reservation_title_options and not self.circulation_has_error:
+            self.staff_reservation_message = (
+                "Não há títulos ativos disponíveis para reserva."
+            )
+
+    @rx.event
+    async def load_circulation_loans_tab(self):
+        result = await self.load_staff_reservations_dashboard()
+        self.circulation_active_tab = "emprestimos"
+        return result
 
     async def _perform_circulation_action(
         self,
@@ -4197,23 +4267,43 @@ def librarian_management() -> rx.Component:
                     class_name="signup-form librarian-form",
                 ),
                 rx.heading("Contas bibliotecárias", size="5"),
+                rx.el.label(
+                    "Buscar conta por nome ou e-mail",
+                    html_for="busca-contas-bibliotecarias",
+                    class_name="signup-label",
+                ),
+                rx.input(
+                    id="busca-contas-bibliotecarias",
+                    type="search",
+                    value=State.librarian_management_search,
+                    on_change=State.update_librarian_management_search,
+                    aria_label="Buscar conta por nome ou e-mail",
+                    class_name="signup-input",
+                ),
                 rx.cond(
                     State.librarian_management_pending,
                     rx.text("Carregando bibliotecários…", role="status"),
                     rx.fragment(),
                 ),
                 rx.cond(
-                    State.managed_librarians.length() > 0,
+                    State.filtered_managed_librarians.length() > 0,
                     rx.el.div(
-                        rx.foreach(State.managed_librarians, librarian_card),
+                        rx.foreach(
+                            State.filtered_managed_librarians,
+                            librarian_card,
+                        ),
                         class_name="librarian-list",
                     ),
                     rx.cond(
-                        State.librarian_management_pending,
+                        State.librarian_management_pending
+                        | State.librarian_management_has_error,
                         rx.fragment(),
                         rx.cond(
-                            State.librarian_management_has_error,
-                            rx.fragment(),
+                            State.managed_librarians.length() > 0,
+                            rx.text(
+                                "Nenhuma conta corresponde à busca.",
+                                role="status",
+                            ),
                             rx.text(
                                 "Nenhum bibliotecário cadastrado.",
                                 role="status",
@@ -4369,6 +4459,123 @@ def staff_reservation_page() -> rx.Component:
     )
 
 
+def staff_reservation_form() -> rx.Component:
+    return rx.el.section(
+        rx.heading("Reservar para estudante", size="5"),
+        rx.text(
+            "A busca exige o e-mail completo. A reserva segue as mesmas "
+            "regras e a fila normal do catálogo."
+        ),
+        rx.cond(
+            State.staff_reservation_message != "",
+            rx.el.p(
+                State.staff_reservation_message,
+                role=rx.cond(
+                    State.staff_reservation_has_error,
+                    "alert",
+                    "status",
+                ),
+                aria_live="polite",
+                class_name=rx.cond(
+                    State.staff_reservation_has_error,
+                    "signup-feedback signup-feedback-error",
+                    "signup-feedback signup-feedback-success",
+                ),
+            ),
+            rx.fragment(),
+        ),
+        rx.el.label(
+            "E-mail completo do estudante",
+            html_for="reserva-estudante-email",
+            class_name="signup-label",
+        ),
+        rx.input(
+            id="reserva-estudante-email",
+            type="email",
+            value=State.staff_reservation_email,
+            on_change=State.update_staff_reservation_email,
+            required=True,
+            aria_label="E-mail completo do estudante",
+            class_name="signup-input",
+            disabled=State.staff_reservation_pending
+            | State.staff_reservation_needs_manual_check,
+        ),
+        rx.button(
+            "Buscar estudante",
+            type="button",
+            on_click=State.search_staff_reservation_student,
+            disabled=State.staff_reservation_pending
+            | State.staff_reservation_needs_manual_check,
+            class_name="focus-demo-button",
+        ),
+        rx.cond(
+            State.has_staff_reservation_student,
+            rx.el.div(
+                rx.heading("Confirme o estudante", size="6"),
+                rx.text(
+                    State.staff_reservation_student["nome"],
+                    aria_label="Nome do estudante localizado",
+                ),
+                class_name="librarian-card",
+            ),
+            rx.fragment(),
+        ),
+        rx.el.label(
+            "Título ativo",
+            html_for="reserva-titulo-id",
+            class_name="signup-label",
+        ),
+        rx.select.root(
+            rx.select.trigger(
+                placeholder="Selecione um título ativo",
+                aria_label="Título para reserva",
+            ),
+            rx.select.content(
+                rx.select.group(
+                    rx.foreach(
+                        State.staff_reservation_title_options,
+                        lambda option: rx.select.item(
+                            option["label"],
+                            value=option["id"],
+                        ),
+                    )
+                )
+            ),
+            value=State.staff_reservation_title_id,
+            on_change=State.update_staff_reservation_title_id,
+            disabled=State.staff_reservation_pending
+            | State.staff_reservation_needs_manual_check,
+            id="reserva-titulo-id",
+        ),
+        rx.button(
+            "Registrar reserva na fila",
+            type="button",
+            on_click=State.submit_staff_reservation,
+            disabled=State.staff_reservation_pending
+            | State.staff_reservation_needs_manual_check
+            | ~State.has_staff_reservation_student,
+            class_name="focus-demo-button",
+        ),
+        rx.cond(
+            State.staff_reservation_pending,
+            rx.text("Processando…", role="status"),
+            rx.fragment(),
+        ),
+        rx.cond(
+            State.staff_reservation_needs_manual_check,
+            rx.button(
+                "Já conferi a fila no Xano; permitir nova tentativa",
+                type="button",
+                on_click=State.acknowledge_staff_reservation_check,
+                disabled=State.staff_reservation_pending,
+                class_name="nav-logout",
+            ),
+            rx.fragment(),
+        ),
+        class_name="content-section staff-reservation-form",
+    )
+
+
 def circulation_request_card(request: LoanRequest) -> rx.Component:
     return rx.el.article(
         rx.heading(f"Solicitação #{request['id']}", size="4"),
@@ -4488,10 +4695,10 @@ def circulation_page() -> rx.Component:
         site_header(),
         rx.el.main(
             rx.el.section(
-                rx.heading("Painel de circulação", size="7"),
+                rx.heading("Reservas e circulação", size="7"),
                 rx.text(
-                    "A retirada inicia o empréstimo por 14 dias. As ofertas "
-                    "seguem a fila definida pelo servidor."
+                    "Acompanhe pedidos, reservas e devoluções usando os "
+                    "registros atuais do acervo."
                 ),
                 rx.cond(
                     State.circulation_message != "",
@@ -4511,7 +4718,142 @@ def circulation_page() -> rx.Component:
                     ),
                     rx.fragment(),
                 ),
+                rx.cond(
+                    (~State.circulation_pending)
+                    & (~State.circulation_has_error),
+                    rx.el.div(
+                        rx.el.div(
+                            rx.text(
+                                "Pedidos pendentes",
+                                class_name="operational-count-label",
+                            ),
+                            rx.heading(
+                                State.circulation_pending_request_count,
+                                size="6",
+                            ),
+                            class_name="operational-count",
+                        ),
+                        rx.el.div(
+                            rx.text(
+                                "Atrasados",
+                                class_name="operational-count-label",
+                            ),
+                            rx.heading(
+                                State.circulation_overdue_loan_count,
+                                size="6",
+                            ),
+                            class_name="operational-count",
+                        ),
+                        rx.el.div(
+                            rx.text(
+                                "Empréstimos ativos",
+                                class_name="operational-count-label",
+                            ),
+                            rx.heading(
+                                State.circulation_active_loan_count,
+                                size="6",
+                            ),
+                            class_name="operational-count",
+                        ),
+                        class_name="operational-counts",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.button(
+                    "Atualizar reservas e circulação",
+                    type="button",
+                    on_click=State.load_staff_reservations_dashboard,
+                    disabled=State.circulation_pending,
+                    class_name="nav-logout",
+                ),
+                rx.cond(
+                    State.circulation_pending,
+                    rx.text("Carregando reservas e circulação…", role="status"),
+                    rx.fragment(),
+                ),
                 rx.el.div(
+                    rx.button(
+                        "Pedidos",
+                        id="aba-pedidos",
+                        type="button",
+                        role="tab",
+                        aria_selected=State.circulation_active_tab == "pedidos",
+                        aria_controls="painel-pedidos",
+                        on_click=State.select_circulation_tab("pedidos"),
+                        class_name="circulation-tab",
+                    ),
+                    rx.button(
+                        "Empréstimos e devoluções",
+                        id="aba-emprestimos",
+                        type="button",
+                        role="tab",
+                        aria_selected=(
+                            State.circulation_active_tab == "emprestimos"
+                        ),
+                        aria_controls="painel-emprestimos",
+                        on_click=State.select_circulation_tab("emprestimos"),
+                        class_name="circulation-tab",
+                    ),
+                    role="tablist",
+                    aria_label="Seções de reservas e circulação",
+                    class_name="circulation-tabs",
+                ),
+                rx.cond(
+                    State.circulation_active_tab == "pedidos",
+                    rx.el.div(
+                        rx.heading("Solicitações pendentes", size="5"),
+                        rx.cond(
+                            State.has_circulation_requests,
+                            rx.el.div(
+                                rx.foreach(
+                                    State.circulation_requests,
+                                    circulation_request_card,
+                                ),
+                                class_name="librarian-list",
+                            ),
+                            rx.cond(
+                                State.circulation_pending
+                                | State.circulation_has_error,
+                                rx.fragment(),
+                                rx.text(
+                                    "Não há solicitações pendentes.",
+                                    role="status",
+                                ),
+                            ),
+                        ),
+                        rx.heading("Fila e ofertas de reserva", size="5"),
+                        rx.cond(
+                            State.has_circulation_reservations,
+                            rx.el.div(
+                                rx.foreach(
+                                    State.circulation_reservations,
+                                    circulation_reservation_card,
+                                ),
+                                class_name="librarian-list",
+                            ),
+                            rx.cond(
+                                State.circulation_pending
+                                | State.circulation_has_error,
+                                rx.fragment(),
+                                rx.text(
+                                    "Não há reservas aguardando ou ofertadas.",
+                                    role="status",
+                                ),
+                            ),
+                        ),
+                        staff_reservation_form(),
+                        id="painel-pedidos",
+                        role="tabpanel",
+                        aria_labelledby="aba-pedidos",
+                        class_name="circulation-tab-panel",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.circulation_active_tab == "emprestimos",
+                    rx.el.div(
+                        rx.heading("Empréstimos e devoluções", size="5"),
+                        rx.el.div(
                     rx.text(
                         "Empréstimos ativos: ",
                         State.circulation_active_loan_count,
@@ -4520,79 +4862,33 @@ def circulation_page() -> rx.Component:
                         "Atrasados: ",
                         State.circulation_overdue_loan_count,
                     ),
-                    class_name="librarian-card",
-                ),
-                rx.button(
-                    "Atualizar circulação",
-                    type="button",
-                    on_click=State.load_circulation_page,
-                    disabled=State.circulation_pending,
-                    class_name="nav-logout",
-                ),
-                rx.cond(
-                    State.circulation_pending,
-                    rx.text("Carregando circulação…", role="status"),
+                            class_name="librarian-card",
+                        ),
+                        rx.cond(
+                            State.has_circulation_loans,
+                            rx.el.div(
+                                rx.foreach(
+                                    State.circulation_loans,
+                                    circulation_loan_card,
+                                ),
+                                class_name="librarian-list",
+                            ),
+                            rx.cond(
+                                State.circulation_pending
+                                | State.circulation_has_error,
+                                rx.fragment(),
+                                rx.text(
+                                    "Não há empréstimos ativos.",
+                                    role="status",
+                                ),
+                            ),
+                        ),
+                        id="painel-emprestimos",
+                        role="tabpanel",
+                        aria_labelledby="aba-emprestimos",
+                        class_name="circulation-tab-panel",
+                    ),
                     rx.fragment(),
-                ),
-                rx.heading("Solicitações pendentes", size="5"),
-                rx.cond(
-                    State.has_circulation_requests,
-                    rx.el.div(
-                        rx.foreach(
-                            State.circulation_requests,
-                            circulation_request_card,
-                        ),
-                        class_name="librarian-list",
-                    ),
-                    rx.cond(
-                        State.circulation_pending
-                        | State.circulation_has_error,
-                        rx.fragment(),
-                        rx.text(
-                            "Não há solicitações pendentes.",
-                            role="status",
-                        ),
-                    ),
-                ),
-                rx.heading("Fila e ofertas de reserva", size="5"),
-                rx.cond(
-                    State.has_circulation_reservations,
-                    rx.el.div(
-                        rx.foreach(
-                            State.circulation_reservations,
-                            circulation_reservation_card,
-                        ),
-                        class_name="librarian-list",
-                    ),
-                    rx.cond(
-                        State.circulation_pending
-                        | State.circulation_has_error,
-                        rx.fragment(),
-                        rx.text(
-                            "Não há reservas aguardando ou ofertadas.",
-                            role="status",
-                        ),
-                    ),
-                ),
-                rx.heading("Empréstimos ativos e atrasos", size="5"),
-                rx.cond(
-                    State.has_circulation_loans,
-                    rx.el.div(
-                        rx.foreach(
-                            State.circulation_loans,
-                            circulation_loan_card,
-                        ),
-                        class_name="librarian-list",
-                    ),
-                    rx.cond(
-                        State.circulation_pending
-                        | State.circulation_has_error,
-                        rx.fragment(),
-                        rx.text(
-                            "Não há empréstimos ativos.",
-                            role="status",
-                        ),
-                    ),
                 ),
                 id="conteudo-circulacao",
                 class_name="content-section librarian-management-section",
@@ -5520,6 +5816,61 @@ app = rx.App(
             "background_color": "var(--bg-panel)",
             "box_shadow": "var(--shadow-soft)",
         },
+        ".operational-counts": {
+            "display": "grid",
+            "grid_template_columns": "repeat(auto-fit, minmax(min(100%, 10rem), 1fr))",
+            "gap": "0.75rem",
+            "width": "100%",
+        },
+        ".operational-count": {
+            "display": "flex",
+            "flex_direction": "column",
+            "gap": "0.25rem",
+            "padding": "0.85rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.75rem",
+            "background_color": "var(--bg-soft)",
+        },
+        ".operational-count h1, .operational-count h2, .operational-count h3": {
+            "margin": "0",
+        },
+        ".operational-count-label": {
+            "color": "var(--slate-700)",
+            "font_weight": "600",
+        },
+        ".circulation-tabs": {
+            "display": "flex",
+            "flex_wrap": "wrap",
+            "gap": "0.5rem",
+            "width": "100%",
+            "border_bottom": "1px solid var(--line)",
+        },
+        ".circulation-tab": {
+            "min_height": "44px",
+            "padding": "0.65rem 1rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.65rem 0.65rem 0 0",
+            "background_color": "var(--bg-soft)",
+            "color": "var(--slate-900)",
+            "font_weight": "700",
+            "cursor": "pointer",
+        },
+        ".circulation-tab[aria-selected='true']": {
+            "border_color": "var(--brand-700)",
+            "background_color": "var(--brand-100)",
+            "color": "var(--brand-900)",
+        },
+        ".circulation-tab-panel": {
+            "display": "flex",
+            "flex_direction": "column",
+            "align_items": "flex-start",
+            "gap": "1rem",
+            "width": "100%",
+        },
+        ".staff-reservation-form": {
+            "width": "100%",
+            "margin": "1rem 0 0",
+        },
         ".librarian-form": {
             "width": "min(100%, 34rem)",
             "padding": "1rem",
@@ -5807,6 +6158,14 @@ app = rx.App(
             ".content-section": {
                 "padding": "1.25rem 0.25rem",
             },
+            ".circulation-tabs": {
+                "align_items": "stretch",
+                "flex_direction": "column",
+            },
+            ".circulation-tab": {
+                "width": "100%",
+                "border_radius": "0.65rem",
+            },
             ".signup-section": {
                 "margin": "1rem auto",
                 "padding": "1.25rem 1rem",
@@ -5892,14 +6251,14 @@ app.add_page(
     on_load=State.load_librarians,
 )
 app.add_page(
-    accessible_page(staff_reservation_page),
+    accessible_page(circulation_page),
     route="/admin/reservas",
-    title="Reservar para estudante",
-    on_load=State.load_staff_reservation_page,
+    title="Reservas e circulação",
+    on_load=State.load_staff_reservations_dashboard,
 )
 app.add_page(
     accessible_page(circulation_page),
     route="/admin/circulacao",
-    title="Painel de circulação",
-    on_load=State.load_circulation_page,
+    title="Empréstimos e devoluções",
+    on_load=State.load_circulation_loans_tab,
 )
