@@ -1,5 +1,6 @@
 import asyncio
 import json
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import httpx
@@ -304,6 +305,7 @@ def test_staff_reservations_tabs_reuse_current_operations():
     assert "Pedidos" in page
     assert "Empréstimos e devoluções" in page
     assert "Solicitações pendentes" in page
+    assert "Devoluções previstas hoje" in page
     assert "Registrar retirada" in page
     assert "Oferecer ao próximo da fila" in page
     assert "Reservar para estudante" in page
@@ -325,14 +327,38 @@ def test_staff_operational_counts_use_loaded_records(monkeypatch):
                 {"estado": "pendente"},
                 {"estado": "atendida"},
             ]
+            today = datetime.now(timezone.utc).date()
             state.circulation_loans = [
-                {"atrasado": True},
-                {"atrasado": False},
+                {
+                    "atrasado": True,
+                    "vence_em": datetime.combine(
+                        today - timedelta(days=1),
+                        datetime.min.time(),
+                        tzinfo=timezone.utc,
+                    ).isoformat(),
+                },
+                {
+                    "atrasado": False,
+                    "vence_em": datetime.combine(
+                        today,
+                        datetime.min.time(),
+                        tzinfo=timezone.utc,
+                    ).isoformat(),
+                },
+                {
+                    "atrasado": False,
+                    "vence_em": datetime.combine(
+                        today + timedelta(days=1),
+                        datetime.min.time(),
+                        tzinfo=timezone.utc,
+                    ).isoformat(),
+                },
             ]
 
             assert state.circulation_pending_request_count == 1
             assert state.circulation_overdue_loan_count == 1
-            assert state.circulation_active_loan_count == 2
+            assert state.circulation_active_loan_count == 3
+            assert state.circulation_due_today_count == 1
 
     asyncio.run(verify())
 

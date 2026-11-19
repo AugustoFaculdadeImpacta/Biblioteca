@@ -606,6 +606,15 @@ class State(rx.State):
         return sum(bool(loan["atrasado"]) for loan in self.circulation_loans)
 
     @rx.var
+    def circulation_due_today_count(self) -> int:
+        today = datetime.now(timezone.utc).date()
+        return sum(
+            (due := _as_utc_datetime(loan["vence_em"])) is not None
+            and due.date() == today
+            for loan in self.circulation_loans
+        )
+
+    @rx.var
     def circulation_pending_request_count(self) -> int:
         return sum(
             request["estado"] == "pendente"
@@ -4751,6 +4760,17 @@ def circulation_page() -> rx.Component:
                             ),
                             rx.heading(
                                 State.circulation_active_loan_count,
+                                size="6",
+                            ),
+                            class_name="operational-count",
+                        ),
+                        rx.el.div(
+                            rx.text(
+                                "Devoluções previstas hoje",
+                                class_name="operational-count-label",
+                            ),
+                            rx.heading(
+                                State.circulation_due_today_count,
                                 size="6",
                             ),
                             class_name="operational-count",
