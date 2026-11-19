@@ -681,7 +681,7 @@ Saída final de `openspec.cmd list --json`:
 | Item | Commit | Testes novos/alterados ou regressões | Status |
 |---|---|---|---|
 | Área pessoal `/reservas` e redirecionamento de `/minha-biblioteca` | `e370506` | `test_student_reservations_has_four_sections_and_empty_states`; `test_my_library_redirects_to_reservations_without_personal_gets`; `test_student_reservation_groups_order_overdue_and_show_neutral_missing_data`; `test_student_library_page_and_navigation_are_profile_gated` | Feito, aguarda conferência visual do usuário |
-| Abas de pedidos/circulação e busca de contas | `6abd99b` | `test_staff_reservations_tabs_reuse_current_operations`; `test_admin_accounts_search_and_supported_actions`; `test_staff_operational_counts_use_loaded_records`; atualizado `test_circulation_page_has_accessible_actions_and_focus_style` | Feito, aguarda conferência visual do usuário |
+| Abas de pedidos/circulação e busca de contas | `6abd99b`, `64f44a7` | `test_staff_reservations_tabs_reuse_current_operations`; `test_admin_accounts_search_and_supported_actions`; `test_staff_operational_counts_use_loaded_records` (inclui devoluções previstas para hoje); atualizado `test_circulation_page_has_accessible_actions_and_focus_style` | Feito, aguarda conferência visual do usuário |
 | Pendências do contrato Xano | `ca1cf27` | Nenhum teste foi criado ou alterado; regressões incluídas na suíte: `test_cover_url_is_optional_and_validated_as_https`, `test_title_payload_omits_empty_optional_cover`, `test_student_reservation_groups_order_overdue_and_show_neutral_missing_data` | Pendente de validação Xano; nenhuma operação remota executada |
 
 ### Verificações locais
@@ -696,37 +696,39 @@ Saída final de `openspec.cmd list --json`:
 
 O backlog em `openspec/changes/validacao-remota-xano/tasks.md` agora mantém abertas as validações de `capa_url` e `descricao` em `titulo`, título/`titulo_id` nos empréstimos pessoais, `solicitada_em` quando exigida, contagem de empréstimos por título e endpoint para mudança genérica de perfil. Não houve consulta nem escrita no Xano real.
 
-### Saída do inventário OpenSpec antes do archive
+### Archive e validação final
+
+`simplifica-navegacao` foi arquivada em `openspec/changes/archive/2026-11-19-simplifica-navegacao/`, com 10/10 tarefas concluídas. Deltas sincronizados em `catalog`, `frontend-foundation`, `loan-circulation`, `primary-journeys` e `reservations`. `openspec.cmd validate --specs --strict` após o archive: 7 aprovadas, 0 falhas. As pendências de contrato Xano seguem abertas em `validacao-remota-xano`.
+
+### Saída final de `openspec.cmd list --json`
 
 ```json
 {
   "changes": [
     {
-      "name": "simplifica-navegacao",
-      "completedTasks": 9,
-      "totalTasks": 10,
-      "status": "in-progress"
-    },
-    {
       "name": "validacao-remota-xano",
       "completedTasks": 0,
       "totalTasks": 28,
+      "lastModified": "2026-11-19T04:39:37.673Z",
       "status": "in-progress"
     },
     {
       "name": "refino-visual-biblioteca",
       "completedTasks": 1,
       "totalTasks": 13,
+      "lastModified": "2026-11-18T19:29:45.836Z",
       "status": "in-progress"
     },
     {
       "name": "execucao-reflex-windows",
       "completedTasks": 6,
       "totalTasks": 7,
+      "lastModified": "2026-11-15T17:36:02.160Z",
       "status": "in-progress"
     }
   ],
   "root": {
+    "path": "C:\\Users\\User\\Biblioteca\\Biblioteca\\Biblioteca",
     "source": "nearest"
   }
 }

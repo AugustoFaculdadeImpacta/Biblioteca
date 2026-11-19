@@ -7,19 +7,19 @@ Estabelecer a base acessível e segura do frontend da biblioteca para que capaci
 ## Requirements
 
 ### Requirement: Aplicação apresenta estrutura base navegável
-O sistema MUST apresentar uma estrutura comum de aplicação com navegação simples entre áreas, sem executar operações de negócio nesta capability.
+O sistema MUST apresentar uma estrutura comum com a home como vitrine pública e navegação por perfil, sem executar operações de negócio nesta capability.
 
 #### Scenario: Abertura da aplicação
-- **WHEN** visitante abre a aplicação na rota `/`
-- **THEN** o sistema apresenta a tela de login e oferece acesso explícito ao catálogo público sem exigir autenticação
+- **WHEN** visitante abre `/`
+- **THEN** o sistema apresenta a vitrine pública e permite navegar ao catálogo, entrar ou cadastrar-se
 
 #### Scenario: Usuário autenticado abre a aplicação
-- **WHEN** usuário com sessão autenticada abre a rota `/`
-- **THEN** o sistema direciona o usuário ao catálogo
+- **WHEN** usuário autenticado abre `/`
+- **THEN** o sistema apresenta a vitrine e atalhos correspondentes à sua identidade e visão ativa
 
 #### Scenario: Navegação por teclado
 - **WHEN** visitante percorre a estrutura base usando teclado
-- **THEN** os controles de navegação podem ser alcançados e ativados sem uso de ponteiro
+- **THEN** os controles podem ser alcançados e ativados sem ponteiro, com foco visível
 ### Requirement: Controles interativos exibem foco visível
 O sistema MUST apresentar um indicador visual distinguível de foco `:focus-visible` em campos e botões quando alcançados por navegação de teclado.
 
@@ -56,51 +56,116 @@ O sistema MUST manter o token de sessão somente em estado isolado por sessão n
 - **THEN** o erro apresentado e os logs não contêm o token nem o cabeçalho de autorização
 ### Requirement: Navegação compartilhada apresenta opções adequadas à sessão
 
-A aplicação MUST exibir em todas as telas um cabeçalho navegável com opções coerentes com a sessão e o perfil autenticado e acesso ao catálogo público.
+A aplicação MUST exibir em todas as telas uma barra compacta de uma linha, com a marca ligada a `/`, acesso ao catálogo e opções coerentes com a identidade e a visão ativa. O controle Perfil MUST apresentar os dados e ações adequados sem expor token ou senha.
 
 #### Scenario: Visitante navega entre áreas públicas
 - **WHEN** visitante abre qualquer tela da aplicação
-- **THEN** o cabeçalho oferece links para Início, Catálogo, Entrar e Cadastrar-se, além de navegação por teclado com foco visível
-
-#### Scenario: Usuário autenticado navega na aplicação
-- **WHEN** usuário autenticado abre qualquer tela da aplicação
-- **THEN** o cabeçalho apresenta “Olá, <nome>” com o nome recebido na sessão, sem exibir e-mail, senha ou token, e oferece Catálogo e Sair
+- **THEN** a barra apresenta a marca ligada a `/`, Catálogo e Perfil, e Perfil oferece Entrar, Cadastrar-se e Modo escuro sem link separado de Início
 
 #### Scenario: Estudante autenticado navega na aplicação
 - **WHEN** estudante autenticado abre qualquer tela da aplicação
-- **THEN** o cabeçalho oferece Início, Catálogo, Minha biblioteca e Sair e não exibe Entrar, Cadastrar-se ou acesso administrativo
+- **THEN** a barra apresenta Catálogo, Reservas e Perfil
 
 #### Scenario: Bibliotecário autenticado navega na aplicação
 - **WHEN** bibliotecário autenticado abre qualquer tela da aplicação
-- **THEN** o cabeçalho oferece Início, Catálogo, Cadastrar livro em `/admin/acervo` e Sair
+- **THEN** a barra apresenta Catálogo, Acervo, Reservas e Perfil, sem ações de admin
 
 #### Scenario: Administrador autenticado navega na aplicação
-- **WHEN** administrador autenticado abre qualquer tela da aplicação
-- **THEN** o cabeçalho oferece as opções de bibliotecário e o acesso à gestão de bibliotecários
+- **WHEN** admin autenticado está na visão Administrador
+- **THEN** a barra apresenta Catálogo, Contas e Perfil
 
-#### Scenario: Usuário encerra a sessão
-- **WHEN** usuário autenticado ativa Sair
-- **THEN** a sessão privada é removida e a aplicação retorna à página inicial com navegação de visitante
-
-#### Scenario: Admin autenticado navega na aplicação
-- **WHEN** admin autenticado abre qualquer tela da aplicação
-- **THEN** o cabeçalho oferece as mesmas opções administrativas que ao bibliotecário, acesso à gestão de bibliotecários e não oferece ações exclusivas de estudante
+#### Scenario: Usuário autenticado navega na aplicação
+- **WHEN** pessoa autenticada expande Perfil
+- **THEN** vê nome, e-mail e o cargo “Estudante”, “Bibliotecário” ou “Administrador”, controles de fonte, alto contraste e movimento, Modo escuro e Sair, sem token ou senha
 
 #### Scenario: Admin alterna para visualização de estudante
-- **WHEN** admin autenticado escolhe a visualização de estudante
-- **THEN** o cabeçalho mostra “Modo de visualização: Estudante” e a opção Minha biblioteca, sem alterar perfil, token ou permissões da sessão
+- **WHEN** admin seleciona Estudante no seletor de visão dentro de Perfil
+- **THEN** a barra mostra Catálogo, Reservas e Perfil, identifica a visão ativa e mantém identidade, token e permissões efetivas de admin
 
 #### Scenario: Visualização de estudante respeita a sessão admin
-- **WHEN** admin em visualização de estudante abre Minha biblioteca
-- **THEN** a interface usa somente o token da própria sessão admin e apresenta a recusa do backend sem simular registros pessoais
+- **WHEN** admin em visão de estudante abre Reservas
+- **THEN** a aplicação usa somente a própria sessão admin e apresenta a recusa do backend sem simular registros pessoais
 
 #### Scenario: Admin retorna à visualização de bibliotecário
-- **WHEN** admin escolhe a visualização de bibliotecário
-- **THEN** o cabeçalho mostra “Modo de visualização: Bibliotecária” e as opções administrativas, sem mudar as permissões efetivas do admin
+- **WHEN** admin seleciona Bibliotecário no seletor de visão dentro de Perfil
+- **THEN** a barra apresenta Catálogo, Acervo, Reservas e Perfil sem mudar a identidade, token ou permissões efetivas
 
 #### Scenario: Bibliotecário tenta abrir gestão de bibliotecários
-- **WHEN** bibliotecário autenticado abre a rota de gestão de bibliotecários
-- **THEN** a interface nega o acesso e não envia operações de gestão de contas
+- **WHEN** bibliotecário autenticado abre a rota de gestão de contas
+- **THEN** a interface nega o acesso e não envia operações de gestão
+
+#### Scenario: Admin autenticado navega na aplicação
+- **WHEN** admin abre qualquer tela na visão Administrador
+- **THEN** vê Catálogo e Contas além do controle Perfil e não recebe ações de estudante
+
+#### Scenario: Admin alterna para visualização de bibliotecário
+- **WHEN** admin seleciona Bibliotecário no seletor de visão dentro de Perfil
+- **THEN** a barra apresenta as opções da visão de bibliotecário sem alterar a identidade, o token ou as permissões efetivas
+
+#### Scenario: Seletor de visão do admin
+- **WHEN** admin expande Perfil
+- **THEN** pode selecionar Administrador, Bibliotecário ou Estudante, e a visão Administrador restaura a navegação Catálogo e Contas
+
+#### Scenario: Retorno à visão de administrador
+- **WHEN** admin está em uma visão simulada
+- **THEN** a indicação do modo e o controle Voltar à visão de admin permanecem visíveis fora de Perfil
+
+#### Scenario: Usuário encerra a sessão
+- **WHEN** pessoa autenticada ativa Sair
+- **THEN** a sessão privada é removida e a navegação passa a ser a de visitante
+
+#### Scenario: Navegação móvel
+- **WHEN** a aplicação é exibida em viewport de 360 px
+- **THEN** marca e controle de menu cabem na barra, o menu contém os mesmos destinos/ações, não causa rolagem horizontal e os alvos interativos têm pelo menos 44 px
+
+#### Scenario: Navegação de bibliotecário em visão admin
+- **WHEN** admin seleciona a visão Bibliotecário
+- **THEN** mantém o acesso visual às operações de bibliotecário sem alterar as permissões efetivas do admin
+
+#### Scenario: Rotas antigas de perfil e acessibilidade
+- **WHEN** pessoa abre `/perfil` ou `/acessibilidade`
+- **THEN** a aplicação redireciona para `/` e os controles de acessibilidade continuam disponíveis em Perfil
+
+### Requirement: Caixa Perfil fecha por teclado e interação externa
+A caixa Perfil MUST ser operável por teclado, fechar com Escape e fechar quando a pessoa ativa uma área fora dela, devolvendo o foco ao controle Perfil quando o fechamento for iniciado por Escape.
+
+#### Scenario: Abrir e fechar pelo teclado
+- **WHEN** pessoa alcança Perfil por teclado, expande a caixa e pressiona Escape
+- **THEN** a caixa fecha e o foco retorna ao controle Perfil
+
+#### Scenario: Fechar ao clicar fora
+- **WHEN** a caixa Perfil está expandida e pessoa ativa outro ponto da página
+- **THEN** a caixa fecha sem impedir a ação no destino
+
+### Requirement: Rodapé comum não duplica a navegação principal
+Todas as rotas MUST apresentar um rodapé curto compartilhado com a identificação “Sobre a biblioteca” e somente links já disponíveis, sem repetir atalhos soltos no conteúdo principal.
+
+#### Scenario: Rodapé compartilhado
+- **WHEN** pessoa abre qualquer rota da aplicação
+- **THEN** encontra um único rodapé com “Sobre a biblioteca” e destinos existentes
+
+#### Scenario: Navegação do corpo da página
+- **WHEN** pessoa percorre o conteúdo de qualquer rota
+- **THEN** não encontra cópias de links de navegação global que já estão no cabeçalho
+
+### Requirement: Tema escuro respeita preferência do sistema e contraste
+O sistema MUST oferecer alternância de tema escuro com tokens aplicados ao contêiner principal, respeitar a preferência de cor do sistema na inicialização e manter contraste de texto de pelo menos 4.5:1 nos dois temas.
+
+#### Scenario: Preferência inicial do sistema
+- **WHEN** a página é carregada sem escolha de tema nesta sessão
+- **THEN** o tema acompanha `prefers-color-scheme`
+
+#### Scenario: Alternar tema
+- **WHEN** pessoa ativa Modo escuro em Perfil
+- **THEN** o tema alterna imediatamente em todas as áreas dentro do contêiner principal sem recarregar a página
+
+#### Scenario: Escolha não é persistida
+- **WHEN** a pessoa encerra ou recarrega a sessão da página
+- **THEN** nenhuma escolha de tema é gravada em localStorage, cookie, perfil ou backend e a preferência inicial do sistema volta a ser aplicada
+
+#### Scenario: Alto contraste permanece disponível
+- **WHEN** pessoa usa qualquer tema e ativa alto contraste
+- **THEN** os tokens de alto contraste continuam aplicados e os controles permanecem operáveis por teclado
 ### Requirement: Login oferece acesso ao catálogo público
 A tela de login MUST oferecer uma ação claramente rotulada para acessar o catálogo público sem autenticação.
 

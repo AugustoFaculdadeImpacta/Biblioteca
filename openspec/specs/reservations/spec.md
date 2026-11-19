@@ -95,10 +95,10 @@ O sistema MUST permitir ao estudante consultar suas reservas e oportunidades e a
 - **WHEN** estudante ou visitante tenta consultar ou operar uma fila administrativa
 - **THEN** o backend recusa a operação e não expõe dados pessoais de outros estudantes
 ### Requirement: Estudante acompanha reservas e ofertas próprias
-A interface MUST permitir que estudante autenticado consulte suas reservas, estados e prazos de oferta, sem revelar dados pessoais ou reservas de outros estudantes.
+A interface MUST permitir que estudante autenticado consulte em `/reservas` somente suas reservas, estados e prazos de oferta retornados pelo serviço.
 
 #### Scenario: Consultar reservas pessoais
-- **WHEN** estudante autenticado abre sua área pessoal
+- **WHEN** estudante autenticado abre `/reservas`
 - **THEN** a interface lista somente suas reservas e apresenta o estado e o prazo de retirada retornados pelo serviço
 
 #### Scenario: Reserva aguardando atendimento
@@ -111,7 +111,7 @@ A interface MUST permitir que estudante autenticado consulte suas reservas, esta
 
 #### Scenario: Nenhuma reserva pessoal
 - **WHEN** estudante autenticado não possui reservas
-- **THEN** a interface informa que não há reservas e oferece retorno ao catálogo
+- **THEN** a interface informa no bloco correspondente que não há reservas e oferece retorno ao catálogo, mantendo os demais estados pessoais visíveis
 ### Requirement: Estudante abre detalhes do título reservado
 
 A área pessoal MUST permitir que estudante abra os detalhes públicos do título associado à própria solicitação ou reserva, sem alterar o estado ou o prazo.
