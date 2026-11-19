@@ -2117,6 +2117,72 @@ def admin_view_status() -> rx.Component:
     )
 
 
+def profile_appearance_controls() -> rx.Component:
+    return rx.el.div(
+        rx.el.div(
+            "Tamanho da fonte",
+            class_name="profile-menu-identity",
+        ),
+        rx.el.div(
+            rx.button(
+                "A−",
+                type="button",
+                aria_label="Diminuir fonte",
+                on_click=State.decrease_accessibility_font,
+                disabled=State.accessibility_font_scale <= 100,
+                class_name="profile-menu-item",
+            ),
+            rx.button(
+                State.accessibility_font_size,
+                type="button",
+                aria_label="Tamanho atual da fonte",
+                on_click=State.reset_accessibility_font,
+                class_name="profile-menu-item",
+            ),
+            rx.button(
+                "A+",
+                type="button",
+                aria_label="Aumentar fonte",
+                on_click=State.increase_accessibility_font,
+                disabled=State.accessibility_font_scale >= 150,
+                class_name="profile-menu-item",
+            ),
+            class_name="profile-menu-controls",
+        ),
+        rx.button(
+            rx.cond(
+                State.accessibility_high_contrast,
+                "Alto contraste: ativo",
+                "Ativar alto contraste",
+            ),
+            type="button",
+            aria_pressed=State.accessibility_high_contrast,
+            on_click=State.toggle_accessibility_high_contrast,
+            class_name="profile-menu-item",
+        ),
+        rx.button(
+            rx.cond(
+                State.accessibility_reduce_motion,
+                "Movimento reduzido: ativo",
+                "Reduzir movimento",
+            ),
+            type="button",
+            aria_pressed=State.accessibility_reduce_motion,
+            on_click=State.toggle_accessibility_reduce_motion,
+            class_name="profile-menu-item",
+        ),
+        rx.el.button(
+            "Modo escuro",
+            type="button",
+            role="switch",
+            aria_checked=False,
+            data_dark_mode_toggle="true",
+            class_name="profile-menu-item",
+        ),
+        class_name="profile-appearance-controls",
+    )
+
+
 def profile_menu() -> rx.Component:
     return rx.fragment(
         rx.el.details(
@@ -2141,66 +2207,7 @@ def profile_menu() -> rx.Component:
                             State.session_role_label,
                             class_name="profile-menu-identity",
                         ),
-                        rx.el.div(
-                            "Tamanho da fonte",
-                            class_name="profile-menu-identity",
-                        ),
-                        rx.el.div(
-                            rx.button(
-                                "A−",
-                                type="button",
-                                aria_label="Diminuir fonte",
-                                on_click=State.decrease_accessibility_font,
-                                disabled=State.accessibility_font_scale <= 100,
-                                class_name="profile-menu-item",
-                            ),
-                            rx.button(
-                                State.accessibility_font_size,
-                                type="button",
-                                aria_label="Tamanho atual da fonte",
-                                on_click=State.reset_accessibility_font,
-                                class_name="profile-menu-item",
-                            ),
-                            rx.button(
-                                "A+",
-                                type="button",
-                                aria_label="Aumentar fonte",
-                                on_click=State.increase_accessibility_font,
-                                disabled=State.accessibility_font_scale >= 150,
-                                class_name="profile-menu-item",
-                            ),
-                            class_name="profile-menu-controls",
-                        ),
-                        rx.button(
-                            rx.cond(
-                                State.accessibility_high_contrast,
-                                "Alto contraste: ativo",
-                                "Ativar alto contraste",
-                            ),
-                            type="button",
-                            aria_pressed=State.accessibility_high_contrast,
-                            on_click=State.toggle_accessibility_high_contrast,
-                            class_name="profile-menu-item",
-                        ),
-                        rx.button(
-                            rx.cond(
-                                State.accessibility_reduce_motion,
-                                "Movimento reduzido: ativo",
-                                "Reduzir movimento",
-                            ),
-                            type="button",
-                            aria_pressed=State.accessibility_reduce_motion,
-                            on_click=State.toggle_accessibility_reduce_motion,
-                            class_name="profile-menu-item",
-                        ),
-                        rx.el.button(
-                            "Modo escuro",
-                            type="button",
-                            role="switch",
-                            aria_checked=False,
-                            data_dark_mode_toggle="true",
-                            class_name="profile-menu-item",
-                        ),
+                        profile_appearance_controls(),
                         rx.cond(
                             State.can_manage_librarians,
                             rx.fragment(
@@ -2273,6 +2280,7 @@ def profile_menu() -> rx.Component:
                             href="/cadastro",
                             class_name="profile-menu-item",
                         ),
+                        profile_appearance_controls(),
                     ),
                 ),
                 class_name="profile-menu-content",

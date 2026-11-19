@@ -518,6 +518,21 @@ def test_profile_menu_for_visitor_has_login_and_signup():
     assert "Cadastrar-se" in menu
 
 
+def test_visitor_profile_menu_exposes_shared_accessibility_controls():
+    component = frontend.profile_menu()
+    menu = _readable(component)
+
+    assert _serialized_class_count(component, "profile-appearance-controls") == 2
+    assert "data-dark-mode-toggle" in menu
+    assert "Diminuir fonte" in menu
+    assert "Aumentar fonte" in menu
+    assert "Ativar alto contraste" in menu
+    assert "Reduzir movimento" in menu
+    assert "Modo escuro" in menu
+    assert "Entrar" in menu
+    assert "Cadastrar-se" in menu
+
+
 def test_profile_disclosure_uses_details_without_rx_menu():
     component = frontend.profile_menu()
     components = list(_components(component))
