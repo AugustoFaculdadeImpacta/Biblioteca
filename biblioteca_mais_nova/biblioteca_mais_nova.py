@@ -130,7 +130,7 @@ class State(rx.State):
     public_catalog_categories: list[dict[str, Any]] = []
     public_catalog_message: str = ""
     public_catalog_has_error: bool = False
-    public_catalog_pending: bool = False
+    public_catalog_pending: bool = True
     public_catalog_search: str = ""
     public_catalog_category_id: str = ""
     public_catalog_only_available: bool = False
@@ -439,6 +439,25 @@ class State(rx.State):
             featured,
             key=lambda item: _catalog_search_key(item["titulo"]),
         )[:4]
+
+    @rx.var
+    def home_total_titles(self) -> int:
+        return sum(
+            entry["titulo"].get("ativo") is not False
+            for entry in self.public_catalog_entries
+        )
+
+    @rx.var
+    def home_available_copies(self) -> int:
+        return sum(
+            entry["exemplares_disponiveis"]
+            for entry in self.public_catalog_entries
+            if entry["titulo"].get("ativo") is not False
+        )
+
+    @rx.var
+    def home_category_count(self) -> int:
+        return len(self.public_catalog_categories)
 
     @rx.var
     def public_catalog_detail_categories(self) -> str:
@@ -2855,10 +2874,16 @@ def index() -> rx.Component:
         site_header(),
         rx.el.main(
             rx.el.section(
-                rx.hstack(
+                rx.el.div(
                     rx.vstack(
-                        rx.el.span("Biblioteca contemporânea e acolhedora", class_name="eyebrow"),
-                        rx.heading("Descubra o próximo livro que vai mudar seu dia.", size="7"),
+                        rx.el.span(
+                            "Biblioteca contemporânea e acolhedora",
+                            class_name="eyebrow",
+                        ),
+                        rx.heading(
+                            "Descubra o próximo livro que vai mudar seu dia.",
+                            size="7",
+                        ),
                         rx.text(
                             "Explore o acervo, acompanhe empréstimos e reservas e aproveite uma biblioteca que combina tradição e praticidade.",
                             class_name="hero-copy",
@@ -2892,13 +2917,25 @@ def index() -> rx.Component:
                             class_name="home-search-form",
                         ),
                         rx.hstack(
-                            rx.link("Ver catálogo", href="/catalogo", class_name="primary-cta"),
+                            rx.link(
+                                "Ver catálogo",
+                                href="/catalogo",
+                                class_name="primary-cta",
+                            ),
                             rx.cond(
                                 State.is_authenticated,
                                 rx.fragment(),
                                 rx.fragment(
-                                    rx.link("Entrar", href="/login", class_name="secondary-cta"),
-                                    rx.link("Cadastrar-se", href="/cadastro", class_name="secondary-cta"),
+                                    rx.link(
+                                        "Entrar",
+                                        href="/login",
+                                        class_name="secondary-cta",
+                                    ),
+                                    rx.link(
+                                        "Cadastrar-se",
+                                        href="/cadastro",
+                                        class_name="secondary-cta",
+                                    ),
                                 ),
                             ),
                             flex_wrap="wrap",
@@ -2909,15 +2946,69 @@ def index() -> rx.Component:
                         spacing="3",
                         class_name="hero-copy-wrap",
                     ),
-                    align="center",
+                    rx.cond(
+                        State.public_catalog_pending,
+                        rx.text(
+                            "Carregando indicadores do acervo...",
+                            role="status",
+                            class_name="home-stat-status",
+                        ),
+                        rx.cond(
+                            State.public_catalog_has_error,
+                            rx.text(
+                                "Indicadores do acervo indisponíveis.",
+                                role="status",
+                                class_name="home-stat-status",
+                            ),
+                            rx.el.aside(
+                                rx.el.div(
+                                    rx.el.div(
+                                        rx.el.strong(
+                                            State.home_total_titles,
+                                            class_name="hero-stat-value",
+                                        ),
+                                        rx.text(
+                                            "Títulos",
+                                            class_name="hero-stat-label",
+                                        ),
+                                        class_name="hero-stat-card",
+                                    ),
+                                    rx.el.div(
+                                        rx.el.strong(
+                                            State.home_available_copies,
+                                            class_name="hero-stat-value",
+                                        ),
+                                        rx.text(
+                                            "Exemplares disponíveis",
+                                            class_name="hero-stat-label",
+                                        ),
+                                        class_name="hero-stat-card",
+                                    ),
+                                    rx.el.div(
+                                        rx.el.strong(
+                                            State.home_category_count,
+                                            class_name="hero-stat-value",
+                                        ),
+                                        rx.text(
+                                            "Categorias",
+                                            class_name="hero-stat-label",
+                                        ),
+                                        class_name="hero-stat-card",
+                                    ),
+                                    class_name="hero-stat-grid",
+                                ),
+                                aria_label="Estatísticas do catálogo público",
+                            ),
+                        ),
+                    ),
                     class_name="hero-layout",
                 ),
                 rx.el.div(
                     rx.cond(
                         State.active_navigation_role == "Estudante",
                         rx.link(
-                            "Minha biblioteca",
-                            href="/minha-biblioteca",
+                            "Reservas",
+                            href="/reservas",
                             class_name="feature-card",
                         ),
                         rx.fragment(),
@@ -2931,8 +3022,8 @@ def index() -> rx.Component:
                                 class_name="feature-card",
                             ),
                             rx.link(
-                                "Circulação",
-                                href="/admin/circulacao",
+                                "Reservas",
+                                href="/admin/reservas",
                                 class_name="feature-card",
                             ),
                         ),
@@ -2940,17 +3031,10 @@ def index() -> rx.Component:
                     ),
                     rx.cond(
                         State.active_navigation_role == "Admin",
-                        rx.fragment(
-                            rx.link(
-                                "Acervo",
-                                href="/admin/acervo",
-                                class_name="feature-card",
-                            ),
-                            rx.link(
-                                "Contas",
-                                href="/admin/bibliotecarios",
-                                class_name="feature-card",
-                            ),
+                        rx.link(
+                            "Contas",
+                            href="/admin/bibliotecarios",
+                            class_name="feature-card",
                         ),
                         rx.fragment(),
                     ),
@@ -2962,9 +3046,9 @@ def index() -> rx.Component:
             rx.el.section(
                 rx.el.div(
                     rx.vstack(
-                        rx.heading("📚 Estante de livros", size="5"),
+                        rx.heading("📚 Livros em destaque", size="5"),
                         rx.text(
-                            "Uma seleção de títulos presentes no catálogo público."
+                            "Alguns títulos disponíveis no catálogo da biblioteca."
                         ),
                         align="start",
                         spacing="1",
@@ -3013,52 +3097,17 @@ def index() -> rx.Component:
                     ),
                     rx.fragment(),
                 ),
-                id="estante-livros",
+                id="livros-destaque",
                 class_name="content-section catalog-section home-catalog-section",
             ),
             rx.el.section(
-                rx.el.div(
-                    rx.vstack(
-                        rx.heading("🗂️ Explore por categoria", size="5"),
-                        rx.text(
-                            "Use as categorias do acervo para descobrir outros títulos."
-                        ),
-                        align="start",
-                        spacing="1",
-                    ),
-                    rx.link(
-                        "Ver mais",
-                        href="/catalogo",
-                        class_name="section-more-link",
-                    ),
-                    class_name="home-section-heading",
+                rx.heading("Sobre a biblioteca", size="5"),
+                rx.text(
+                    "Um espaço de leitura, pesquisa e descoberta, com um acervo "
+                    "para apoiar a aprendizagem de toda a comunidade escolar."
                 ),
-                rx.cond(
-                    State.public_catalog_pending,
-                    rx.text("Carregando categorias...", role="status"),
-                    rx.fragment(),
-                ),
-                rx.cond(
-                    State.public_catalog_has_error,
-                    rx.fragment(),
-                    rx.cond(
-                        (~State.public_catalog_pending)
-                        & (State.public_catalog_categories.length() == 0),
-                        rx.text(
-                            "Nenhuma categoria disponível no momento.",
-                            role="status",
-                        ),
-                        rx.el.div(
-                            rx.foreach(
-                                State.public_catalog_categories,
-                                home_category_chip,
-                            ),
-                            class_name="home-category-list",
-                        ),
-                    ),
-                ),
-                id="explorar-categorias",
-                class_name="content-section catalog-section home-catalog-section",
+                id="sobre-biblioteca",
+                class_name="content-section home-about-section",
             ),
             class_name="main-content",
         ),
@@ -4798,11 +4847,21 @@ app = rx.App(
             "min_width": "0",
         },
         ".hero-stat-card": {
+            "display": "flex",
+            "flex_direction": "column",
+            "justify_content": "center",
+            "min_height": "6.5rem",
             "padding": "1rem",
             "border": "1px solid var(--line)",
             "border_radius": "1rem",
             "background_color": "var(--sand-100)",
             "box_shadow": "var(--shadow-soft)",
+        },
+        ".hero-stat-value": {
+            "color": "var(--brand-900)",
+            "font_family": "Georgia, 'Times New Roman', serif",
+            "font_size": "1.75rem",
+            "line_height": "1.1",
         },
         ".hero-stat-label": {
             "font_size": "0.7rem",
@@ -4827,6 +4886,28 @@ app = rx.App(
             "border_radius": "1rem",
             "background_color": "var(--bg-panel)",
             "box_shadow": "var(--shadow-soft)",
+        },
+        ".home-about-section": {
+            "width": "100%",
+            "max_width": "72rem",
+            "margin": "1rem auto",
+            "border": "1px solid var(--line)",
+            "border_radius": "1rem",
+            "background_color": "var(--bg-soft)",
+        },
+        ".home-about-section p": {
+            "max_width": "50rem",
+            "color": "var(--slate-700)",
+        },
+        ".home-stat-status": {
+            "display": "flex",
+            "align_items": "center",
+            "min_height": "6.5rem",
+            "padding": "1rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "1rem",
+            "background_color": "var(--sand-100)",
+            "color": "var(--slate-700)",
         },
         ".home-section-heading": {
             "display": "flex",
@@ -5354,6 +5435,17 @@ app = rx.App(
                 "align_items": "center",
                 "gap": "0.5rem",
                 "padding": "0.75rem",
+            },
+            ".hero-layout": {
+                "align_items": "stretch",
+                "flex_direction": "column",
+            },
+            ".hero-copy-wrap, .hero-stat-grid": {
+                "width": "100%",
+                "max_width": "100%",
+            },
+            ".hero-stat-card": {
+                "min_width": "0",
             },
             ".site-header-desktop": {
                 "display": "none",

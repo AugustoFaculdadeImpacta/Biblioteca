@@ -139,7 +139,7 @@ def test_home_has_no_login_or_signup_form_and_keeps_profile_shortcuts():
     assert "login-senha" not in homepage
     assert "Entrar" in homepage
     assert "Cadastrar-se" in homepage
-    assert "Minha biblioteca" in homepage
+    assert "Reservas" in homepage
     assert "Acervo" in homepage
     assert "Contas" in homepage
 
@@ -153,6 +153,81 @@ def test_home_has_no_login_or_signup_form_and_keeps_profile_shortcuts():
             assert "/catalogo" in repr(redirect)
 
     asyncio.run(verify_search())
+
+
+def test_home_statistics_are_derived_from_public_catalog():
+    async def verify_statistics():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"home-statistics-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state.public_catalog_entries = [
+                {
+                    "titulo": {
+                        "id": 1,
+                        "titulo": "Livro ativo",
+                        "autores": "Ana",
+                        "ativo": True,
+                    },
+                    "categorias": [],
+                    "exemplares_disponiveis": 2,
+                },
+                {
+                    "titulo": {
+                        "id": 2,
+                        "titulo": "Ativo sem campo ativo",
+                        "autores": "Bia",
+                    },
+                    "categorias": [],
+                    "exemplares_disponiveis": 3,
+                },
+                {
+                    "titulo": {
+                        "id": 3,
+                        "titulo": "Livro inativo",
+                        "autores": "Caio",
+                        "ativo": False,
+                    },
+                    "categorias": [],
+                    "exemplares_disponiveis": 50,
+                },
+            ]
+            state.public_catalog_categories = [
+                {"id": 1, "nome": "Literatura"},
+                {"id": 2, "nome": "História"},
+                {"id": 3, "nome": "Categoria sem títulos"},
+            ]
+
+            assert state.home_total_titles == 2
+            assert state.home_available_copies == 5
+            assert state.home_category_count == 3
+
+    asyncio.run(verify_statistics())
+
+
+def test_home_shows_profile_shortcuts_and_about_section():
+    homepage = _readable(frontend.index())
+
+    assert "Sobre a biblioteca" in homepage
+    assert "Livros em destaque" in homepage
+    assert "Ver mais" in homepage
+    assert "hero-stat-grid" in homepage
+    assert all(
+        route in homepage
+        for route in (
+            "/reservas",
+            "/admin/acervo",
+            "/admin/reservas",
+            "/admin/bibliotecarios",
+        )
+    )
+
+
+def test_home_omits_popularity_without_loan_counts():
+    homepage = _readable(frontend.index())
+
+    assert "Livros que mais saem" not in homepage
+    assert "empréstimos por título" not in homepage
 
 
 def test_login_page_contains_only_login_form():

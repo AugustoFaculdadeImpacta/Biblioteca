@@ -226,11 +226,12 @@ def test_home_sections_use_catalog_data_and_explicit_empty_error_states(
     monkeypatch,
 ):
     homepage = repr(frontend.index())
-    assert "Estante de livros" in homepage
-    assert "Explore por categoria" in homepage
-    assert homepage.count("Ver mais") == 2
+    assert "Livros em destaque" in homepage
+    assert "Sobre a biblioteca" in homepage
+    assert homepage.count("Ver mais") == 1
     assert "Carregando o acervo" in homepage
     assert "Nenhum" in homepage
+    assert "Livros que mais saem" not in homepage
     assert "Exemplares ativos" not in homepage
     assert "24 t" not in homepage
     assert "8 categorias" not in homepage
