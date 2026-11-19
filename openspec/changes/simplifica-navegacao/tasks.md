@@ -1,0 +1,40 @@
+# Tasks
+
+## 1. Corrigir disclosure do Perfil
+
+- [x] 1.1 Removido `rx.menu` e os gatilhos Radix de Perfil; `<details>/<summary>` nativo fecha por Escape com foco restaurado e por clique fora. Auditoria encontrou somente `rx.select.trigger` na tela de acervo, fora do cabeçalho; não há `rx.popover`, `rx.dialog`, `rx.tooltip` ou `rx.hover_card`. Commit `d7d0f1b` (`Substitui menu Perfil por disclosure nativo`). Testes: `test_profile_disclosure_uses_details_without_rx_menu`, `test_profile_disclosure_escape_and_outside_click_script`, `test_application_contains_no_rx_menu`, `test_profile_menu_for_visitor_has_login_and_signup`, `test_admin_view_mode_controls_are_visible_and_accessible`. Verificação: `reflex compile --dry` aprovado; `pytest --ignore=evaluation -q`: 226 passed. Conferência visual pendente do usuário.
+
+## 2. Enxugar navegação responsiva
+
+- [x] 2.1 Marca de uma linha ligada a `/`, sem slogan nem link Início; navegação por perfil/visão e menu móvel com os mesmos destinos; skip link, `:focus-visible`, teclado e alvos de 44 px preservados. Rodapé curto padronizado, sem links inventados. Commit `8e6e48275fec2b9d11f17d6597a79884e3cf57f6` (`Enxuga cabeçalho e navegação por perfil`). Testes novos/atualizados: `test_header_navigation_by_profile_and_view`, `test_site_header_brand_and_footer_links_preserve_profile_access`, `test_student_navigation_has_accessible_labels_focus_and_mobile_layout`, `test_all_routes_use_one_shared_header_and_footer`, `test_page_bodies_do_not_duplicate_global_navigation`, `test_navigation_changes_by_profile_and_logout_clears_session`, `test_circulation_page_has_accessible_actions_and_focus_style`, `test_touch_targets_and_keyboard_accessibility_at_mobile_viewport`, `test_student_library_page_and_navigation_are_profile_gated`. Verificação: `.\.venv\Scripts\python.exe -m reflex compile --dry` aprovado; `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`: 226 passed. Status visual: feito, aguarda conferência do usuário.
+
+## 3. Completar Perfil e tema escuro
+
+- [ ] 3.1 Exibir no Perfil visitante Entrar/Cadastrar-se e tema; autenticado, nome/e-mail/cargo, controles de fonte, alto contraste e movimento, tema, Sair e seletor de visão admin; manter faixa e retorno admin fora da caixa. Implementar tema inicial por `prefers-color-scheme`, transitório na sessão e tokens em `.a11y-shell`, com contraste AA. Adicionar `test_profile_disclosure_for_visitor_and_authenticated_users`, `test_dark_mode_toggles_scoped_theme_tokens`, `test_dark_mode_follows_system_without_persistence` e `test_dark_and_high_contrast_tokens_meet_wcag_aa`; atualizar `test_admin_view_mode_controls_are_visible_and_accessible` e testes de identidade/sessão; executar `.\.venv\Scripts\python.exe -m reflex compile --dry` e `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`, revisar diff e criar commit em português. Classificar conferência visual como “feito, aguarda conferência do usuário”.
+
+## 4. Organizar home com dados reais
+
+- [ ] 4.1 Colocar boas-vindas/busca à esquerda e estatísticas derivadas à direita; apresentar destaques e “Sobre a biblioteca”, com atalhos para visitante e cada perfil. Não exibir “Livros que mais saem” sem contagem real por título. Adicionar `test_home_statistics_are_derived_from_public_catalog`, `test_home_shows_profile_shortcuts_and_about_section` e `test_home_omits_popularity_without_loan_counts`; executar `.\.venv\Scripts\python.exe -m reflex compile --dry` e `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`, revisar diff e criar commit em português. Classificar conferência visual como “feito, aguarda conferência do usuário”.
+
+## 5. Melhorar cartões, detalhes e metadados opcionais
+
+- [ ] 5.1 Remover categoria repetida nos cartões; suportar `capa_url` HTTPS opcional com capa CSS de fallback e manter `descricao` opcional com texto explícito no detalhe. Adicionar o campo de capa aos formulários de criação/edição, sem presumir sua presença nas respostas. Adicionar `test_catalog_card_handles_cover_url_and_css_fallback`, `test_title_detail_shows_description_fallback_and_cover`, `test_cover_url_is_optional_and_validated_as_https` e `test_title_payload_omits_empty_optional_cover`; executar `.\.venv\Scripts\python.exe -m reflex compile --dry` e `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`, revisar diff e criar commit em português. Classificar conferência visual como “feito, aguarda conferência do usuário”.
+- [ ] 5.2 Ajustar a ação do detalhe: estudante vê “Reservar”, visitante “Entrar para reservar”, bibliotecário/admin não veem a ação. Reutilizar o fluxo existente e preservar a validação de elegibilidade pelo backend. Adicionar `test_title_detail_actions_follow_effective_role`; executar `.\.venv\Scripts\python.exe -m reflex compile --dry` e `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`, revisar diff e criar commit em português. Classificar conferência visual como “feito, aguarda conferência do usuário”.
+
+## 6. Consolidar a área pessoal em Reservas
+
+- [ ] 6.1 Criar `/reservas` com os quatro blocos e contadores: “Aguardando aprovação”, “Aprovadas”, “Emprestados” e “Em atraso”, com alerta de atraso no topo, estados vazios e dias relativos calculados apenas dos dados carregados; `/minha-biblioteca` redireciona sem consultar dados pessoais. Não inventar título/data ausente. Adicionar `test_student_reservations_has_four_sections_and_empty_states`, `test_my_library_redirects_to_reservations` e testes de ordenação/contagem de atraso; executar `.\.venv\Scripts\python.exe -m reflex compile --dry` e `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`, revisar diff e criar commit em português. Classificar conferência visual como “feito, aguarda conferência do usuário”.
+
+## 7. Simplificar operações de bibliotecário e admin
+
+- [ ] 7.1 Consolidar em Reservas abas acessíveis Pedidos e Empréstimos e devoluções usando fluxos atuais; deixar Contas com busca sobre contas bibliotecárias carregadas e ações atuais de criar/ativar/desativar. Não oferecer promoção/rebaixamento genéricos sem endpoint. Mostrar contadores somente quando deriváveis dos dados disponíveis. Adicionar `test_staff_reservations_tabs_reuse_current_operations`, `test_admin_accounts_search_and_supported_actions` e `test_staff_operational_counts_use_loaded_records`; executar `.\.venv\Scripts\python.exe -m reflex compile --dry` e `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`, revisar diff e criar commit em português. Classificar conferência visual como “feito, aguarda conferência do usuário”.
+
+## 8. Registrar dependências de contrato e relatório
+
+- [ ] 8.1 Atualizar o backlog de `openspec/changes/validacao-remota-xano/tasks.md` com a tarefa pendente exata `Campo opcional \`capa_url\` na tabela \`titulo\` (URL HTTPS da capa do livro).`; registrar também a necessidade de `titulo_id`/título em `GET /minhas/emprestimos`, presença de `solicitada_em` quando obrigatória à jornada e endpoint de contagem de empréstimos por título. Não operar no Xano real. Verificar diff restrito e validar OpenSpec; executar `.\.venv\Scripts\python.exe -m reflex compile --dry` e `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q` antes do commit português.
+- [ ] 8.2 Atualizar `docs/relatorio-noite.md` com tabela item | commit | testes | status, resultados de compile/pytest e validação, dependências Xano e itens visuais “feito, aguarda conferência do usuário”. Incluir `openspec.cmd list --json` final sem credenciais/URLs; executar `.\.venv\Scripts\python.exe -m reflex compile --dry`, `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`, `openspec.cmd validate --specs --strict` e `openspec.cmd list --json`; revisar arquivos explicitamente stageados, criar commit português e push sem force.
+
+## Workflow follow-up
+
+- A revisão visual de cada item é feita pelo usuário; não abrir navegador nem produzir capturas durante Apply.
+- Arquivar a Change somente após implementação e verificações concluídas, mantendo as dependências Xano como pendentes até validação apropriada.
