@@ -52,6 +52,7 @@ def test_catalog_form_has_only_defined_fields_and_category_selection():
         "editora",
         "edicao",
         "ano_publicacao",
+        "capa_url",
     ]
     assert all(fields[index].required._var_value for index in (0, 1))
     labels = [
@@ -67,6 +68,7 @@ def test_catalog_form_has_only_defined_fields_and_category_selection():
         "catalog-edicao",
         "catalog-ano-publicacao",
         "catalog-descricao",
+        "catalog-capa-url",
     ]
     assert any(
         component.alias == "RadixThemesCheckbox"
@@ -78,6 +80,12 @@ def test_catalog_form_has_only_defined_fields_and_category_selection():
         if component.alias == "RadixThemesTextArea"
     )
     assert description.name._var_value == "descricao"
+    cover = next(field for field in fields if field.name._var_value == "capa_url")
+    assert cover.type._var_value == "url"
+    assert "Link da imagem da capa" in repr(form)
+    admin_page = repr(frontend.catalog_admin())
+    assert "admin-title-edit-form" in admin_page
+    assert admin_page.count("Link da imagem da capa") >= 2
     assert frontend.app.style[":focus-visible"] == {
         "outline": "3px solid var(--brand-700)",
         "outline_offset": "3px",
@@ -104,6 +112,44 @@ def test_title_payload_uses_only_defined_fields_and_omits_blank_optionals():
         "ano_publicacao": 2024,
         "descricao": "Descrição",
     }
+
+
+def test_title_payload_omits_empty_optional_cover():
+    payload = build_title_payload(
+        {
+            "titulo": "Livro",
+            "autores": "Autoria",
+            "capa_url": "   ",
+        }
+    )
+
+    assert "capa_url" not in payload
+
+
+def test_cover_url_is_optional_and_validated_as_https():
+    payload = build_title_payload(
+        {
+            "titulo": "Livro",
+            "autores": "Autoria",
+            "capa_url": " https://capas.example.test/livro.jpg ",
+        }
+    )
+    assert payload["capa_url"] == "https://capas.example.test/livro.jpg"
+
+    for invalid_url in (
+        "http://capas.example.test/livro.jpg",
+        "javascript:alert(1)",
+        "https://usuario:senha@capas.example.test/livro.jpg",
+        "https://[",
+    ):
+        with pytest.raises(CatalogValidationError, match="deve usar HTTPS"):
+            build_title_payload(
+                {
+                    "titulo": "Livro",
+                    "autores": "Autoria",
+                    "capa_url": invalid_url,
+                }
+            )
 
 
 @pytest.mark.parametrize(
@@ -261,6 +307,7 @@ def test_public_catalog_services_validate_list_and_detail_without_auth(
             "edicao": "2",
             "ano_publicacao": 2024,
             "descricao": "Uma descrição",
+            "capa_url": "https://capas.example.test/livro.jpg",
         },
         "categorias": [
             {"id": 9, "titulo_id": 81, "categoria_id": 7},
@@ -408,6 +455,49 @@ def test_catalog_card_derives_cover_fallback_from_category_and_title():
             )
 
     asyncio.run(verify_card_data())
+
+
+def test_catalog_card_handles_cover_url_and_css_fallback():
+    async def verify_card_cover():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"catalog-optional-cover-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state.public_catalog_categories = [{"id": 3, "nome": "Literatura"}]
+            state.public_catalog_entries = [
+                {
+                    "titulo": {
+                        "id": 81,
+                        "titulo": "Com capa",
+                        "autores": "Ana",
+                        "capa_url": "https://capas.example.test/livro.jpg",
+                    },
+                    "categorias": [{"categoria_id": 3}],
+                    "exemplares_disponiveis": 1,
+                },
+                {
+                    "titulo": {
+                        "id": 82,
+                        "titulo": "Sem capa",
+                        "autores": "Bia",
+                    },
+                    "categorias": [],
+                    "exemplares_disponiveis": 0,
+                },
+            ]
+
+            titles = {item["id"]: item for item in state.filtered_public_catalog}
+            assert titles[81]["capa_url"] == (
+                "https://capas.example.test/livro.jpg"
+            )
+            assert titles[82]["capa_url"] == ""
+
+    asyncio.run(verify_card_cover())
+
+    listing = repr(frontend.public_catalog())
+    assert "catalog-card-cover-image" in listing
+    assert "catalog-card-cover catalog-cover-0" in listing
+    assert "Categorias: " not in listing
 
 
 def test_catalog_controls_and_card_states_are_responsive():
@@ -608,6 +698,50 @@ def test_public_catalog_detail_loads_route_and_handles_invalid_ids(monkeypatch):
             assert state.has_public_catalog_detail is False
 
     asyncio.run(verify_detail())
+
+
+def test_title_detail_shows_description_fallback_and_cover(monkeypatch):
+    async def mocked_title(_title_id):
+        return {
+            "titulo": {
+                "id": 81,
+                "titulo": "Ação e memória",
+                "autores": "Ana",
+                "capa_url": "https://capas.example.test/livro.jpg",
+            },
+            "categorias": [{"id": 9, "titulo_id": 81, "categoria_id": 7}],
+            "exemplares_disponiveis": 1,
+        }
+
+    async def mocked_categories():
+        return [{"id": 7, "nome": "Literatura"}]
+
+    monkeypatch.setattr(frontend, "get_public_title", mocked_title)
+    monkeypatch.setattr(frontend, "list_categories", mocked_categories)
+
+    async def verify_detail():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"detail-cover-fallback-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state.rx_router_page = PageData(params={"titulo_id": "81"})
+            await state.load_public_catalog_detail()
+
+            assert state.public_catalog_detail["descricao"] == (
+                "Sem descrição cadastrada"
+            )
+            assert state.public_catalog_detail["capa_url"] == (
+                "https://capas.example.test/livro.jpg"
+            )
+            assert state.public_catalog_detail["cover_initial"] == "L"
+
+    asyncio.run(verify_detail())
+
+    detail = repr(frontend.public_catalog_detail())
+    assert "catalog-detail-cover-image" in detail
+    assert "catalog-detail-visual" in detail
+    assert "catalog-card-cover catalog-cover-" in detail
+    assert "catalog-description" in detail
 
 
 def test_public_catalog_routes_have_labeled_controls_and_return_links():

@@ -2,6 +2,7 @@
 
 import json
 from typing import NotRequired, TypedDict
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -30,6 +31,7 @@ class PublicTitleFields(TypedDict):
     edicao: NotRequired[str | None]
     ano_publicacao: NotRequired[int | None]
     descricao: NotRequired[str | None]
+    capa_url: NotRequired[str | None]
 
 
 class PublicCatalogEntry(TypedDict):
@@ -46,6 +48,7 @@ class TitlePayload(TypedDict, total=False):
     edicao: str
     ano_publicacao: int
     descricao: str
+    capa_url: str
 
 
 class Title(TypedDict):
@@ -93,6 +96,7 @@ class AdminCatalogDisplayEntry(TypedDict):
     edicao: str
     ano_publicacao: str
     descricao: str
+    capa_url: str
     ativo: bool
     categorias: str
     exemplares_disponiveis: int
@@ -101,6 +105,26 @@ class AdminCatalogDisplayEntry(TypedDict):
 
 class CatalogValidationError(ValueError):
     """Entrada de catálogo inválida para exibição."""
+
+
+def _validate_cover_url(value: str) -> None:
+    try:
+        parsed = urlsplit(value)
+        hostname = parsed.hostname
+    except ValueError:
+        parsed = None
+        hostname = None
+
+    if (
+        parsed is None
+        or parsed.scheme.lower() != "https"
+        or not hostname
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        raise CatalogValidationError(
+            "O link da imagem da capa deve usar HTTPS e ter um endereço válido."
+        )
 
 
 def build_title_payload(form_data: dict[str, str]) -> TitlePayload:
@@ -116,6 +140,11 @@ def build_title_payload(form_data: dict[str, str]) -> TitlePayload:
         value = form_data.get(field, "").strip()
         if value:
             payload[field] = value
+
+    cover_url = form_data.get("capa_url", "").strip()
+    if cover_url:
+        _validate_cover_url(cover_url)
+        payload["capa_url"] = cover_url
 
     year = form_data.get("ano_publicacao", "").strip()
     if year:
@@ -199,6 +228,17 @@ def _parse_public_catalog_entry(value: object) -> PublicCatalogEntry:
             raise _response_error()
         if field in title:
             parsed_title[field] = field_value
+    cover_url = title.get("capa_url")
+    if cover_url is not None and not isinstance(cover_url, str):
+        raise _response_error()
+    if cover_url:
+        try:
+            _validate_cover_url(cover_url)
+        except CatalogValidationError:
+            raise _response_error() from None
+        parsed_title["capa_url"] = cover_url
+    elif "capa_url" in title:
+        parsed_title["capa_url"] = None
 
     year = title.get("ano_publicacao")
     if year is not None and type(year) is not int:

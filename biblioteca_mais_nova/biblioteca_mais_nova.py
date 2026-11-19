@@ -384,6 +384,7 @@ class State(rx.State):
                     "id": title["id"],
                     "titulo": title["titulo"],
                     "autores": title["autores"],
+                    "capa_url": title.get("capa_url") or "",
                     "categorias": category_text,
                     "exemplares_disponiveis": available,
                     "href": f"/catalogo/{title['id']}",
@@ -426,6 +427,7 @@ class State(rx.State):
                     "id": title["id"],
                     "titulo": title["titulo"],
                     "autores": title["autores"],
+                    "capa_url": title.get("capa_url") or "",
                     "categorias": category_text,
                     "exemplares_disponiveis": entry[
                         "exemplares_disponiveis"
@@ -503,6 +505,7 @@ class State(rx.State):
                 "edicao": title.get("edicao") or "",
                 "ano_publicacao": str(title.get("ano_publicacao") or ""),
                 "descricao": title.get("descricao") or "",
+                "capa_url": title.get("capa_url") or "",
                 "ativo": title.get("ativo") is not False,
                 "categorias": ", ".join(
                     category_names[category_id]
@@ -727,10 +730,26 @@ class State(rx.State):
             return
 
         self.public_catalog_categories = categories
+        category_names = {
+            category["id"]: category["nome"]
+            for category in categories
+        }
+        category_text = ", ".join(
+            category_names[association["categoria_id"]]
+            for association in entry["categorias"]
+            if association["categoria_id"] in category_names
+        ) or "Sem categoria"
+        cover_initial, cover_variant = _catalog_cover_identity(
+            category_text,
+            entry["titulo"]["titulo"],
+        )
         self.public_catalog_detail = {
             "id": entry["titulo"]["id"],
             "titulo": entry["titulo"]["titulo"],
             "autores": entry["titulo"]["autores"],
+            "capa_url": entry["titulo"].get("capa_url") or "",
+            "cover_initial": cover_initial,
+            "cover_variant": cover_variant,
             "isbn": entry["titulo"].get("isbn") or "",
             "editora": entry["titulo"].get("editora") or "",
             "edicao": entry["titulo"].get("edicao") or "",
@@ -739,7 +758,8 @@ class State(rx.State):
                 if entry["titulo"].get("ano_publicacao") is not None
                 else ""
             ),
-            "descricao": entry["titulo"].get("descricao") or "",
+            "descricao": entry["titulo"].get("descricao")
+            or "Sem descrição cadastrada",
             "categoria_ids": [
                 association["categoria_id"]
                 for association in entry["categorias"]
@@ -1504,6 +1524,7 @@ class State(rx.State):
                         "edicao",
                         "ano_publicacao",
                         "descricao",
+                        "capa_url",
                     )
                 }
             )
@@ -1561,6 +1582,7 @@ class State(rx.State):
                 "editora",
                 "edicao",
                 "descricao",
+                "capa_url",
             )
         }
         year = title.get("ano_publicacao")
@@ -2363,12 +2385,8 @@ def home_category_chip(category: rx.Var[dict[str, Any]]) -> rx.Component:
     return rx.el.span(category["nome"], class_name="home-category-chip")
 
 
-def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
-    title_name = title["titulo"].to(str)
-    category_text = title["categorias"].to(str)
-    available_count = title["exemplares_disponiveis"].to(int)
-    cover_variant = title["cover_variant"].to(int)
-    cover_class = rx.cond(
+def _catalog_cover_class(cover_variant: rx.Var[int]) -> rx.Var[str]:
+    return rx.cond(
         cover_variant == 0,
         "catalog-card-cover catalog-cover-0",
         rx.cond(
@@ -2385,8 +2403,33 @@ def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
             ),
         ),
     )
+
+
+def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
+    title_name = title["titulo"].to(str)
+    category_text = title["categorias"].to(str)
+    available_count = title["exemplares_disponiveis"].to(int)
+    cover_variant = title["cover_variant"].to(int)
+    cover_class = _catalog_cover_class(cover_variant)
     return rx.el.article(
         rx.el.div(
+            rx.cond(
+                title["capa_url"].to(str) != "",
+                rx.el.img(
+                    src=title["capa_url"],
+                    alt="Capa do livro",
+                    loading="lazy",
+                    class_name="catalog-card-cover-image",
+                ),
+                rx.el.div(
+                    rx.el.span(
+                        title["cover_initial"],
+                        class_name="catalog-cover-initial",
+                    ),
+                    class_name=cover_class,
+                    aria_hidden="true",
+                ),
+            ),
             rx.el.span(
                 rx.cond(
                     category_text != "",
@@ -2395,19 +2438,10 @@ def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
                 ),
                 class_name="catalog-tag",
             ),
-            rx.el.div(
-                rx.el.span(
-                    title["cover_initial"],
-                    class_name="catalog-cover-initial",
-                ),
-                class_name=cover_class,
-                aria_hidden="true",
-            ),
             class_name="catalog-card-visual",
         ),
         rx.el.h2(title_name, class_name="catalog-card-heading"),
         rx.text("Autoria: ", title["autores"]),
-        rx.text("Categorias: ", category_text),
         rx.el.div(
             rx.cond(
                 available_count > 0,
@@ -2652,6 +2686,32 @@ def public_catalog_detail() -> rx.Component:
                 rx.cond(
                     State.has_public_catalog_detail,
                     rx.el.article(
+                        rx.el.div(
+                            rx.cond(
+                                State.public_catalog_detail["capa_url"] != "",
+                                rx.el.img(
+                                    src=State.public_catalog_detail["capa_url"],
+                                    alt="Capa do título",
+                                    loading="lazy",
+                                    class_name="catalog-detail-cover-image",
+                                ),
+                                rx.el.div(
+                                    rx.el.span(
+                                        State.public_catalog_detail[
+                                            "cover_initial"
+                                        ],
+                                        class_name="catalog-cover-initial",
+                                    ),
+                                    class_name=_catalog_cover_class(
+                                        State.public_catalog_detail[
+                                            "cover_variant"
+                                        ].to(int)
+                                    ),
+                                    aria_hidden="true",
+                                ),
+                            ),
+                            class_name="catalog-detail-visual",
+                        ),
                         rx.el.h2(
                             State.public_catalog_detail["titulo"],
                             class_name="catalog-detail-heading",
@@ -2697,13 +2757,9 @@ def public_catalog_detail() -> rx.Component:
                             ),
                             rx.fragment(),
                         ),
-                        rx.cond(
-                            State.public_catalog_detail["descricao"] != "",
-                            rx.text(
-                                State.public_catalog_detail["descricao"],
-                                class_name="catalog-description",
-                            ),
-                            rx.fragment(),
+                        rx.text(
+                            State.public_catalog_detail["descricao"],
+                            class_name="catalog-description",
                         ),
                         class_name="catalog-detail-card",
                     ),
@@ -3511,6 +3567,17 @@ def admin_title_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
                 ),
                 class_name="signup-label",
             ),
+            rx.el.label(
+                "Link da imagem da capa (HTTPS, opcional)",
+                rx.input(
+                    name="capa_url",
+                    type="url",
+                    default_value=title["capa_url"],
+                    aria_label="Link da imagem da capa (HTTPS, opcional)",
+                    class_name="signup-input",
+                ),
+                class_name="signup-label",
+            ),
             rx.button(
                 "Salvar alterações",
                 type="submit",
@@ -3728,6 +3795,18 @@ def catalog_admin() -> rx.Component:
                             id="catalog-descricao",
                             name="descricao",
                             aria_label="Descrição (opcional)",
+                            class_name="signup-input",
+                        ),
+                        rx.el.label(
+                            "Link da imagem da capa (HTTPS, opcional)",
+                            html_for="catalog-capa-url",
+                            class_name="signup-label",
+                        ),
+                        rx.input(
+                            id="catalog-capa-url",
+                            name="capa_url",
+                            type="url",
+                            aria_label="Link da imagem da capa (HTTPS, opcional)",
                             class_name="signup-input",
                         ),
                         rx.heading("Categorias existentes", size="4"),
@@ -5081,6 +5160,29 @@ app = rx.App(
             "border_radius": "0.8rem",
             "background_color": "var(--brand-900)",
             "color": "#ffffff",
+        },
+        ".catalog-card-cover-image": {
+            "display": "block",
+            "width": "100%",
+            "min_height": "11rem",
+            "aspect_ratio": "0.72",
+            "border_radius": "0.8rem",
+            "object_fit": "cover",
+        },
+        ".catalog-detail-visual": {
+            "width": "100%",
+            "max_width": "22rem",
+        },
+        ".catalog-detail-visual .catalog-card-cover": {
+            "min_height": "22rem",
+        },
+        ".catalog-detail-cover-image": {
+            "display": "block",
+            "width": "100%",
+            "min_height": "22rem",
+            "aspect_ratio": "0.72",
+            "border_radius": "0.8rem",
+            "object_fit": "cover",
         },
         ".catalog-cover-0": {
             "background_color": "var(--brand-900)",
