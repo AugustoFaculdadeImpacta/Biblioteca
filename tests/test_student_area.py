@@ -1,5 +1,7 @@
 import asyncio
 import json
+import re
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import httpx
@@ -20,6 +22,36 @@ from biblioteca_mais_nova.xano_client import (
     XanoResponseError,
     XanoTimeoutError,
 )
+
+
+def _readable_text(component):
+    serialized = json.loads(repr(component))
+    values = []
+
+    def collect(value):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if key == "name" and isinstance(child, str):
+                    values.append(child)
+                elif key == "contents" and isinstance(child, str):
+                    try:
+                        values.append(json.loads(child))
+                    except json.JSONDecodeError:
+                        values.append(child)
+                elif key == "props" and isinstance(child, list):
+                    values.extend(prop for prop in child if isinstance(prop, str))
+                else:
+                    collect(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect(child)
+
+    collect(serialized)
+    return re.sub(
+        r"\\u([0-9a-fA-F]{4})",
+        lambda match: chr(int(match.group(1), 16)),
+        " ".join(values),
+    )
 
 
 def _request_records():
@@ -592,11 +624,157 @@ def test_student_request_explains_backend_eligibility_refusal_without_retry(
 
 
 def test_student_library_page_and_navigation_are_profile_gated():
-    page = json.dumps(json.loads(repr(frontend.student_library())), ensure_ascii=False)
+    page = _readable_text(frontend.student_library())
     header = repr(frontend.site_header())
-    assert "Minha biblioteca" in page
+    assert "Reservas e empréstimos" in page
     assert "empr" in page
     assert "solicita" in page
     assert "reservas" in page
     assert "/reservas" in header
     assert "minha-biblioteca" in frontend.app._unevaluated_pages
+
+
+def test_student_reservations_has_four_sections_and_empty_states():
+    page = _readable_text(frontend.student_reservations())
+    section_labels = (
+        "Aguardando aprovação",
+        "Aprovadas",
+        "Emprestados",
+        "Em atraso",
+    )
+
+    assert all(label in page for label in section_labels)
+    assert page.index("Em atraso") < page.index("Aguardando aprovação")
+    assert page.index("Aguardando aprovação") < page.index("Aprovadas")
+    assert page.index("Aprovadas") < page.index("Emprestados")
+    assert "Você não tem pedidos aguardando aprovação." in page
+    assert "Você não tem reservas aprovadas aguardando retirada." in page
+    assert "Você não tem livros emprestados no momento." in page
+    assert "Você não tem empréstimos em atraso." in page
+    assert "student-reservations-count" in page
+    assert "student-overdue-alert" in page
+
+
+def test_my_library_redirects_to_reservations_without_personal_gets(monkeypatch):
+    calls = []
+
+    async def unexpected_get(*_args, **_kwargs):
+        calls.append(True)
+        raise AssertionError("A rota legada não deve consultar dados pessoais")
+
+    monkeypatch.setattr(frontend, "list_my_loans", unexpected_get)
+    monkeypatch.setattr(frontend, "list_my_requests", unexpected_get)
+    monkeypatch.setattr(frontend, "list_my_reservations", unexpected_get)
+
+    async def verify_redirect():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"my-library-redirect-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            redirect = state.redirect_student_library()
+            assert "/reservas" in repr(redirect)
+            assert "reservas" in frontend.app._unevaluated_pages
+            assert "minha-biblioteca" in frontend.app._unevaluated_pages
+            assert calls == []
+
+    asyncio.run(verify_redirect())
+
+
+def test_student_reservation_groups_order_overdue_and_show_neutral_missing_data(
+    monkeypatch,
+):
+    now = datetime.now(timezone.utc)
+
+    def timestamp(day_offset):
+        return (now + timedelta(days=day_offset)).isoformat()
+
+    async def loans(_token):
+        return [
+            {
+                **_loan_records()[0],
+                "id": 21,
+                "retirado_em": timestamp(-10),
+                "vence_em": timestamp(-5),
+                "devolvido_em": None,
+            },
+            {
+                **_loan_records()[0],
+                "id": 22,
+                "retirado_em": timestamp(-8),
+                "vence_em": timestamp(-2),
+                "devolvido_em": None,
+            },
+            {
+                **_loan_records()[0],
+                "id": 23,
+                "retirado_em": timestamp(-5),
+                "vence_em": timestamp(3),
+                "devolvido_em": None,
+            },
+            {
+                **_loan_records()[0],
+                "id": 24,
+                "retirado_em": timestamp(-3),
+                "vence_em": timestamp(1),
+                "devolvido_em": None,
+            },
+        ]
+
+    async def requests(_token):
+        return [
+            {
+                "id": 51,
+                "usuario_id": 9,
+                "titulo_id": 900,
+                "estado": "pendente",
+            }
+        ]
+
+    async def reservations(_token):
+        return [
+            {
+                **_reservation_records()[0],
+                "id": 61,
+                "titulo_id": 901,
+                "expira_em_sao_paulo": None,
+            }
+        ]
+
+    async def titles():
+        return []
+
+    monkeypatch.setattr(frontend, "list_my_loans", loans)
+    monkeypatch.setattr(frontend, "list_my_requests", requests)
+    monkeypatch.setattr(frontend, "list_my_reservations", reservations)
+    monkeypatch.setattr(frontend, "list_public_titles", titles)
+
+    async def verify_groups():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"reservation-groups-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-estudante-reservas", "estudante")
+            await state.load_student_library()
+
+            assert [
+                loan["dias_atraso"] for loan in state.student_overdue_loans
+            ] == [5, 2]
+            assert [
+                loan["dias_restantes"] for loan in state.student_current_loans
+            ] == [1, 3]
+            assert len(state.student_awaiting_approval_requests) == 1
+            assert state.student_awaiting_approval_requests[0]["titulo"] == (
+                "Título indisponível"
+            )
+            assert state.student_awaiting_approval_requests[0]["solicitada_em"] == (
+                "Data indisponível"
+            )
+            assert len(state.student_approved_reservations) == 1
+            assert state.student_approved_reservations[0]["titulo"] == (
+                "Título indisponível"
+            )
+            assert state.student_approved_reservations[0]["prazo"] == (
+                "Data indisponível"
+            )
+
+    asyncio.run(verify_groups())

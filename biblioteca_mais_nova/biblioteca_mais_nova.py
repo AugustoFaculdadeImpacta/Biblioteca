@@ -140,7 +140,7 @@ class State(rx.State):
     public_catalog_detail_has_error: bool = False
     public_catalog_detail_not_found: bool = False
     public_catalog_detail_pending: bool = False
-    student_library_pending: bool = False
+    student_library_pending: bool = True
     student_library_message: str = ""
     student_library_has_error: bool = False
     student_library_requires_login: bool = False
@@ -541,6 +541,45 @@ class State(rx.State):
         return bool(self.student_library_reservations)
 
     @rx.var
+    def student_awaiting_approval_requests(self) -> list[dict[str, Any]]:
+        return [
+            request
+            for request in self.student_library_requests
+            if request["estado"] == "Aguardando confirmação da retirada"
+        ]
+
+    @rx.var
+    def student_approved_reservations(self) -> list[dict[str, Any]]:
+        return [
+            reservation
+            for reservation in self.student_library_reservations
+            if reservation["estado"] == "Disponível para retirada"
+        ]
+
+    @rx.var
+    def student_current_loans(self) -> list[dict[str, Any]]:
+        return sorted(
+            (
+                loan
+                for loan in self.student_library_loans
+                if not loan["devolvido"] and not loan["em_atraso"]
+            ),
+            key=lambda loan: loan["dias_restantes"],
+        )
+
+    @rx.var
+    def student_overdue_loans(self) -> list[dict[str, Any]]:
+        return sorted(
+            (
+                loan
+                for loan in self.student_library_loans
+                if not loan["devolvido"] and loan["em_atraso"]
+            ),
+            key=lambda loan: loan["dias_atraso"],
+            reverse=True,
+        )
+
+    @rx.var
     def has_staff_reservation_student(self) -> bool:
         return bool(self.staff_reservation_student)
 
@@ -865,11 +904,24 @@ class State(rx.State):
         self.student_library_loans = [
             {
                 "id": loan["id"],
+                "titulo": "Título indisponível",
                 "exemplar_id": loan["exemplar_id"],
                 "retirado_em": _format_timestamp(loan["retirado_em"]),
-                "vence_em": _format_timestamp(loan["vence_em"]),
+                "vence_em": _format_known_timestamp(loan["vence_em"]),
                 "devolvido": loan["devolvido_em"] not in (None, 0),
                 "em_atraso": _is_overdue(loan["vence_em"], loan["devolvido_em"]),
+                "dias_restantes": max(
+                    0,
+                    _calendar_days_until(loan["vence_em"]) or 0,
+                ),
+                "dias_atraso": (
+                    max(
+                        1,
+                        -(_calendar_days_until(loan["vence_em"]) or 0),
+                    )
+                    if _is_overdue(loan["vence_em"], loan["devolvido_em"])
+                    else 0
+                ),
             }
             for loan in loans
         ]
@@ -877,11 +929,11 @@ class State(rx.State):
             {
                 "id": request["id"],
                 "titulo": title_names.get(
-                    request["titulo_id"], f"Título #{request['titulo_id']}"
+                    request["titulo_id"], "Título indisponível"
                 ),
                 "href": f"/catalogo/{request['titulo_id']}",
                 "estado": _request_status_label(request["estado"]),
-                "solicitada_em": _format_timestamp(
+                "solicitada_em": _format_known_timestamp(
                     request.get("solicitada_em")
                 ),
             }
@@ -895,18 +947,25 @@ class State(rx.State):
             {
                 "id": reservation["id"],
                 "titulo": title_names.get(
-                    reservation["titulo_id"],
-                    f"Título #{reservation['titulo_id']}",
+                    reservation["titulo_id"], "Título indisponível"
                 ),
                 "href": f"/catalogo/{reservation['titulo_id']}",
                 "estado": _reservation_status_label(reservation["estado"]),
-                "prazo": _format_sao_paulo_deadline(
-                    reservation["expira_em_sao_paulo"]
+                "prazo": (
+                    _format_sao_paulo_deadline(
+                        reservation["expira_em_sao_paulo"]
+                    )
+                    if reservation["expira_em_sao_paulo"]
+                    else "Data indisponível"
                 ),
             }
             for reservation in reservations
         ]
         self.student_library_pending = False
+
+    @rx.event
+    def redirect_student_library(self):
+        return rx.redirect("/reservas")
 
     def _sync_catalog_progress(self) -> None:
         self.catalog_categories_pending = bool(
@@ -2357,6 +2416,19 @@ def _is_overdue(vence_em: object, devolvido_em: object) -> bool:
     return due is not None and due < datetime.now(timezone.utc)
 
 
+def _calendar_days_until(vence_em: object) -> int | None:
+    due = _as_utc_datetime(vence_em)
+    if due is None:
+        return None
+    return (due.date() - datetime.now(timezone.utc).date()).days
+
+
+def _format_known_timestamp(value: object) -> str:
+    if _as_utc_datetime(value) is None:
+        return "Data indisponível"
+    return _format_timestamp(value)
+
+
 def _request_status_label(status: str) -> str:
     return {
         "pendente": "Aguardando confirmação da retirada",
@@ -2466,7 +2538,7 @@ def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
 def student_loan_card(loan: rx.Var[dict[str, Any]]) -> rx.Component:
     return rx.el.article(
         rx.el.div(
-            rx.el.h3(f"Empréstimo #{loan['id']}", class_name="catalog-card-heading"),
+            rx.el.h3(loan["titulo"], class_name="catalog-card-heading"),
             rx.cond(
                 loan["em_atraso"],
                 rx.el.span("Atrasado", class_name="status-pill status-pill-warning"),
@@ -2476,18 +2548,21 @@ def student_loan_card(loan: rx.Var[dict[str, Any]]) -> rx.Component:
         ),
         rx.text("Exemplar: ", loan["exemplar_id"]),
         rx.text("Retirada: ", loan["retirado_em"]),
-        rx.text("Vencimento: ", loan["vence_em"]),
+        rx.text("Devolução: ", loan["vence_em"]),
         rx.cond(
-            loan["devolvido"],
-            rx.text("Devolvido"),
-            rx.cond(
-                loan["em_atraso"],
-                rx.el.p(
-                    "Em atraso. Procure a equipe da biblioteca; novas solicitações e reservas podem ser bloqueadas.",
-                    role="alert",
-                    class_name="signup-feedback signup-feedback-error",
-                ),
-                rx.text("Em andamento"),
+            loan["em_atraso"],
+            rx.el.p(
+                "Em atraso há ",
+                loan["dias_atraso"],
+                " dias. Procure a equipe da biblioteca.",
+                role="alert",
+                class_name="signup-feedback signup-feedback-error",
+            ),
+            rx.el.p(
+                "Vence em ",
+                loan["dias_restantes"],
+                " dias.",
+                class_name="student-loan-deadline",
             ),
         ),
         class_name="catalog-card",
@@ -2814,73 +2889,137 @@ def public_catalog_detail() -> rx.Component:
     )
 
 
-def student_library() -> rx.Component:
-    records = rx.fragment(
-        rx.el.section(
-            rx.heading("Empréstimos", size="5"),
-            rx.cond(
-                State.has_student_library_loans,
-                rx.box(
-                    rx.foreach(State.student_library_loans, student_loan_card),
-                    class_name="catalog-grid",
-                ),
-                rx.text(
-                    "Você ainda não possui empréstimos.",
-                    role="status",
-                ),
+def student_reservations() -> rx.Component:
+    awaiting_approval_section = rx.el.section(
+        rx.el.div(
+            rx.heading("Aguardando aprovação", size="5"),
+            rx.el.span(
+                State.student_awaiting_approval_requests.length(),
+                class_name="student-reservations-count",
             ),
-            class_name="student-library-section",
-            aria_label="Meus empréstimos",
+            class_name="student-reservations-heading",
         ),
-        rx.el.section(
-            rx.heading("Solicitações", size="5"),
-            rx.cond(
-                State.has_student_library_requests,
-                rx.box(
-                    rx.foreach(
-                        State.student_library_requests,
-                        student_request_card,
-                    ),
-                    class_name="catalog-grid",
+        rx.cond(
+            State.student_awaiting_approval_requests.length() > 0,
+            rx.el.div(
+                rx.foreach(
+                    State.student_awaiting_approval_requests,
+                    student_request_card,
                 ),
-                rx.text(
-                    "Você não possui solicitações pendentes ou recentes.",
-                    role="status",
-                ),
+                class_name="catalog-grid",
             ),
-            class_name="student-library-section",
-            aria_label="Minhas solicitações",
-        ),
-        rx.el.section(
-            rx.heading("Reservas", size="5"),
-            rx.cond(
-                State.has_student_library_reservations,
-                rx.box(
-                    rx.foreach(
-                        State.student_library_reservations,
-                        student_reservation_card,
-                    ),
-                    class_name="catalog-grid",
-                ),
-                rx.text("Você ainda não possui reservas.", role="status"),
+            rx.text(
+                "Você não tem pedidos aguardando aprovação.",
+                role="status",
             ),
-            class_name="student-library-section",
-            aria_label="Minhas reservas",
         ),
+        class_name="student-library-section",
+        aria_label="Aguardando aprovação",
     )
-
+    approved_section = rx.el.section(
+        rx.el.div(
+            rx.heading("Aprovadas", size="5"),
+            rx.el.span(
+                State.student_approved_reservations.length(),
+                class_name="student-reservations-count",
+            ),
+            class_name="student-reservations-heading",
+        ),
+        rx.cond(
+            State.student_approved_reservations.length() > 0,
+            rx.el.div(
+                rx.foreach(
+                    State.student_approved_reservations,
+                    student_reservation_card,
+                ),
+                class_name="catalog-grid",
+            ),
+            rx.text(
+                "Você não tem reservas aprovadas aguardando retirada.",
+                role="status",
+            ),
+        ),
+        class_name="student-library-section",
+        aria_label="Reservas aprovadas",
+    )
+    borrowed_section = rx.el.section(
+        rx.el.div(
+            rx.heading("Emprestados", size="5"),
+            rx.el.span(
+                State.student_current_loans.length(),
+                class_name="student-reservations-count",
+            ),
+            class_name="student-reservations-heading",
+        ),
+        rx.cond(
+            State.student_current_loans.length() > 0,
+            rx.el.div(
+                rx.foreach(State.student_current_loans, student_loan_card),
+                class_name="catalog-grid",
+            ),
+            rx.text(
+                "Você não tem livros emprestados no momento.",
+                role="status",
+            ),
+        ),
+        class_name="student-library-section",
+        aria_label="Livros emprestados",
+    )
+    overdue_section = rx.el.section(
+        rx.el.div(
+            rx.heading("Em atraso", size="5"),
+            rx.el.span(
+                State.student_overdue_loans.length(),
+                class_name="student-reservations-count",
+            ),
+            class_name="student-reservations-heading",
+        ),
+        rx.cond(
+            State.student_overdue_loans.length() > 0,
+            rx.el.div(
+                rx.foreach(State.student_overdue_loans, student_loan_card),
+                class_name="catalog-grid",
+            ),
+            rx.text(
+                "Você não tem empréstimos em atraso.",
+                role="status",
+            ),
+        ),
+        class_name="student-library-section student-overdue-section",
+        aria_label="Em atraso",
+    )
     return rx.box(
         rx.link(
             "Pular para o conteúdo",
-            href="#conteudo-minha-biblioteca",
+            href="#conteudo-reservas",
             class_name="skip-link",
         ),
         site_header(),
         rx.el.main(
+            rx.cond(
+                (~State.student_library_pending)
+                & (~State.student_library_has_error)
+                & (State.student_overdue_loans.length() > 0),
+                rx.el.p(
+                    "Você tem ",
+                    State.student_overdue_loans.length(),
+                    " empréstimo(s) em atraso.",
+                    role="alert",
+                    class_name="student-overdue-alert",
+                ),
+                rx.fragment(),
+            ),
+            rx.cond(
+                (~State.student_library_pending)
+                & (~State.student_library_has_error)
+                & (State.student_overdue_loans.length() > 0),
+                overdue_section,
+                rx.fragment(),
+            ),
             rx.el.section(
-                rx.heading("Minha biblioteca", size="7"),
+                rx.heading("Reservas e empréstimos", size="7"),
                 rx.text(
-                    "Consulte seus empréstimos, solicitações, reservas e prazos."
+                    "Acompanhe pedidos, retiradas e prazos da sua conta."
                 ),
                 rx.cond(
                     State.student_library_pending,
@@ -2903,11 +3042,47 @@ def student_library() -> rx.Component:
                     rx.fragment(),
                 ),
                 rx.cond(
-                    State.student_library_has_error,
+                    (~State.student_library_pending)
+                    & (~State.student_library_has_error),
+                    rx.fragment(
+                        awaiting_approval_section,
+                        approved_section,
+                        borrowed_section,
+                        rx.cond(
+                            State.student_overdue_loans.length() == 0,
+                            overdue_section,
+                            rx.fragment(),
+                        ),
+                    ),
                     rx.fragment(),
-                    records,
                 ),
-                id="conteudo-minha-biblioteca",
+                id="conteudo-reservas",
+                class_name="content-section",
+            ),
+            class_name="main-content",
+        ),
+        site_footer(),
+        class_name="app-shell",
+    )
+
+
+def student_library() -> rx.Component:
+    return student_reservations()
+
+
+def student_library_redirect() -> rx.Component:
+    return rx.box(
+        rx.link(
+            "Pular para o conteúdo",
+            href="#conteudo-redirecionamento-reservas",
+            class_name="skip-link",
+        ),
+        site_header(),
+        rx.el.main(
+            rx.el.section(
+                rx.heading("Redirecionando para suas reservas", size="7"),
+                rx.text("Aguarde enquanto abrimos sua biblioteca."),
+                id="conteudo-redirecionamento-reservas",
                 class_name="content-section",
             ),
             class_name="main-content",
@@ -5038,6 +5213,52 @@ app = rx.App(
             "margin": "0",
             "color": "var(--slate-900)",
         },
+        ".student-reservations-heading": {
+            "display": "flex",
+            "align_items": "center",
+            "justify_content": "space-between",
+            "gap": "0.75rem",
+            "width": "100%",
+        },
+        ".student-reservations-heading h2": {
+            "margin": "0",
+        },
+        ".student-reservations-count": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "justify_content": "center",
+            "min_width": "2.75rem",
+            "min_height": "2.75rem",
+            "padding": "0.4rem",
+            "border_radius": "999px",
+            "background_color": "var(--brand-100)",
+            "color": "var(--brand-900)",
+            "font_weight": "700",
+        },
+        ".student-overdue-alert": {
+            "width": "100%",
+            "margin": "0 auto",
+            "padding": "0.85rem 1rem",
+            "border_left": "0.3rem solid var(--danger-700)",
+            "border_radius": "0.5rem",
+            "background_color": "var(--danger-100)",
+            "color": "var(--danger-700)",
+            "font_weight": "700",
+        },
+        ".student-overdue-section": {
+            "border_color": "var(--danger-700)",
+            "background_color": "var(--danger-100)",
+        },
+        ".student-overdue-section .catalog-card": {
+            "border_color": "var(--danger-700)",
+        },
+        ".student-loan-deadline": {
+            "padding": "0.5rem 0.75rem",
+            "border_radius": "0.5rem",
+            "background_color": "var(--warning-100)",
+            "color": "var(--warning-700)",
+            "font_weight": "700",
+        },
         ".student-library-section > p": {
             "margin": "0",
             "color": "var(--slate-700)",
@@ -5647,10 +5868,16 @@ app.add_page(
     on_load=State.load_public_catalog_detail,
 )
 app.add_page(
-    accessible_page(student_library),
-    route="/minha-biblioteca",
-    title="Minha biblioteca",
+    accessible_page(student_reservations),
+    route="/reservas",
+    title="Reservas e empréstimos",
     on_load=State.load_student_library,
+)
+app.add_page(
+    accessible_page(student_library_redirect),
+    route="/minha-biblioteca",
+    title="Redirecionando para reservas",
+    on_load=State.redirect_student_library,
 )
 app.add_page(
     accessible_page(catalog_admin),
