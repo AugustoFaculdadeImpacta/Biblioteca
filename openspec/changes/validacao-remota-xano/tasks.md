@@ -46,3 +46,14 @@ As tarefas abaixo continuam abertas e não foram executadas nesta rodada:
 - [ ] `perfil-admin-xano` 2.2 — publicar `usuario.xs` com dry-run unitário, push autorizado e pull de conferência.
 - [ ] `perfil-admin-xano` 2.4 — publicar individualmente os endpoints de autorização com dry-run, push e pull de conferência por arquivo.
 - [ ] `perfil-admin-xano` 2.6 — executar testes Xano com contas sintéticas, limpar fixtures pela Metadata API e confirmar respostas 404 e contagens finais.
+
+## Pendências de contrato para `simplifica-navegacao`
+
+Estas validações são somente backlog. Nenhuma operação remota no Xano foi executada.
+
+- [ ] Campo opcional `capa_url` na tabela `titulo` (URL HTTPS da capa do livro).
+- [ ] Campo opcional `descricao` na tabela `titulo` (descrição do livro).
+- [ ] Expor `titulo_id` ou os dados do título em `GET /minhas/emprestimos` para identificar cada empréstimo pessoal.
+- [ ] Confirmar que `GET /minhas/solicitacoes` retorna `solicitada_em` quando a jornada exigir a data do pedido.
+- [ ] Disponibilizar uma contagem confiável de empréstimos por título para uma futura seção de popularidade no catálogo.
+- [ ] Definir um endpoint autorizado para alteração genérica do perfil de contas; até então, a interface limita a gestão ao cadastro, ativação e desativação de bibliotecários.
