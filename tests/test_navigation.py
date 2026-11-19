@@ -1,6 +1,7 @@
 import asyncio
 import json
 import re
+from pathlib import Path
 from uuid import uuid4
 
 import reflex as rx
@@ -276,7 +277,7 @@ def test_admin_view_mode_controls_are_visible_and_accessible():
     assert "Admin" in header
     assert "Bibliotecária" in header
     assert "Estudante" in header
-    assert "menuitemradio" in header
+    assert 'role:"radio"' in header
     assert "aria-checked" in header
     assert "Voltar à visão de admin" in header
     assert style[":focus-visible"]["outline"].startswith("3px solid ")
@@ -420,20 +421,47 @@ def test_page_bodies_do_not_duplicate_global_navigation():
 def test_profile_menu_for_visitor_has_login_and_signup():
     component = frontend.profile_menu()
     menu = _readable(component)
-    trigger = next(
-        item
-        for item in _components(component)
-        if item.alias == "RadixThemesDropdownMenu.Trigger"
+    details = next(
+        item for item in _components(component) if type(item).__name__ == "Details"
+    )
+    summary = next(
+        item for item in _components(component) if type(item).__name__ == "Summary"
     )
 
-    assert "RadixThemesDropdownMenu.Root" in menu
-    assert "RadixThemesDropdownMenu.Trigger" in menu
-    assert "RadixThemesDropdownMenu.Content" in menu
-    assert len(trigger.children) == 1
-    assert trigger.children[0].alias == "RadixThemesButton"
+    assert details.class_name == "profile-menu"
+    assert summary.class_name == "profile-menu-trigger"
     assert "Perfil" in menu
     assert "Entrar" in menu
     assert "Cadastrar-se" in menu
+
+
+def test_profile_disclosure_uses_details_without_rx_menu():
+    component = frontend.profile_menu()
+    components = list(_components(component))
+
+    assert any(type(item).__name__ == "Details" for item in components)
+    assert any(type(item).__name__ == "Summary" for item in components)
+    assert not any("RadixThemesDropdownMenu" in repr(item) for item in components)
+
+
+def test_profile_disclosure_escape_and_outside_click_script():
+    script = _readable(frontend.profile_menu())
+
+    assert "__bibliotecaProfileDisclosureInstalled" in script
+    assert 'event.key !== "Escape"' in script
+    assert 'disclosure.querySelector("summary")?.focus()' in script
+    assert 'document.querySelectorAll("details.profile-menu[open]")' in script
+    assert "item.contains(event.target)" in script
+    assert "event.preventDefault()" in script
+
+
+def test_application_contains_no_rx_menu():
+    app_directory = Path(__file__).parents[1] / "biblioteca_mais_nova"
+
+    assert all(
+        "rx.menu" not in path.read_text(encoding="utf-8")
+        for path in app_directory.rglob("*.py")
+    )
 
 
 def test_profile_menu_for_authenticated_user_has_profile_accessibility_and_logout():
