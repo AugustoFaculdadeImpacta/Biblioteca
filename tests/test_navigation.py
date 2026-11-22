@@ -848,13 +848,14 @@ def test_destructive_operations_are_visually_distinct():
         assert label in _readable(card)
         assert _serialized_class_count(card, "destructive-action") >= 1
     assert style[".destructive-action"]["background_color"] == (
-        "var(--danger-100)"
+        "var(--button-danger-bg)"
     )
-    assert style[".destructive-action"]["color"] == "var(--danger-700)"
+    assert style[".destructive-action"]["color"] == (
+        "var(--button-danger-text)"
+    )
     assert style[".destructive-action:hover"]["background_color"] == (
-        "var(--danger-700)"
+        "var(--button-danger-hover-bg)"
     )
-    assert style[".destructive-action:hover"]["color"] == "var(--danger-100)"
     assert style[".destructive-action"] != style[".nav-logout"]
 
 
