@@ -419,18 +419,18 @@ def test_student_navigation_has_accessible_labels_focus_and_mobile_layout():
     assert "Início" not in header
     assert "Catálogo" in header
     assert "greeting_name_rx_state_" in header
-    assert "Minhas reservas" in header
+    assert "Reservas" in header
     assert "/reservas" in header
     assert "Sair" in header
 
     assert style[":focus-visible"]["outline"].startswith("3px solid ")
-    assert style[".site-primary-nav a"]["color"] == "var(--brand-700)"
+    assert style[".site-primary-nav a"]["color"] == "var(--text)"
     assert "Início" not in header
     assert "Acessibilidade" in header
     assert style[".brand-link"]["white_space"] == "nowrap"
     assert style[".profile-menu, .accessibility-menu"]["position"] == "relative"
     assert style[".profile-menu-content"]["position"] == "absolute"
-    mobile = style["@media screen and (max-width: 40rem)"]
+    mobile = style["@media screen and (max-width: 48rem)"]
     assert mobile[".site-header"]["display"] == "grid"
     assert mobile[".site-menu-toggle"]["display"] == "inline-flex"
     assert mobile[".site-header-desktop"]["display"] == "none"
@@ -583,7 +583,7 @@ def test_header_separates_profile_and_accessibility_on_mobile():
     header = frontend.site_header()
     profile = _readable(frontend.profile_menu())
     accessibility = _readable(frontend.accessibility_menu())
-    mobile = frontend.app.style["@media screen and (max-width: 40rem)"]
+    mobile = frontend.app.style["@media screen and (max-width: 48rem)"]
 
     assert _serialized_class_count(header, "profile-menu-trigger") == 2
     assert _serialized_class_count(header, "accessibility-menu-trigger") == 2
@@ -761,7 +761,7 @@ def test_header_navigation_by_profile_and_view():
         label in nav
         for label in (
             "Catálogo",
-            "Minhas reservas",
+            "Reservas",
             "Acervo",
             "Contas",
         )

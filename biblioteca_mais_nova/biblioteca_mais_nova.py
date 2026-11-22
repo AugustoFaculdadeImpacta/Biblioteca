@@ -2189,16 +2189,18 @@ class State(rx.State):
 def site_primary_nav() -> rx.Component:
     return rx.el.nav(
         rx.link(
-            conteudo_acao("catalogo"),
+            rx.el.span("🔎", aria_hidden="true"),
+            rx.text(" Catálogo"),
             href="/catalogo",
-            **atributos_acao("catalogo"),
+            class_name="site-nav-link",
         ),
         rx.cond(
             State.active_navigation_role == "Estudante",
             rx.link(
-                conteudo_acao("minhas_reservas"),
+                rx.el.span("🙋", aria_hidden="true"),
+                rx.text(" Reservas"),
                 href="/reservas",
-                **atributos_acao("minhas_reservas"),
+                class_name="site-nav-link",
             ),
             rx.fragment(),
         ),
@@ -2206,22 +2208,54 @@ def site_primary_nav() -> rx.Component:
             State.active_navigation_role == "Bibliotecária",
             rx.fragment(
                 rx.link(
-                    conteudo_acao("acervo"),
+                    rx.el.span("🗂️", aria_hidden="true"),
+                    rx.text(" Acervo"),
                     href="/admin/acervo",
-                    **atributos_acao("acervo"),
+                    class_name="site-nav-link",
                 ),
                 rx.link(
-                    conteudo_acao("pedidos_reserva"),
+                    rx.el.span("📬", aria_hidden="true"),
+                    rx.text(" Reservas"),
                     href="/admin/reservas",
-                    **atributos_acao("pedidos_reserva"),
+                    class_name="site-nav-link",
                 ),
             ),
             rx.cond(
                 State.active_navigation_role == "Admin",
-                    rx.link(
-                        conteudo_acao("contas"),
-                        href="/admin/bibliotecarios",
-                        **atributos_acao("contas"),
+                    rx.fragment(
+                        rx.link(
+                            rx.el.span("👥", aria_hidden="true"),
+                            rx.text(" Contas"),
+                            href="/admin/bibliotecarios",
+                            class_name="site-nav-link",
+                        ),
+                        rx.cond(
+                            State.admin_view_mode == "bibliotecaria",
+                            rx.fragment(
+                                rx.link(
+                                    rx.el.span("🗂️", aria_hidden="true"),
+                                    rx.text(" Acervo"),
+                                    href="/admin/acervo",
+                                    class_name="site-nav-link",
+                                ),
+                                rx.link(
+                                    rx.el.span("📬", aria_hidden="true"),
+                                    rx.text(" Reservas"),
+                                    href="/admin/reservas",
+                                    class_name="site-nav-link",
+                                ),
+                            ),
+                            rx.cond(
+                                State.admin_view_mode == "estudante",
+                                rx.link(
+                                    rx.el.span("🙋", aria_hidden="true"),
+                                    rx.text(" Reservas"),
+                                    href="/reservas",
+                                    class_name="site-nav-link",
+                                ),
+                                rx.fragment(),
+                            ),
+                        ),
                     ),
                 rx.fragment(),
             ),
@@ -2374,6 +2408,17 @@ _APPEARANCE_SCRIPT = r"""
       }
     });
   };
+  const syncCurrentNav = () => {
+    const path = window.location.pathname.replace(/\/+$/, "") || "/";
+    document.querySelectorAll(".site-nav-link").forEach((link) => {
+      const target = (link.getAttribute("href") || "").replace(/\/+$/, "") || "/";
+      if (target === path || (target === "/catalogo" && path.startsWith("/catalogo"))) {
+        link.setAttribute("aria-current", "page");
+      } else {
+        link.removeAttribute("aria-current");
+      }
+    });
+  };
   const apply = () => {
     const dark = preferences.theme === "dark" ||
       (preferences.theme === "system" && colorScheme.matches);
@@ -2385,6 +2430,7 @@ _APPEARANCE_SCRIPT = r"""
       shell.style.fontSize = `${preferences.fontScale}%`;
     });
     syncControls();
+    syncCurrentNav();
   };
   document.addEventListener("click", (event) => {
     if (!(event.target instanceof Element)) return;
@@ -2690,10 +2736,12 @@ def accessibility_menu() -> rx.Component:
 
 def site_header() -> rx.Component:
     brand = rx.link(
-        conteudo_acao("marca"),
+        rx.el.span("📚", aria_hidden="true"),
+        rx.text(" Biblioteca escolar"),
         href="/",
         class_name="brand-link",
-        **atributos_acao("marca"),
+        title="Biblioteca escolar",
+        aria_label="Biblioteca escolar",
     )
     menu_label = rx.cond(
         State.mobile_navigation_open,
@@ -2746,7 +2794,6 @@ def site_footer() -> rx.Component:
     return rx.el.footer(
         rx.el.section(
             rx.text(
-                rx.el.span("📚", aria_hidden="true"),
                 rx.text(" Biblioteca escolar"),
                 class_name="footer-about-title",
             ),
@@ -2754,9 +2801,9 @@ def site_footer() -> rx.Component:
         ),
         rx.el.nav(
             rx.link(
-                conteudo_acao("catalogo"),
+                "Catálogo",
                 href="/catalogo",
-                **atributos_acao("catalogo"),
+                class_name="footer-link",
             ),
             aria_label="Links úteis",
             class_name="footer-links",
@@ -5588,6 +5635,7 @@ dark_theme_tokens = {
     "--bg-page": "#111827",
     "--bg-panel": "#1f2937",
     "--bg-soft": "#273449",
+    "--text": "#f3f4f6",
     "--brand-900": "#0f172a",
     "--brand-700": "#9bd6e3",
     "--brand-500": "#70bfd2",
@@ -5654,6 +5702,7 @@ app = rx.App(
             "--bg-page": "#f5efe4",
             "--bg-panel": "#fffdf8",
             "--bg-soft": "#edf4ef",
+            "--text": "#1f2c38",
             "--brand-900": "#183a4a",
             "--brand-700": "#245d6d",
             "--brand-500": "#2d7287",
@@ -5730,50 +5779,58 @@ app = rx.App(
             "transition": "background-color 200ms ease, color 200ms ease",
         },
         ".site-header": {
+            "position": "sticky",
+            "top": "0",
+            "z_index": "50",
             "display": "flex",
+            "flex_direction": "row",
+            "flex_wrap": "nowrap",
             "align_items": "center",
+            "justify_content": "space-between",
             "gap": "1rem",
-            "max_width": "72rem",
+            "max_width": "75rem",
             "margin": "0 auto",
-            "padding": "1rem 1.2rem",
-            "border": "1px solid var(--line)",
-            "border_radius": "1rem",
+            "min_height": "4rem",
+            "padding": "0 1rem",
+            "border_bottom": "1px solid var(--line)",
             "background_color": "var(--bg-panel)",
             "box_shadow": "var(--shadow-soft)",
         },
         ".brand-link": {
             "display": "inline-flex",
             "align_items": "center",
+            "flex_shrink": "0",
             "white_space": "nowrap",
-            "color": "var(--brand-text)",
+            "background": "transparent",
+            "border": "none",
+            "color": "var(--text)",
             "font_weight": "800",
             "text_decoration": "none",
             "font_family": "Georgia, 'Times New Roman', serif",
-            "font_size": "1.4rem",
+            "font_size": "1.25rem",
         },
         ".brand-link:hover": {
-            "color": "var(--brand-700)",
+            "color": "var(--brand-text)",
         },
         ".site-header-desktop": {
-            "display": "grid",
-            "grid_template_columns": "minmax(0, 1fr) auto",
+            "display": "flex",
             "align_items": "center",
+            "justify_content": "space-between",
             "gap": "1rem",
-            "width": "100%",
+            "flex": "1",
             "min_width": "0",
         },
         ".site-primary-nav": {
             "display": "flex",
-            "flex_wrap": "wrap",
+            "flex_wrap": "nowrap",
             "align_items": "center",
             "justify_content": "center",
             "gap": "0.35rem",
             "min_width": "0",
-            "max_width": "100%",
         },
         ".site-header-actions": {
             "display": "flex",
-            "flex_wrap": "wrap",
+            "flex_wrap": "nowrap",
             "align_items": "center",
             "justify_content": "flex-end",
             "gap": "0.5rem",
@@ -5839,17 +5896,23 @@ app = rx.App(
         ".site-primary-nav a": {
             "display": "inline-flex",
             "align_items": "center",
+            "gap": "0.4rem",
             "min_height": "2.75rem",
-            "padding": "0.45rem 0.75rem",
-            "border_radius": "0.5rem",
-            "color": "var(--brand-700)",
+            "padding": "0.5rem 0.85rem",
+            "border_radius": "999px",
+            "background_color": "transparent",
+            "color": "var(--text)",
             "font_weight": "600",
+            "white_space": "nowrap",
             "cursor": "pointer",
             "text_decoration": "none",
-            "overflow_wrap": "anywhere",
         },
         ".site-primary-nav a:hover": {
+            "background_color": "var(--bg-soft)",
+        },
+        ".site-nav-link[aria-current='page']": {
             "background_color": "var(--brand-100)",
+            "color": "var(--brand-text)",
         },
         ".profile-menu-trigger, .accessibility-menu-trigger": {
             "display": "inline-flex",
@@ -5857,13 +5920,20 @@ app = rx.App(
             "justify_content": "center",
             "min_height": "2.75rem",
             "padding": "0.45rem 0.9rem",
-            "border": "1px solid var(--brand-700)",
             "border_radius": "0.55rem",
-            "background_color": "var(--brand-900)",
-            "color": "#ffffff",
             "font_weight": "700",
             "list_style": "none",
             "cursor": "pointer",
+        },
+        ".accessibility-menu-trigger": {
+            "border": "1px solid var(--line)",
+            "background_color": "transparent",
+            "color": "var(--text)",
+        },
+        ".profile-menu-trigger": {
+            "border": "1px solid var(--brand-700)",
+            "background_color": "var(--brand-700)",
+            "color": "var(--button-primary-text)",
         },
         ".profile-menu-trigger::-webkit-details-marker, .accessibility-menu-trigger::-webkit-details-marker": {
             "display": "none",
@@ -7020,7 +7090,7 @@ app = rx.App(
         },
         ".site-footer": {
             "display": "flex",
-            "flex_wrap": "wrap",
+            "flex_wrap": "nowrap",
             "align_items": "center",
             "justify_content": "space-between",
             "gap": "0.75rem 1.5rem",
@@ -7030,6 +7100,17 @@ app = rx.App(
             "border_top": "1px solid var(--line)",
             "color": "var(--slate-700)",
             "font_size": "0.9rem",
+        },
+        ".footer-links a": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "min_height": "2.75rem",
+            "padding": "0",
+            "border": "none",
+            "border_radius": "0",
+            "background": "transparent",
+            "color": "var(--text)",
+            "text_decoration": "underline",
         },
         ".footer-about": {
             "display": "flex",
@@ -7084,7 +7165,7 @@ app = rx.App(
                 "transition_duration": "0.01ms !important",
             },
         },
-        "@media screen and (max-width: 40rem)": {
+        "@media screen and (max-width: 48rem)": {
             "a": {
                 "display": "inline-flex",
                 "align_items": "center",

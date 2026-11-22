@@ -449,7 +449,7 @@ def test_acervo_hides_inactive_by_default_and_keeps_one_panel_open():
 def test_acervo_vertical_layout_is_responsive_and_covers_are_fixed():
     page = repr(frontend.catalog_admin())
     style = frontend.app.style
-    mobile = style["@media screen and (max-width: 40rem)"]
+    mobile = style["@media screen and (max-width: 48rem)"]
 
     assert "admin-catalog-grid" in page
     assert "Mostrar desativados" in page

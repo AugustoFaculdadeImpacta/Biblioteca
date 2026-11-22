@@ -418,7 +418,7 @@ def test_touch_targets_and_keyboard_accessibility_at_mobile_viewport():
     ):
         assert app.style[selector]["min_height"] == "2.75rem"
 
-    mobile_styles = app.style["@media screen and (max-width: 40rem)"]
+    mobile_styles = app.style["@media screen and (max-width: 48rem)"]
     assert mobile_styles["a"]["min_height"] == "2.75rem"
     assert mobile_styles["a"]["display"] == "inline-flex"
     assert mobile_styles[".site-header"]["grid_template_columns"] == (

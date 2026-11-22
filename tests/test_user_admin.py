@@ -213,7 +213,7 @@ def test_librarian_management_page_has_labeled_fields_and_responsive_styles():
     assert frontend.app.style[".librarian-list"]["grid_template_columns"] == (
         "repeat(auto-fit, minmax(min(100%, 18rem), 1fr))"
     )
-    assert frontend.app.style["@media screen and (max-width: 40rem)"][
+    assert frontend.app.style["@media screen and (max-width: 48rem)"][
         ".librarian-card"
     ]["width"] == "100%"
 

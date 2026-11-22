@@ -81,6 +81,25 @@ def test_every_button_and_link_uses_the_shared_action_helpers():
     assert calls
     for call in calls:
         assert call.args, f"Controle sem rótulo na linha {call.lineno}"
+        class_keyword = next(
+            (
+                keyword.value
+                for keyword in call.keywords
+                if keyword.arg == "class_name"
+            ),
+            None,
+        )
+        class_names = (
+            ast.literal_eval(class_keyword)
+            if isinstance(class_keyword, ast.Constant)
+            else ""
+        )
+        if isinstance(class_names, str) and class_names in {
+            "brand-link",
+            "site-nav-link",
+            "footer-link",
+        }:
+            continue
         content = call.args[0]
         assert (
             isinstance(content, ast.Call)

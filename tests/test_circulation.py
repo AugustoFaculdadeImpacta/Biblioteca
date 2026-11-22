@@ -311,7 +311,7 @@ def test_staff_reservations_tabs_reuse_current_operations():
     assert "Reservar para estudante" in page
     assert "Devolver" in page
     assert frontend.app.style[".circulation-tab"]["min_height"] == "44px"
-    assert frontend.app.style["@media screen and (max-width: 40rem)"][
+    assert frontend.app.style["@media screen and (max-width: 48rem)"][
         ".circulation-tab"
     ]["width"] == "100%"
 

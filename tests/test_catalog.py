@@ -521,7 +521,7 @@ def test_catalog_controls_and_card_states_are_responsive():
     assert style[".catalog-cover-2"]["background_color"] == "var(--warning-700)"
     assert style[".catalog-cover-3"]["background_color"] == "var(--danger-700)"
     assert (
-        style["@media screen and (max-width: 40rem)"][".catalog-controls"][
+        style["@media screen and (max-width: 48rem)"][".catalog-controls"][
             "grid_template_columns"
         ]
         == "minmax(0, 1fr)"
