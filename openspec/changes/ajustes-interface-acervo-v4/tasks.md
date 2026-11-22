@@ -8,7 +8,7 @@
 ## 2. Cabeçalho e dicionário de ícones
 
 - [x] 2.1 Separar Perfil e Acessibilidade em disclosures mutuamente exclusivos, acessíveis por Escape/clique fora e utilizáveis a 360 px, mantendo preferências de aparência privadas e o seletor de visão somente para admin; validar com testes novos/alterados em `tests/test_navigation.py`.
-- [ ] 2.2 Criar `biblioteca_mais_nova/icons.py` e `docs/guia-de-icones.md`, aplicar emoji exclusivo, texto curto, `title`, `aria-label` e emoji `aria-hidden` em todas as ações/selos do site e confirmação destrutiva inline; validar exclusividade e atributos com novos testes em `tests/test_icons.py`.
+- [x] 2.2 Criar `biblioteca_mais_nova/icons.py` e `docs/guia-de-icones.md`, aplicar emoji exclusivo, texto curto, `title`, `aria-label` e emoji `aria-hidden` em todas as ações/selos do site e confirmação destrutiva inline; validar exclusividade e atributos com novos testes em `tests/test_icons.py`.
 
 ## 3. Acervo e desativação
 
