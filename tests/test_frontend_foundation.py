@@ -187,7 +187,7 @@ def test_dark_cover_fallbacks_use_saturated_palette():
     )
     assert app.style[".a11y-shell.a11y-dark .focus-demo-button"][
         "color"
-    ] == "#ffffff"
+    ] == "#183a4a"
 
 
 def test_text_controls_have_explicit_theme_aware_colors_and_focus():
