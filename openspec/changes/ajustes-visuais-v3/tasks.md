@@ -10,7 +10,7 @@
 
 ## 3. Interruptor efetivo de tema
 
-- [ ] 3.1 Fazer o interruptor refletir o tema explícito ou herdado e mostrar emoji/texto/aria-checked correspondentes em todas as páginas após recarga; verificar com `test_theme_switch_reports_effective_destination`.
+- [x] 3.1 Fazer o interruptor refletir o tema explícito ou herdado e mostrar emoji/texto/aria-checked correspondentes em todas as páginas após recarga; verificar com `test_theme_switch_reports_effective_destination`. Commit `eb9485e`. Verificação: `reflex compile --dry` aprovado; `pytest --ignore=evaluation -q`: 261 passed. Visual: feito, aguarda conferência do usuário.
 
 ## 4. Emojis decorativos e identificação
 

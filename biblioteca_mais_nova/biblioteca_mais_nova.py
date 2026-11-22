@@ -1982,21 +1982,41 @@ class State(rx.State):
 
 def site_primary_nav() -> rx.Component:
     return rx.el.nav(
-        rx.link("Catálogo", href="/catalogo"),
+        rx.link(
+            rx.el.span("🔎", aria_hidden="true"),
+            rx.text(" Catálogo"),
+            href="/catalogo",
+        ),
         rx.cond(
             State.active_navigation_role == "Estudante",
-            rx.link("Reservas", href="/reservas"),
+            rx.link(
+                rx.el.span("🔖", aria_hidden="true"),
+                rx.text(" Reservas"),
+                href="/reservas",
+            ),
             rx.fragment(),
         ),
         rx.cond(
             State.active_navigation_role == "Bibliotecária",
             rx.fragment(
-                rx.link("Acervo", href="/admin/acervo"),
-                rx.link("Reservas", href="/admin/reservas"),
+                rx.link(
+                    rx.el.span("🗂️", aria_hidden="true"),
+                    rx.text(" Acervo"),
+                    href="/admin/acervo",
+                ),
+                rx.link(
+                    rx.el.span("🔖", aria_hidden="true"),
+                    rx.text(" Reservas"),
+                    href="/admin/reservas",
+                ),
             ),
             rx.cond(
                 State.active_navigation_role == "Admin",
-                rx.link("Contas", href="/admin/bibliotecarios"),
+                    rx.link(
+                        rx.el.span("👥", aria_hidden="true"),
+                        rx.text(" Contas"),
+                        href="/admin/bibliotecarios",
+                    ),
                 rx.fragment(),
             ),
         ),
@@ -2009,7 +2029,7 @@ def admin_view_status() -> rx.Component:
     return rx.cond(
         State.can_manage_librarians,
         rx.el.div(
-            rx.text(
+            rx.el.div(
                 "Modo de visualização: ",
                 rx.cond(
                     State.admin_view_mode == "estudante",
@@ -2131,7 +2151,10 @@ _APPEARANCE_SCRIPT = r"""
       if (action === "theme") {
         const dark = preferences.theme === "dark" ||
           (preferences.theme === "system" && colorScheme.matches);
-        setText(button, dark ? "☀️ Modo claro" : "🌙 Modo escuro");
+        setText(button.querySelector("[data-appearance-theme-label]"),
+          dark ? "Modo claro" : "Modo escuro");
+        const emoji = button.querySelector("[data-appearance-theme-emoji]");
+        setText(emoji, dark ? "☀️" : "🌙");
         button.setAttribute("aria-checked", String(dark));
       }
     });
@@ -2212,7 +2235,11 @@ _APPEARANCE_SCRIPT = r"""
 
 def profile_appearance_controls() -> rx.Component:
     return rx.el.div(
-        rx.el.div("Tamanho da fonte", class_name="profile-menu-identity"),
+        rx.el.div(
+            rx.el.span("🔠", aria_hidden="true"),
+            rx.text(" Tamanho da fonte"),
+            class_name="profile-menu-identity",
+        ),
         rx.el.div(
             rx.button(
                 "A−",
@@ -2238,21 +2265,24 @@ def profile_appearance_controls() -> rx.Component:
             class_name="profile-menu-controls",
         ),
         rx.button(
-            "Ativar alto contraste",
+            rx.el.span("🌗", aria_hidden="true"),
+            rx.text(" Ativar alto contraste"),
             type="button",
             aria_pressed=False,
             data_appearance_action="high-contrast",
             class_name="profile-menu-item",
         ),
         rx.button(
-            "Reduzir movimento",
+            rx.el.span("🎞️", aria_hidden="true"),
+            rx.text(" Reduzir movimento"),
             type="button",
             aria_pressed=False,
             data_appearance_action="reduce-motion",
             class_name="profile-menu-item",
         ),
         rx.el.button(
-            "🌙 Modo escuro",
+            rx.el.span("🌙", aria_hidden="true", data_appearance_theme_emoji="true"),
+            rx.text("Modo escuro", data_appearance_theme_label="true"),
             type="button",
             role="switch",
             aria_checked=False,
@@ -2267,7 +2297,8 @@ def profile_menu() -> rx.Component:
     return rx.fragment(
         rx.el.details(
             rx.el.summary(
-                "Perfil",
+                rx.el.span("👤", aria_hidden="true"),
+                rx.text(" Perfil"),
                 aria_label="Abrir menu Perfil",
                 class_name="profile-menu-trigger",
             ),
@@ -2343,7 +2374,8 @@ def profile_menu() -> rx.Component:
                             rx.fragment(),
                         ),
                         rx.button(
-                            "Sair",
+                            rx.el.span("🚪", aria_hidden="true"),
+                            rx.text(" Sair"),
                             type="button",
                             on_click=State.logout,
                             class_name="profile-menu-item",
@@ -2351,12 +2383,14 @@ def profile_menu() -> rx.Component:
                     ),
                     rx.fragment(
                         rx.link(
-                            "Entrar",
+                            rx.el.span("🔑", aria_hidden="true"),
+                            rx.text(" Entrar"),
                             href="/login",
                             class_name="profile-menu-item",
                         ),
                         rx.link(
-                            "Cadastrar-se",
+                            rx.el.span("📝", aria_hidden="true"),
+                            rx.text(" Cadastrar-se"),
                             href="/cadastro",
                             class_name="profile-menu-item",
                         ),
@@ -2372,7 +2406,8 @@ def profile_menu() -> rx.Component:
 
 def site_header() -> rx.Component:
     brand = rx.link(
-        "Biblioteca escolar",
+        rx.el.span("📚", aria_hidden="true"),
+        rx.text(" Biblioteca escolar"),
         href="/",
         class_name="brand-link",
     )
@@ -2430,7 +2465,8 @@ def site_footer() -> rx.Component:
     return rx.el.footer(
         rx.el.section(
             rx.text(
-                "Biblioteca escolar",
+                rx.el.span("📚", aria_hidden="true"),
+                rx.text(" Biblioteca escolar"),
                 class_name="footer-about-title",
             ),
             class_name="footer-about",
@@ -2615,9 +2651,14 @@ def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
         rx.el.div(
             rx.cond(
                 available_count > 0,
-                rx.el.span("Disponível", class_name="status-pill status-pill-success"),
                 rx.el.span(
-                    "Indisponível",
+                    rx.el.span("🟢", aria_hidden="true"),
+                    rx.text(" Disponível"),
+                    class_name="status-pill status-pill-success",
+                ),
+                rx.el.span(
+                    rx.el.span("🔴", aria_hidden="true"),
+                    rx.text(" Indisponível"),
                     class_name="status-pill status-pill-muted",
                 ),
             ),
@@ -2956,7 +2997,8 @@ def public_catalog_detail() -> rx.Component:
                             ),
                         ),
                         rx.button(
-                            "Reservar",
+                            rx.el.span("📘", aria_hidden="true"),
+                            rx.text(" Reservar"),
                             type="button",
                             disabled=State.student_request_pending,
                             on_click=State.request_catalog_title(
@@ -2990,7 +3032,11 @@ def public_catalog_detail() -> rx.Component:
 def student_reservations() -> rx.Component:
     awaiting_approval_section = rx.el.section(
         rx.el.div(
-            rx.heading("Aguardando aprovação", size="5"),
+            rx.heading(
+                rx.el.span("⏳", aria_hidden="true"),
+                rx.text(" Aguardando aprovação"),
+                size="5",
+            ),
             rx.el.span(
                 State.student_awaiting_approval_requests.length(),
                 class_name="student-reservations-count",
@@ -3016,7 +3062,11 @@ def student_reservations() -> rx.Component:
     )
     approved_section = rx.el.section(
         rx.el.div(
-            rx.heading("Aprovadas", size="5"),
+            rx.heading(
+                rx.el.span("✅", aria_hidden="true"),
+                rx.text(" Aprovadas"),
+                size="5",
+            ),
             rx.el.span(
                 State.student_approved_reservations.length(),
                 class_name="student-reservations-count",
@@ -3042,7 +3092,11 @@ def student_reservations() -> rx.Component:
     )
     borrowed_section = rx.el.section(
         rx.el.div(
-            rx.heading("Emprestados", size="5"),
+            rx.heading(
+                rx.el.span("📖", aria_hidden="true"),
+                rx.text(" Emprestados"),
+                size="5",
+            ),
             rx.el.span(
                 State.student_current_loans.length(),
                 class_name="student-reservations-count",
@@ -3065,7 +3119,11 @@ def student_reservations() -> rx.Component:
     )
     overdue_section = rx.el.section(
         rx.el.div(
-            rx.heading("Em atraso", size="5"),
+            rx.heading(
+                rx.el.span("⚠️", aria_hidden="true"),
+                rx.text(" Em atraso"),
+                size="5",
+            ),
             rx.el.span(
                 State.student_overdue_loans.length(),
                 class_name="student-reservations-count",
@@ -3281,7 +3339,11 @@ def index() -> rx.Component:
             rx.el.section(
                 rx.el.div(
                     rx.vstack(
-                        rx.heading("📚 Livros em destaque", size="5"),
+                        rx.heading(
+                            rx.el.span("⭐", aria_hidden="true"),
+                            rx.text(" Livros em destaque"),
+                            size="5",
+                        ),
                         rx.text(
                             "Alguns títulos disponíveis no catálogo da biblioteca."
                         ),
@@ -3336,7 +3398,11 @@ def index() -> rx.Component:
                 class_name="content-section catalog-section home-catalog-section",
             ),
             rx.el.section(
-                rx.heading("Sobre a biblioteca", size="5"),
+                rx.heading(
+                    rx.el.span("ℹ️", aria_hidden="true"),
+                    rx.text(" Sobre a biblioteca"),
+                    size="5",
+                ),
                 rx.text(
                     "Um espaço de leitura, pesquisa e descoberta, com um acervo "
                     "para apoiar a aprendizagem de toda a comunidade escolar."
@@ -3751,7 +3817,8 @@ def admin_title_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
                 class_name="signup-label",
             ),
             rx.button(
-                "Salvar alterações",
+                rx.el.span("💾", aria_hidden="true"),
+                rx.text(" Salvar alterações"),
                 type="submit",
                 disabled=State.admin_catalog_pending,
                 class_name="focus-demo-button",
@@ -3772,14 +3839,16 @@ def admin_title_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
             rx.cond(
                 title["ativo"],
                 rx.button(
-                    "Desativar título",
+                    rx.el.span("🚫", aria_hidden="true"),
+                    rx.text(" Desativar título"),
                     type="button",
                     on_click=State.set_title_active(title["id"], False),
                     disabled=State.admin_catalog_pending,
                     class_name="destructive-action",
                 ),
                 rx.button(
-                    "Reativar título",
+                    rx.el.span("♻️", aria_hidden="true"),
+                    rx.text(" Reativar título"),
                     type="button",
                     on_click=State.set_title_active(title["id"], True),
                     disabled=State.admin_catalog_pending,
@@ -3991,7 +4060,8 @@ def catalog_admin() -> rx.Component:
                             rx.text("Nenhuma categoria disponível."),
                         ),
                         rx.button(
-                            "Cadastrar título",
+                            rx.el.span("➕", aria_hidden="true"),
+                            rx.text(" Cadastrar título"),
                             type="submit",
                             class_name="focus-demo-button",
                         ),
@@ -4094,14 +4164,16 @@ def librarian_card(librarian: rx.Var[dict[str, Any]]) -> rx.Component:
         rx.cond(
             librarian["ativo"],
             rx.button(
-                "Desativar",
+                rx.el.span("🚫", aria_hidden="true"),
+                rx.text(" Desativar"),
                 type="button",
                 on_click=State.set_librarian_active(librarian["id"], False),
                 disabled=State.librarian_management_pending,
                 class_name="destructive-action",
             ),
             rx.button(
-                "Reativar",
+                rx.el.span("♻️", aria_hidden="true"),
+                rx.text(" Reativar"),
                 type="button",
                 on_click=State.set_librarian_active(librarian["id"], True),
                 disabled=State.librarian_management_pending,
@@ -4600,11 +4672,16 @@ def circulation_loan_card(loan: dict[str, Any]) -> rx.Component:
         rx.text(f"Devolução prevista: {loan['vence_em']}"),
         rx.cond(
             loan["atrasado"],
-            rx.text("Em atraso", role="status"),
+            rx.text(
+                rx.el.span("⚠️", aria_hidden="true"),
+                rx.text(" Em atraso"),
+                role="status",
+            ),
             rx.text("Em dia", role="status"),
         ),
         rx.button(
-            "Registrar devolução",
+            rx.el.span("↩️", aria_hidden="true"),
+            rx.text(" Registrar devolução"),
             type="button",
             on_click=State.circulation_return_loan(loan["id"]),
             disabled=State.circulation_pending

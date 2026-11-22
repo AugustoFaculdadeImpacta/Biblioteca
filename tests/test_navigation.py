@@ -965,12 +965,42 @@ def test_dark_mode_toggles_scoped_theme_tokens():
     assert "background_color" not in style.get(":root", {})
 
 
+def test_decorative_emojis_are_aria_hidden():
+    components = (
+        frontend.site_header(),
+        frontend.profile_menu(),
+        frontend.index(),
+    )
+    readable = "\n".join(_readable(component) for component in components)
+    for emoji in (
+        "📚",
+        "🔎",
+        "🔖",
+        "🗂️",
+        "👥",
+        "👤",
+        "🔑",
+        "📝",
+        "🔠",
+        "🌗",
+        "🎞️",
+        "🚪",
+        "⭐",
+        "ℹ️",
+    ):
+        assert emoji in readable
+
+    for component in components:
+        serialized = repr(component)
+        assert "aria-hidden" in serialized
+
+
 def test_theme_switch_reports_effective_destination():
     menu = repr(frontend.profile_menu())
     script = frontend._APPEARANCE_SCRIPT
 
     assert "Modo escuro" in menu
-    assert 'dark ? "☀️ Modo claro" : "🌙 Modo escuro"' in script
+    assert 'dark ? "Modo claro" : "Modo escuro"' in script
     assert 'button.setAttribute("aria-checked", String(dark))' in script
     assert "preferences.theme === \"dark\"" in script
     assert "preferences.theme === \"system\" && colorScheme.matches" in script
