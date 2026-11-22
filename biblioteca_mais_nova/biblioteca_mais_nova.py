@@ -2145,7 +2145,7 @@ def admin_view_status() -> rx.Component:
                     rx.cond(
                         State.admin_view_mode == "bibliotecaria",
                         "Bibliotecária",
-                        "Admin",
+                        "Administrador",
                     ),
                 ),
                 role="status",
@@ -2236,7 +2236,7 @@ _APPEARANCE_SCRIPT = r"""
   const setText = (element, value) => {
     if (element && element.textContent !== value) element.textContent = value;
   };
-  window.__bibliotecaProfileDisclosureInstalled = true;
+  window.__bibliotecaDisclosureInstalled = true;
   const syncControls = () => {
     document.querySelectorAll("[data-appearance-action]").forEach((button) => {
       const action = button.getAttribute("data-appearance-action");
@@ -2304,15 +2304,25 @@ _APPEARANCE_SCRIPT = r"""
       save();
       apply();
     }
-    document.querySelectorAll("details.profile-menu[open]").forEach((item) => {
+    document.querySelectorAll("details.site-disclosure[open]").forEach((item) => {
       if (!item.contains(event.target)) item.open = false;
     });
   });
+  document.addEventListener("toggle", (event) => {
+    const disclosure = event.target;
+    if (!(disclosure instanceof HTMLDetailsElement) ||
+        !disclosure.matches("details.site-disclosure") || !disclosure.open) {
+      return;
+    }
+    document.querySelectorAll("details.site-disclosure[open]").forEach((item) => {
+      if (item !== disclosure) item.open = false;
+    });
+  }, true);
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
-    const disclosure = document.querySelector("details.profile-menu[open]");
+    const disclosure = document.querySelector("details.site-disclosure[open]");
     if (!disclosure) return;
-    document.querySelectorAll("details.profile-menu[open]").forEach((item) => {
+    document.querySelectorAll("details.site-disclosure[open]").forEach((item) => {
       item.open = false;
     });
     disclosure.querySelector("summary")?.focus();
@@ -2402,113 +2412,134 @@ def profile_appearance_controls() -> rx.Component:
 
 
 def profile_menu() -> rx.Component:
-    return rx.fragment(
-        rx.el.details(
-            rx.el.summary(
-                rx.el.span("👤", aria_hidden="true"),
-                rx.text(" Perfil"),
-                aria_label="Abrir menu Perfil",
-                class_name="profile-menu-trigger",
+    return rx.el.details(
+        rx.el.summary(
+            rx.cond(
+                State.is_authenticated,
+                rx.fragment(
+                    rx.el.span("👤", aria_hidden="true"),
+                    rx.text(" "),
+                    State.greeting_name,
+                ),
+                rx.fragment(
+                    rx.el.span("🔑", aria_hidden="true"),
+                    rx.text(" Entrar"),
+                ),
             ),
-            rx.el.div(
-                rx.cond(
-                    State.is_authenticated,
-                    rx.fragment(
-                        rx.el.div(
-                            State.greeting_name,
-                            class_name="profile-menu-identity",
-                        ),
-                        rx.el.div(
-                            State.session_email,
-                            class_name="profile-menu-identity",
-                        ),
-                        rx.el.div(
-                            State.session_role_label,
-                            class_name="profile-menu-identity",
-                        ),
-                        profile_appearance_controls(),
-                        rx.cond(
-                            State.can_manage_librarians,
-                            rx.fragment(
-                                rx.el.div(
-                                    "Modo de visualização",
-                                    class_name="profile-menu-identity",
-                                ),
-                                rx.el.button(
-                                    rx.cond(
-                                        State.admin_view_mode == "",
-                                        "✓ Admin",
-                                        "Admin",
-                                    ),
-                                    type="button",
-                                    role="radio",
-                                    aria_checked=State.admin_view_mode == "",
-                                    on_click=State.reset_admin_view_mode,
-                                    class_name="profile-menu-item",
-                                ),
-                                rx.el.button(
-                                    rx.cond(
-                                        State.admin_view_mode == "bibliotecaria",
-                                        "✓ Bibliotecária",
-                                        "Bibliotecária",
-                                    ),
-                                    type="button",
-                                    role="radio",
-                                    aria_checked=(
-                                        State.admin_view_mode == "bibliotecaria"
-                                    ),
-                                    on_click=State.set_admin_view_mode(
-                                        "bibliotecaria"
-                                    ),
-                                    class_name="profile-menu-item",
-                                ),
-                                rx.el.button(
-                                    rx.cond(
-                                        State.admin_view_mode == "estudante",
-                                        "✓ Estudante",
-                                        "Estudante",
-                                    ),
-                                    type="button",
-                                    role="radio",
-                                    aria_checked=(
-                                        State.admin_view_mode == "estudante"
-                                    ),
-                                    on_click=State.set_admin_view_mode(
-                                        "estudante"
-                                    ),
-                                    class_name="profile-menu-item",
-                                ),
-                            ),
-                            rx.fragment(),
-                        ),
-                        rx.button(
-                            rx.el.span("🚪", aria_hidden="true"),
-                            rx.text(" Sair"),
-                            type="button",
-                            on_click=State.logout,
-                            class_name="profile-menu-item",
-                        ),
+            class_name="profile-menu-trigger",
+        ),
+        rx.el.div(
+            rx.cond(
+                State.is_authenticated,
+                rx.fragment(
+                    rx.el.div(
+                        State.greeting_name,
+                        class_name="profile-menu-identity",
                     ),
-                    rx.fragment(
-                        rx.link(
-                            rx.el.span("🔑", aria_hidden="true"),
-                            rx.text(" Entrar"),
-                            href="/login",
-                            class_name="profile-menu-item",
+                    rx.el.div(
+                        State.session_email,
+                        class_name="profile-menu-identity",
+                    ),
+                    rx.el.div(
+                        State.session_role_label,
+                        class_name="profile-menu-identity",
+                    ),
+                    rx.cond(
+                        State.can_manage_librarians,
+                        rx.fragment(
+                            rx.el.div(
+                                "Modo de visualização",
+                                class_name="profile-menu-identity",
+                            ),
+                            rx.el.button(
+                                rx.cond(
+                                    State.admin_view_mode == "",
+                                    "✓ Administrador",
+                                    "Administrador",
+                                ),
+                                type="button",
+                                role="radio",
+                                aria_checked=State.admin_view_mode == "",
+                                on_click=State.reset_admin_view_mode,
+                                class_name="profile-menu-item",
+                            ),
+                            rx.el.button(
+                                rx.cond(
+                                    State.admin_view_mode == "bibliotecaria",
+                                    "✓ Bibliotecário",
+                                    "Bibliotecário",
+                                ),
+                                type="button",
+                                role="radio",
+                                aria_checked=(
+                                    State.admin_view_mode == "bibliotecaria"
+                                ),
+                                on_click=State.set_admin_view_mode(
+                                    "bibliotecaria"
+                                ),
+                                class_name="profile-menu-item",
+                            ),
+                            rx.el.button(
+                                rx.cond(
+                                    State.admin_view_mode == "estudante",
+                                    "✓ Estudante",
+                                    "Estudante",
+                                ),
+                                type="button",
+                                role="radio",
+                                aria_checked=(
+                                    State.admin_view_mode == "estudante"
+                                ),
+                                on_click=State.set_admin_view_mode(
+                                    "estudante"
+                                ),
+                                class_name="profile-menu-item",
+                            ),
                         ),
-                        rx.link(
-                            rx.el.span("📝", aria_hidden="true"),
-                            rx.text(" Cadastrar-se"),
-                            href="/cadastro",
-                            class_name="profile-menu-item",
-                        ),
-                        profile_appearance_controls(),
+                        rx.fragment(),
+                    ),
+                    rx.button(
+                        rx.el.span("🚪", aria_hidden="true"),
+                        rx.text(" Sair"),
+                        type="button",
+                        on_click=State.logout,
+                        class_name="profile-menu-item",
                     ),
                 ),
-                class_name="profile-menu-content",
+                rx.fragment(
+                    rx.link(
+                        rx.el.span("🔑", aria_hidden="true"),
+                        rx.text(" Entrar"),
+                        href="/login",
+                        class_name="profile-menu-item",
+                    ),
+                    rx.link(
+                        rx.el.span("📝", aria_hidden="true"),
+                        rx.text(" Cadastrar-se"),
+                        href="/cadastro",
+                        class_name="profile-menu-item",
+                    ),
+                ),
             ),
-            class_name="profile-menu",
+            class_name="profile-menu-content",
         ),
+        class_name="site-disclosure profile-menu",
+    )
+
+
+def accessibility_menu() -> rx.Component:
+    return rx.el.details(
+        rx.el.summary(
+            rx.el.span("♿", aria_hidden="true"),
+            rx.text(" Acessibilidade"),
+            aria_label="Abrir menu Acessibilidade",
+            class_name="accessibility-menu-trigger",
+        ),
+        rx.el.div(
+            profile_appearance_controls(),
+            class_name="profile-menu-content accessibility-menu-content",
+        ),
+        class_name="site-disclosure accessibility-menu",
     )
 
 
@@ -2521,6 +2552,7 @@ def site_header() -> rx.Component:
     )
     mobile_profile_actions = rx.el.div(
         admin_view_status(),
+        accessibility_menu(),
         profile_menu(),
         class_name="site-header-actions",
     )
@@ -2549,6 +2581,7 @@ def site_header() -> rx.Component:
             site_primary_nav(),
             rx.el.div(
                 admin_view_status(),
+                accessibility_menu(),
                 profile_menu(),
                 class_name="site-header-actions",
             ),
@@ -5469,7 +5502,7 @@ app = rx.App(
         ".site-primary-nav a:hover": {
             "background_color": "var(--brand-100)",
         },
-        ".profile-menu-trigger": {
+        ".profile-menu-trigger, .accessibility-menu-trigger": {
             "display": "inline-flex",
             "align_items": "center",
             "justify_content": "center",
@@ -5483,10 +5516,10 @@ app = rx.App(
             "list_style": "none",
             "cursor": "pointer",
         },
-        ".profile-menu-trigger::-webkit-details-marker": {
+        ".profile-menu-trigger::-webkit-details-marker, .accessibility-menu-trigger::-webkit-details-marker": {
             "display": "none",
         },
-        ".profile-menu": {
+        ".profile-menu, .accessibility-menu": {
             "position": "relative",
         },
         ".profile-menu-content": {
@@ -5504,7 +5537,7 @@ app = rx.App(
             "background_color": "var(--bg-panel)",
             "box_shadow": "var(--shadow-soft)",
         },
-        ".profile-menu[open] .profile-menu-content": {
+        ".profile-menu[open] .profile-menu-content, .accessibility-menu[open] .profile-menu-content": {
             "animation": "biblioteca-profile-enter 180ms ease-out both",
         },
         ".profile-menu-item": {
@@ -6654,7 +6687,7 @@ app = rx.App(
                 "gap": "0.6rem",
                 "width": "100%",
             },
-            ".site-header-mobile-panel .profile-menu-trigger": {
+            ".site-header-mobile-panel .profile-menu-trigger, .site-header-mobile-panel .accessibility-menu-trigger": {
                 "width": "100%",
                 "justify_content": "center",
             },

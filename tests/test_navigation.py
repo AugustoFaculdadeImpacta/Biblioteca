@@ -367,16 +367,17 @@ def test_admin_view_mode_changes_navigation_without_changing_session():
 def test_admin_view_mode_controls_are_visible_and_accessible():
     header = _readable(frontend.site_header())
     menu = _readable(frontend.profile_menu())
+    accessibility = _readable(frontend.accessibility_menu())
     style = frontend.app.style
 
     assert "Modo de visualização" in header
     assert "Modo de visualização" in menu
-    assert "Admin" in header
-    assert "Bibliotecária" in header
+    assert "Administrador" in header
+    assert "Bibliotecário" in menu
     assert "Estudante" in header
     assert 'role:"radio"' in header
     assert "aria-checked" in header
-    assert "Modo escuro" in menu
+    assert "Modo escuro" in accessibility
     assert "Voltar à visão de admin" not in menu
     assert "Voltar à visão de admin" in header
     assert style[":focus-visible"]["outline"].startswith("3px solid ")
@@ -425,9 +426,9 @@ def test_student_navigation_has_accessible_labels_focus_and_mobile_layout():
     assert style[":focus-visible"]["outline"].startswith("3px solid ")
     assert style[".site-primary-nav a"]["color"] == "var(--brand-700)"
     assert "Início" not in header
-    assert "Perfil" in header
+    assert "Acessibilidade" in header
     assert style[".brand-link"]["white_space"] == "nowrap"
-    assert style[".profile-menu"]["position"] == "relative"
+    assert style[".profile-menu, .accessibility-menu"]["position"] == "relative"
     assert style[".profile-menu-content"]["position"] == "absolute"
     mobile = style["@media screen and (max-width: 40rem)"]
     assert mobile[".site-header"]["display"] == "grid"
@@ -445,7 +446,7 @@ def test_site_header_brand_and_footer_links_preserve_profile_access():
     assert "Biblioteca escolar" in header
     assert "Leitura, encontro e conhecimento" not in header
     assert homepage.index("brand-link") < homepage.index("Descubra")
-    assert "Perfil" in header
+    assert "Acessibilidade" in header
     assert "/admin/acervo" in header
     assert "/admin/reservas" in header
     assert "/admin/bibliotecarios" in header
@@ -459,7 +460,9 @@ def test_site_header_brand_and_footer_links_preserve_profile_access():
     assert "/#controles-acessibilidade" not in footer
     assert "contato" not in footer.lower()
     assert "privacidade" not in footer.lower()
-    assert style[".profile-menu-trigger"]["min_height"] == "2.75rem"
+    assert style[
+        ".profile-menu-trigger, .accessibility-menu-trigger"
+    ]["min_height"] == "2.75rem"
     assert style[".site-menu-toggle"]["min_height"] == "2.75rem"
 
 
@@ -488,7 +491,8 @@ def test_header_has_catalog_and_profile_on_every_route():
         components = list(_components(page))
 
         assert "Catálogo" in text, route
-        assert "Perfil" in text, route
+        assert "Acessibilidade" in text, route
+        assert _serialized_class_count(page, "profile-menu-trigger") >= 2, route
         assert _serialized_class_count(page, "site-header") == 1, route
 
 
@@ -542,44 +546,78 @@ def test_profile_menu_for_visitor_has_login_and_signup():
         item for item in _components(component) if type(item).__name__ == "Summary"
     )
 
-    assert details.class_name == "profile-menu"
+    assert details.class_name == "site-disclosure profile-menu"
     assert summary.class_name == "profile-menu-trigger"
-    assert "Perfil" in menu
+    assert "Entrar" in _readable(summary)
     assert "Entrar" in menu
     assert "Cadastrar-se" in menu
+    assert "Ativar alto contraste" not in menu
 
 
-def test_visitor_profile_menu_exposes_shared_accessibility_controls():
-    component = frontend.profile_menu()
+def test_visitor_accessibility_menu_exposes_shared_appearance_controls():
+    component = frontend.accessibility_menu()
     menu = _readable(component)
 
-    assert _serialized_class_count(component, "profile-appearance-controls") == 2
+    assert _serialized_class_count(component, "profile-appearance-controls") == 1
     assert "data-appearance-action" in menu
     assert "Diminuir fonte" in menu
     assert "Aumentar fonte" in menu
     assert "Ativar alto contraste" in menu
     assert "Reduzir movimento" in menu
     assert "Modo escuro" in menu
-    assert "Entrar" in menu
-    assert "Cadastrar-se" in menu
+    assert "Acessibilidade" in menu
+
+
+def test_profile_menu_never_contains_accessibility_controls():
+    profile = _readable(frontend.profile_menu())
+    accessibility = _readable(frontend.accessibility_menu())
+
+    assert "Ativar alto contraste" not in profile
+    assert "Reduzir movimento" not in profile
+    assert "Acessibilidade" not in profile
+    assert "Ativar alto contraste" in accessibility
+    assert "Reduzir movimento" in accessibility
+
+
+def test_header_separates_profile_and_accessibility_on_mobile():
+    header = frontend.site_header()
+    profile = _readable(frontend.profile_menu())
+    accessibility = _readable(frontend.accessibility_menu())
+    mobile = frontend.app.style["@media screen and (max-width: 40rem)"]
+
+    assert _serialized_class_count(header, "profile-menu-trigger") == 2
+    assert _serialized_class_count(header, "accessibility-menu-trigger") == 2
+    assert "Entrar" in profile
+    assert "Cadastrar-se" in profile
+    assert "Acessibilidade" not in profile
+    assert "Acessibilidade" in accessibility
+    assert "Modo escuro" in accessibility
+    assert "Cadastrar-se" not in accessibility
+    assert mobile[
+        ".site-header-mobile-panel .profile-menu-trigger, "
+        ".site-header-mobile-panel .accessibility-menu-trigger"
+    ]["width"] == "100%"
+    assert mobile[".profile-menu-content"]["max_width"] == "calc(100vw - 2rem)"
 
 
 def test_profile_disclosure_uses_details_without_rx_menu():
-    component = frontend.profile_menu()
-    components = list(_components(component))
+    components = list(
+        _components(frontend.profile_menu())
+    ) + list(_components(frontend.accessibility_menu()))
 
-    assert any(type(item).__name__ == "Details" for item in components)
-    assert any(type(item).__name__ == "Summary" for item in components)
+    assert sum(type(item).__name__ == "Details" for item in components) == 2
+    assert sum(type(item).__name__ == "Summary" for item in components) == 2
     assert not any("RadixThemesDropdownMenu" in repr(item) for item in components)
 
 
 def test_profile_disclosure_escape_and_outside_click_script():
     script = frontend._APPEARANCE_SCRIPT
 
-    assert "__bibliotecaProfileDisclosureInstalled" in script
+    assert "__bibliotecaDisclosureInstalled" in script
     assert 'event.key !== "Escape"' in script
     assert 'disclosure.querySelector("summary")?.focus()' in script
-    assert 'document.querySelectorAll("details.profile-menu[open]")' in script
+    assert 'document.querySelectorAll("details.site-disclosure[open]")' in script
+    assert 'disclosure.matches("details.site-disclosure")' in script
     assert "item.contains(event.target)" in script
     assert "event.preventDefault()" in script
 
@@ -594,19 +632,28 @@ def test_application_contains_no_rx_menu():
 
 
 def test_profile_disclosure_for_visitor_and_authenticated_users():
-    menu = _readable(frontend.profile_menu())
+    profile_component = frontend.profile_menu()
+    menu = _readable(profile_component)
+    accessibility = _readable(frontend.accessibility_menu())
+    summary = next(
+        item
+        for item in _components(profile_component)
+        if type(item).__name__ == "Summary"
+    )
 
     assert "Entrar" in menu
     assert "Cadastrar-se" in menu
-    assert "Modo escuro" in menu
+    assert "greeting_name_rx_state_" in repr(summary)
+    assert "Modo escuro" in accessibility
     assert "greeting_name_rx_state_" in menu
     assert "session_email_rx_state_" in menu
     assert "session_role_label_rx_state_" in menu
-    assert "Diminuir fonte" in menu
-    assert "Aumentar fonte" in menu
-    assert "Ativar alto contraste" in menu
-    assert "Reduzir movimento" in menu
+    assert "Diminuir fonte" in accessibility
+    assert "Aumentar fonte" in accessibility
+    assert "Ativar alto contraste" in accessibility
+    assert "Reduzir movimento" in accessibility
     assert "Sair" in menu
+    assert "Ativar alto contraste" not in menu
     assert "Meu perfil" not in menu
     assert "href:\"/acessibilidade\"" not in menu
 
@@ -696,6 +743,7 @@ def test_accessibility_page_reuses_existing_controls():
 def test_header_navigation_by_profile_and_view():
     nav = _readable(frontend.site_primary_nav())
     menu = _readable(frontend.profile_menu())
+    accessibility = _readable(frontend.accessibility_menu())
     header = frontend.site_header()
     header_text = _readable(header)
 
@@ -721,7 +769,11 @@ def test_header_navigation_by_profile_and_view():
     assert "Minha biblioteca" not in nav
     assert "Circulação" not in nav
     assert _serialized_class_count(header, "site-primary-nav") == 2
-    assert all(label in menu for label in ("Admin", "Bibliotecária", "Estudante"))
+    assert all(
+        label in menu
+        for label in ("Administrador", "Bibliotecário", "Estudante")
+    )
+    assert "Acessibilidade" in accessibility
     assert "aria-checked" in menu
     assert "Modo de visualização" in header_text
 
@@ -952,7 +1004,7 @@ def test_appearance_controls_enforce_limits_and_apply_classes():
 
 
 def test_dark_mode_toggles_scoped_theme_tokens():
-    menu = _readable(frontend.profile_menu())
+    menu = _readable(frontend.accessibility_menu())
     style = frontend.app.style
     script = frontend._APPEARANCE_SCRIPT
 
@@ -970,6 +1022,7 @@ def test_decorative_emojis_are_aria_hidden():
     components = (
         frontend.site_header(),
         frontend.profile_menu(),
+        frontend.accessibility_menu(),
         frontend.index(),
     )
     readable = "\n".join(_readable(component) for component in components)
@@ -980,6 +1033,7 @@ def test_decorative_emojis_are_aria_hidden():
         "🗂️",
         "👥",
         "👤",
+        "♿",
         "🔑",
         "📝",
         "🔠",
@@ -997,7 +1051,7 @@ def test_decorative_emojis_are_aria_hidden():
 
 
 def test_theme_switch_reports_effective_destination():
-    menu = repr(frontend.profile_menu())
+    menu = repr(frontend.accessibility_menu())
     script = frontend._APPEARANCE_SCRIPT
 
     assert "Modo escuro" in menu
