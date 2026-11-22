@@ -5683,11 +5683,20 @@ app = rx.App(
             "background_color": "#312e81",
         },
         ".a11y-shell.a11y-dark .focus-demo-button": {
-            "background_color": "var(--brand-900)",
-            "color": "#ffffff",
+            "background_color": "var(--brand-700)",
+            "color": "#183a4a",
         },
         ".a11y-shell.a11y-dark .focus-demo-button:hover": {
-            "background_color": "var(--bg-panel)",
+            "background_color": "#b6e3ee",
+            "color": "#183a4a",
+        },
+        ".a11y-shell.a11y-dark .primary-cta": {
+            "background_color": "var(--brand-700)",
+            "color": "#183a4a",
+        },
+        ".a11y-shell.a11y-dark .primary-cta:hover": {
+            "background_color": "#b6e3ee",
+            "color": "#183a4a",
         },
         ".catalog-tag": {
             "display": "inline-flex",

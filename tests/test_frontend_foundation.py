@@ -119,6 +119,20 @@ def test_dark_and_high_contrast_tokens_meet_wcag_aa():
     assert _contrast_ratio("#00008b", "#ffffff") >= 7
 
 
+def test_primary_actions_meet_wcag_contrast():
+    dark = app.style[".a11y-shell.a11y-dark"]
+    primary = app.style[".a11y-shell.a11y-dark .primary-cta"]
+    button = app.style[".a11y-shell.a11y-dark .focus-demo-button"]
+
+    assert primary["background_color"] == "var(--brand-700)"
+    assert primary["color"] == "#183a4a"
+    assert _contrast_ratio(primary["color"], dark["--brand-700"]) >= 4.5
+    assert _contrast_ratio(dark["--brand-700"], dark["--bg-page"]) >= 3
+    assert button["background_color"] == "var(--brand-700)"
+    assert button["color"] == "#183a4a"
+    assert _contrast_ratio(button["color"], dark["--brand-700"]) >= 4.5
+
+
 def test_dark_theme_tokens_cover_operational_components():
     token_backgrounds = {
         ".student-library-section": "var(--bg-panel)",
