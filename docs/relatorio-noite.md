@@ -815,6 +815,7 @@ O backlog em `openspec/changes/validacao-remota-xano/tasks.md` agora mantém abe
 | 3.1 — Acervo em lista vertical | `e242de459f5a5ee68357aeb7f3266e0ab178862b` | `test_acervo_search_normalizes_text_and_empty_state`, `test_acervo_has_one_edit_panel`, `test_acervo_hides_inactive_by_default_and_keeps_one_panel_open`, `test_acervo_vertical_layout_is_responsive_and_covers_are_fixed`, `test_acervo_paginates_in_groups_of_ten`, `test_public_catalog_never_returns_inactive_titles`, `test_catalog_cover_grid_has_bounded_card_size`; compilação Reflex aprovada; suíte completa: 289 passaram | Feito, aguarda conferência do usuário |
 | 3.2 — Confirmação da desativação pelo servidor | `655ae877029ff4ce118cb941b6d761f089badf7e` | `test_title_deactivation_reports_http_and_connection_errors`, `test_title_deactivation_detects_apparent_success`, `test_title_deactivation_reports_refresh_connection_failure`, além de `test_admin_catalog_edits_titles_and_adds_copies_without_repeating_writes`; compilação Reflex aprovada; suíte completa: 294 passaram | Feito, aguarda conferência do usuário |
 | 4.1 — Mensagens de falha ao reservar | `60bf09a200650ac9cfdee163d3a8063994f7e1d2` | `test_reservation_request_error_codes`, `test_student_request_does_not_retry_uncertain_result`, `test_student_request_shows_allowlisted_business_error`, `test_student_request_http_error_matrix_is_safe_and_not_retried`, `test_student_request_uncertain_result_is_not_reported_or_retried`; compilação Reflex aprovada; suíte completa: 300 passaram | Feito, aguarda conferência do usuário |
+| 4.2 — Auditoria do seed seguro | `abf0a3ef0b5cfbf616e9c6d32912a2e43d124160` | `test_dry_run_makes_no_write`, `test_apply_without_credentials_aborts`, `test_seed_mapping_categories_and_idempotency`, `test_seed_never_prints_password`, `test_seed_identifies_existing_test_titles_for_deactivation`; execução local sem `--apply` mostrou `alvo: demonstração local`; compilação Reflex aprovada; suíte completa: 301 passaram | Feito, aguarda conferência do usuário |
 
 ### Verificações locais
 
@@ -832,3 +833,6 @@ O backlog em `openspec/changes/validacao-remota-xano/tasks.md` agora mantém abe
 - Após `60bf09a200650ac9cfdee163d3a8063994f7e1d2`, `.\.venv\Scripts\python.exe -m reflex compile --dry`: aprovado.
 - Após `60bf09a200650ac9cfdee163d3a8063994f7e1d2`, `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`: 300 passaram.
 - Comparação local/remota do endpoint público de reservas confirmou que o perfil exigido é estudante; não houve alteração remota ou publicação.
+- Após `abf0a3ef0b5cfbf616e9c6d32912a2e43d124160`, `.\.venv\Scripts\python.exe -m reflex compile --dry`: aprovado.
+- Após `abf0a3ef0b5cfbf616e9c6d32912a2e43d124160`, `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`: 301 passaram.
+- O seed foi executado somente em dry-run; nenhuma senha foi usada ou impresa e não houve `--apply`.
