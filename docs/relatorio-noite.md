@@ -474,6 +474,49 @@ As fases funcionais avançaram parcialmente. A tentativa de seed remoto foi inte
 }
 ```
 
+## Continuação — Change ajustes-visuais-v3
+
+### Evidências dos itens concluídos
+
+| Item | Commit | Testes novos/alterados | Status |
+|---|---|---|---|
+| 1 — primários escuros | `f5f2818`, `ded0dc0` | `test_primary_actions_meet_wcag_contrast` e correção de `test_dark_cover_fallbacks_use_saturated_palette` | Feito, aguarda conferência visual |
+| 2 — campos e autofill | `ad51bd2` | `test_text_fields_align_and_autofill_safely`, `test_editing_controls_keep_external_border_only`, `test_category_checkboxes_share_44px_row` | Feito, aguarda conferência visual |
+| 3 — destino do tema | `eb9485e` | `test_theme_switch_reports_effective_destination` | Feito, aguarda conferência visual |
+| 4 — emojis decorativos | `24b955f` | `test_decorative_emojis_are_aria_hidden` | Feito, aguarda conferência visual |
+| 5 — animações leves | `012b03a`, `fea2456` | `test_motion_rules_have_reduced_motion_override` | Feito, aguarda conferência visual |
+| 6 — capas únicas | `8d987cf`, `cfc1792`, `9d569dc` | `test_generated_cover_is_deterministic`, `test_generated_cover_is_distinct_across_seed_titles`, `test_generated_cover_has_no_external_scripts`, `test_generated_cover_handles_invalid_data`, `test_catalog_cover_grid_has_bounded_card_size` | Feito, aguarda conferência visual |
+| 7 — desativar título | `92fa83d`, `edbcd6b`, `c90f08d` | `test_admin_actions_handle_success_404_403_and_connection` e regressões do Acervo | Feito localmente; validação remota pendente |
+| 8 — Acervo compacto | `e0b6110`, `17a4c22` | `test_acervo_search_normalizes_text_and_empty_state`, `test_acervo_has_one_edit_panel`, `test_acervo_paginates_in_groups_of_ten`, `test_staff_can_edit_from_catalog_and_detail` | Feito, aguarda conferência visual |
+| 9 — seed seguro | `a9a323a`, `4bcd52f` | `test_dry_run_makes_no_write`, `test_apply_without_credentials_aborts`, `test_seed_mapping_categories_and_idempotency`, `test_seed_never_prints_password` | Pronto; não aplicado ao Xano |
+| 10 — limpeza da Change | `829dc3c`, `317aee7` | Nenhum teste novo; `openspec.cmd validate --specs --strict` aprovou 7 specs | Arquivada sem sincronizar specs |
+
+### Verificações locais
+
+- `.\.venv\Scripts\python.exe -m reflex compile --dry`: aprovado após as implementações.
+- `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`: regressão final 277 testes aprovados nesta retomada; o Acervo compacto foi confirmado em suíte completa anterior com 273.
+- Seed dry-run: 30 títulos planejados, nenhuma escrita.
+- Não houve navegador, capturas ou operações remotas de escrita.
+
+### O que o usuário precisa publicar no Xano
+
+- Confirmar em runtime `PATCH /catalogo/titulos/{titulo_id}` no workspace selecionado.
+- Publicar ou confirmar a rota com perfil bibliotecário/admin, bloqueios de empréstimo ativo e reserva ativa e resposta segura para sucesso, 404 e 403.
+- Arquivos de origem: `xano/api/default/catalogo/titulos_id_PATCH.xs` e `api/biblioteca/catalogo/titulos/titulo_id_PATCH.xs`.
+- Um pull somente de definições trouxe 67 documentos para pasta temporária e mostrou a rota remota correspondente. A rota não foi alterada nem publicada nesta sessão.
+
+### Estado OpenSpec
+
+```json
+{
+  "changes": [
+    {"name": "ajustes-visuais-v3", "completedTasks": 10, "totalTasks": 11, "status": "in-progress"},
+    {"name": "validacao-remota-xano", "completedTasks": 0, "totalTasks": 29, "status": "in-progress"},
+    {"name": "execucao-reflex-windows", "completedTasks": 6, "totalTasks": 7, "status": "in-progress"}
+  ]
+}
+```
+
 ## Atualização final — navegação e rotas
 
 ### Estado e evidência
