@@ -120,7 +120,9 @@ class State(rx.State):
     admin_catalog_title_action_error: bool = False
     admin_catalog_search: str = ""
     admin_catalog_visible_limit: int = 10
+    admin_catalog_show_inactive: bool = False
     admin_catalog_edit_title_id: int | None = None
+    admin_catalog_copy_title_id: int | None = None
     admin_catalog_new_title_open: bool = False
     _session_token: str = ""
     _session_profile: str = ""
@@ -499,6 +501,8 @@ class State(rx.State):
         query = _catalog_search_key(self.admin_catalog_search)
         visible: list[AdminCatalogDisplayEntry] = []
         for entry in self.admin_catalog_display_entries:
+            if not self.admin_catalog_show_inactive and not entry["ativo"]:
+                continue
             haystack = _catalog_search_key(
                 f"{entry['titulo']} {entry['autores']} {entry['isbn']}"
             )
@@ -512,10 +516,13 @@ class State(rx.State):
         total = sum(
             1
             for entry in self.admin_catalog_display_entries
-            if not query
-            or query
-            in _catalog_search_key(
-                f"{entry['titulo']} {entry['autores']} {entry['isbn']}"
+            if (self.admin_catalog_show_inactive or entry["ativo"])
+            and (
+                not query
+                or query
+                in _catalog_search_key(
+                    f"{entry['titulo']} {entry['autores']} {entry['isbn']}"
+                )
             )
         )
         return total > len(self.filtered_admin_catalog_entries)
@@ -694,6 +701,9 @@ class State(rx.State):
         self.catalog_title_created = False
         self.catalog_created_codes = []
         self.catalog_needs_manual_check = False
+        self.admin_catalog_show_inactive = False
+        self.admin_catalog_edit_title_id = None
+        self.admin_catalog_copy_title_id = None
         self._catalog_title_id = None
         self._pending_category_ids = []
         self._uncertain_category_ids = []
@@ -1632,6 +1642,14 @@ class State(rx.State):
         self.admin_catalog_search = value
         self.admin_catalog_visible_limit = 10
         self.admin_catalog_edit_title_id = None
+        self.admin_catalog_copy_title_id = None
+
+    @rx.event
+    def set_admin_catalog_show_inactive(self, value: bool):
+        self.admin_catalog_show_inactive = value
+        self.admin_catalog_visible_limit = 10
+        self.admin_catalog_edit_title_id = None
+        self.admin_catalog_copy_title_id = None
 
     @rx.event
     def show_more_admin_catalog(self):
@@ -1641,6 +1659,7 @@ class State(rx.State):
     def open_admin_new_title(self):
         self.admin_catalog_new_title_open = True
         self.admin_catalog_edit_title_id = None
+        self.admin_catalog_copy_title_id = None
 
     @rx.event
     def close_admin_new_title(self):
@@ -1648,12 +1667,23 @@ class State(rx.State):
 
     @rx.event
     def open_admin_title_edit(self, title_id: int):
-        self.admin_catalog_edit_title_id = title_id
+        self.admin_catalog_edit_title_id = (
+            None if self.admin_catalog_edit_title_id == title_id else title_id
+        )
+        self.admin_catalog_copy_title_id = None
         self.admin_catalog_new_title_open = False
 
     @rx.event
     def close_admin_title_edit(self):
         self.admin_catalog_edit_title_id = None
+
+    @rx.event
+    def toggle_admin_title_copies(self, title_id: int):
+        self.admin_catalog_copy_title_id = (
+            None if self.admin_catalog_copy_title_id == title_id else title_id
+        )
+        self.admin_catalog_edit_title_id = None
+        self.admin_catalog_new_title_open = False
 
     @rx.event
     async def refresh_admin_catalog(self):
@@ -4021,225 +4051,282 @@ def admin_copy_row(copy: rx.Var[dict[str, Any]]) -> rx.Component:
 
 def admin_title_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
     return rx.el.article(
-        rx.cond(
-            title["capa_url"].to(str) != "",
-            rx.el.img(
-                src=title["capa_url"],
-                alt=f"Capa de «{title['titulo']}»",
-                loading="lazy",
-                class_name="catalog-card-cover-image",
-            ),
-            rx.cond(
-                title["capa_gerada"].to(str) != "",
-                rx.el.img(
-                    src=title["capa_gerada"],
-                    alt=f"Capa de «{title['titulo']}»",
-                    loading="lazy",
-                    class_name="catalog-card-cover-image",
-                ),
-                rx.el.div(
-                    title["titulo"],
-                    class_name="catalog-card-cover",
-                    aria_hidden="true",
-                ),
-            ),
-        ),
-        rx.heading(title["titulo"], size="4"),
-        rx.text("Autores: ", title["autores"]),
-        rx.text("Estado: ", rx.cond(title["ativo"], "Ativo", "Desativado")),
-        rx.text("Categorias: ", title["categorias"]),
-        rx.text(
-            "Exemplares disponíveis: ",
-            title["exemplares_disponiveis"],
-        ),
-        rx.cond(
-            title["exemplares"].length() > 0,
-            rx.el.ul(
-                rx.foreach(title["exemplares"], admin_copy_row),
-                class_name="admin-copy-list",
-            ),
-            rx.text("Nenhum exemplar cadastrado.", role="status"),
-        ),
-        rx.cond(
-            State.admin_catalog_edit_title_id == title["id"],
-            rx.form(
-            rx.el.input(type="hidden", name="titulo_id", value=title["id"]),
-            rx.el.label(
-                "Título",
-                rx.el.input(
-                    name="titulo",
-                    type="text",
-                    required=True,
-                    default_value=title["titulo"],
-                    aria_label="Título",
-                    class_name="campo",
-                ),
-                class_name="signup-label",
-            ),
-            rx.el.label(
-                "Autores",
-                rx.el.input(
-                    name="autores",
-                    type="text",
-                    required=True,
-                    default_value=title["autores"],
-                    aria_label="Autores",
-                    class_name="campo",
-                ),
-                class_name="signup-label",
-            ),
-            rx.el.label(
-                "ISBN (opcional)",
-                rx.el.input(
-                    name="isbn",
-                    type="text",
-                    default_value=title["isbn"],
-                    aria_label="ISBN (opcional)",
-                    class_name="campo",
-                ),
-                class_name="signup-label",
-            ),
-            rx.el.label(
-                "Editora (opcional)",
-                rx.el.input(
-                    name="editora",
-                    type="text",
-                    default_value=title["editora"],
-                    aria_label="Editora (opcional)",
-                    class_name="campo",
-                ),
-                class_name="signup-label",
-            ),
-            rx.el.label(
-                "Edição (opcional)",
-                rx.el.input(
-                    name="edicao",
-                    type="text",
-                    default_value=title["edicao"],
-                    aria_label="Edição (opcional)",
-                    class_name="campo",
-                ),
-                class_name="signup-label",
-            ),
-            rx.el.label(
-                "Ano de publicação (opcional)",
-                rx.el.input(
-                    name="ano_publicacao",
-                    type="number",
-                    default_value=title["ano_publicacao"],
-                    aria_label="Ano de publicação (opcional)",
-                    class_name="campo",
-                ),
-                class_name="signup-label",
-            ),
-            rx.el.label(
-                "Descrição (opcional)",
-                rx.el.textarea(
-                    name="descricao",
-                    default_value=title["descricao"],
-                    aria_label="Descrição (opcional)",
-                    class_name="campo-area",
-                ),
-                class_name="signup-label",
-            ),
-            rx.el.label(
-                "Link da imagem da capa (HTTPS, opcional)",
-                rx.el.input(
-                    name="capa_url",
-                    type="url",
-                    default_value=title["capa_url"],
-                    aria_label="Link da imagem da capa (HTTPS, opcional)",
-                    class_name="campo",
-                ),
-                class_name="signup-label",
-            ),
-            rx.button(
-                conteudo_acao("salvar", "Salvar alterações"),
-                type="submit",
-                disabled=State.admin_catalog_pending,
-                class_name="focus-demo-button",
-                **atributos_acao("salvar", "Salvar alterações"),
-            ),
-            on_submit=State.save_admin_title,
-            reset_on_submit=False,
-            class_name="admin-title-edit-form",
-            ),
-            rx.fragment(),
-        ),
-        rx.hstack(
-            rx.button(
-                conteudo_acao("editar"),
-                type="button",
-                on_click=State.open_admin_title_edit(title["id"]),
-                disabled=State.admin_catalog_pending,
-                class_name="focus-demo-button",
-                **atributos_acao("editar"),
-            ),
-            rx.button(
-                conteudo_acao("criar_exemplar", "Adicionar exemplar"),
-                type="button",
-                on_click=State.add_copy_to_title(title["id"]),
-                disabled=State.admin_catalog_pending
-                | State.admin_catalog_needs_manual_check,
-                class_name="focus-demo-button",
-                **atributos_acao("criar_exemplar", "Adicionar exemplar"),
-            ),
-            rx.cond(
-                title["ativo"],
+        rx.el.div(
+            rx.el.div(
                 rx.cond(
-                    State.admin_catalog_confirm_title_id == title["id"],
-                    rx.fragment(
-                        rx.button(
-                            conteudo_acao("confirmar_desativacao"),
-                            type="button",
-                            on_click=State.set_title_active(title["id"], False),
-                            disabled=State.admin_catalog_pending,
-                            class_name="destructive-action",
-                            **atributos_acao("confirmar_desativacao"),
+                    title["capa_url"].to(str) != "",
+                    rx.el.img(
+                        src=title["capa_url"],
+                        alt=f"Capa de «{title['titulo']}»",
+                        loading="lazy",
+                        class_name="admin-catalog-cover-image",
+                    ),
+                    rx.cond(
+                        title["capa_gerada"].to(str) != "",
+                        rx.el.img(
+                            src=title["capa_gerada"],
+                            alt=f"Capa de «{title['titulo']}»",
+                            loading="lazy",
+                            class_name="admin-catalog-cover-image",
+                        ),
+                        rx.el.div(
+                            title["titulo"],
+                            class_name="admin-catalog-cover-fallback",
+                            aria_hidden="true",
+                        ),
+                    ),
+                ),
+                class_name="admin-title-cover",
+            ),
+            rx.el.div(
+                rx.heading(title["titulo"], size="4"),
+                rx.el.p("Autoria: ", title["autores"]),
+                rx.el.p("Categorias: ", title["categorias"]),
+                rx.el.p(
+                    "Estado: ",
+                    rx.cond(title["ativo"], "Ativo", "Desativado"),
+                    role="status",
+                ),
+                rx.el.p(
+                    "Exemplares disponíveis: ",
+                    title["exemplares_disponiveis"],
+                    " / ",
+                    title["exemplares"].length(),
+                ),
+                class_name="admin-title-data",
+            ),
+            rx.el.div(
+                rx.button(
+                    conteudo_acao("editar"),
+                    type="button",
+                    on_click=State.open_admin_title_edit(title["id"]),
+                    aria_expanded=(
+                        State.admin_catalog_edit_title_id == title["id"]
+                    ),
+                    aria_controls=(
+                        "painel-edicao-titulo-" + title["id"].to(str)
+                    ),
+                    disabled=State.admin_catalog_pending,
+                    class_name="focus-demo-button",
+                    **atributos_acao("editar"),
+                ),
+                rx.button(
+                    conteudo_acao("exemplares"),
+                    type="button",
+                    on_click=State.toggle_admin_title_copies(title["id"]),
+                    aria_expanded=(
+                        State.admin_catalog_copy_title_id == title["id"]
+                    ),
+                    aria_controls=(
+                        "painel-exemplares-titulo-" + title["id"].to(str)
+                    ),
+                    disabled=State.admin_catalog_pending,
+                    class_name="focus-demo-button",
+                    **atributos_acao("exemplares"),
+                ),
+                rx.cond(
+                    title["ativo"],
+                    rx.cond(
+                        State.admin_catalog_confirm_title_id == title["id"],
+                        rx.fragment(
+                            rx.button(
+                                conteudo_acao("confirmar_desativacao"),
+                                type="button",
+                                on_click=State.set_title_active(
+                                    title["id"], False
+                                ),
+                                disabled=State.admin_catalog_pending,
+                                class_name="destructive-action",
+                                **atributos_acao("confirmar_desativacao"),
+                            ),
+                            rx.button(
+                                conteudo_acao("nao_confirmar"),
+                                type="button",
+                                on_click=State.cancel_title_deactivation,
+                                disabled=State.admin_catalog_pending,
+                                class_name="focus-demo-button",
+                                **atributos_acao("nao_confirmar"),
+                            ),
                         ),
                         rx.button(
-                            conteudo_acao("nao_confirmar"),
+                            conteudo_acao("desativar"),
                             type="button",
-                            on_click=State.cancel_title_deactivation,
+                            on_click=State.request_title_deactivation(
+                                title["id"]
+                            ),
                             disabled=State.admin_catalog_pending,
-                            class_name="focus-demo-button",
-                            **atributos_acao("nao_confirmar"),
+                            class_name="destructive-action",
+                            **atributos_acao("desativar"),
                         ),
                     ),
                     rx.button(
-                        conteudo_acao(
-                            "desativar",
-                            rx.cond(
-                                State.admin_catalog_pending,
-                                "Processando…",
-                                "Desativar",
-                            ),
-                        ),
+                        conteudo_acao("reativar"),
                         type="button",
-                        on_click=State.request_title_deactivation(title["id"]),
+                        on_click=State.set_title_active(title["id"], True),
                         disabled=State.admin_catalog_pending,
-                        class_name="destructive-action",
-                        **atributos_acao(
-                            "desativar",
-                            rx.cond(
-                                State.admin_catalog_pending,
-                                "Processando…",
-                                "Desativar",
-                            ),
-                        ),
+                        class_name="focus-demo-button",
+                        **atributos_acao("reativar"),
                     ),
                 ),
-                rx.button(
-                    conteudo_acao("reativar"),
-                    type="button",
-                    on_click=State.set_title_active(title["id"], True),
-                    disabled=State.admin_catalog_pending,
-                    class_name="focus-demo-button",
-                    **atributos_acao("reativar"),
-                ),
+                class_name="admin-title-actions",
             ),
-            flex_wrap="wrap",
-            align="center",
+            class_name="admin-title-row",
+        ),
+        rx.cond(
+            State.admin_catalog_edit_title_id == title["id"],
+            rx.el.section(
+                rx.form(
+                    rx.el.input(type="hidden", name="titulo_id", value=title["id"]),
+                    rx.el.label(
+                        "Título",
+                        rx.el.input(
+                            name="titulo",
+                            type="text",
+                            required=True,
+                            default_value=title["titulo"],
+                            aria_label="Título",
+                            class_name="campo",
+                        ),
+                        class_name="signup-label",
+                    ),
+                    rx.el.label(
+                        "Autores",
+                        rx.el.input(
+                            name="autores",
+                            type="text",
+                            required=True,
+                            default_value=title["autores"],
+                            aria_label="Autores",
+                            class_name="campo",
+                        ),
+                        class_name="signup-label",
+                    ),
+                    rx.el.label(
+                        "ISBN (opcional)",
+                        rx.el.input(
+                            name="isbn",
+                            type="text",
+                            default_value=title["isbn"],
+                            aria_label="ISBN (opcional)",
+                            class_name="campo",
+                        ),
+                        class_name="signup-label",
+                    ),
+                    rx.el.label(
+                        "Editora (opcional)",
+                        rx.el.input(
+                            name="editora",
+                            type="text",
+                            default_value=title["editora"],
+                            aria_label="Editora (opcional)",
+                            class_name="campo",
+                        ),
+                        class_name="signup-label",
+                    ),
+                    rx.el.label(
+                        "Edição (opcional)",
+                        rx.el.input(
+                            name="edicao",
+                            type="text",
+                            default_value=title["edicao"],
+                            aria_label="Edição (opcional)",
+                            class_name="campo",
+                        ),
+                        class_name="signup-label",
+                    ),
+                    rx.el.label(
+                        "Ano de publicação (opcional)",
+                        rx.el.input(
+                            name="ano_publicacao",
+                            type="number",
+                            default_value=title["ano_publicacao"],
+                            aria_label="Ano de publicação (opcional)",
+                            class_name="campo",
+                        ),
+                        class_name="signup-label",
+                    ),
+                    rx.el.label(
+                        "Descrição (opcional)",
+                        rx.el.textarea(
+                            name="descricao",
+                            default_value=title["descricao"],
+                            aria_label="Descrição (opcional)",
+                            class_name="campo-area",
+                        ),
+                        class_name="signup-label",
+                    ),
+                    rx.el.label(
+                        "Link da imagem da capa (HTTPS, opcional)",
+                        rx.el.input(
+                            name="capa_url",
+                            type="url",
+                            default_value=title["capa_url"],
+                            aria_label="Link da imagem da capa (HTTPS, opcional)",
+                            class_name="campo",
+                        ),
+                        class_name="signup-label",
+                    ),
+                    rx.el.div(
+                        rx.button(
+                            conteudo_acao("salvar", "Salvar alterações"),
+                            type="submit",
+                            disabled=State.admin_catalog_pending,
+                            class_name="focus-demo-button",
+                            **atributos_acao("salvar", "Salvar alterações"),
+                        ),
+                        rx.button(
+                            conteudo_acao("voltar"),
+                            type="button",
+                            on_click=State.close_admin_title_edit,
+                            class_name="nav-logout",
+                            **atributos_acao("voltar"),
+                        ),
+                        class_name="admin-panel-actions",
+                    ),
+                    on_submit=State.save_admin_title,
+                    reset_on_submit=False,
+                    class_name="admin-title-edit-form",
+                ),
+                id="painel-edicao-titulo-" + title["id"].to(str),
+                class_name="admin-title-panel",
+            ),
+            rx.fragment(),
+        ),
+        rx.cond(
+            State.admin_catalog_copy_title_id == title["id"],
+            rx.el.section(
+                rx.heading("Exemplares", size="5"),
+                rx.cond(
+                    title["exemplares"].length() > 0,
+                    rx.el.ul(
+                        rx.foreach(title["exemplares"], admin_copy_row),
+                        class_name="admin-copy-list",
+                    ),
+                    rx.text("Nenhum exemplar cadastrado.", role="status"),
+                ),
+                rx.el.div(
+                    rx.button(
+                        conteudo_acao("criar_exemplar", "Adicionar exemplar"),
+                        type="button",
+                        on_click=State.add_copy_to_title(title["id"]),
+                        disabled=State.admin_catalog_pending
+                        | State.admin_catalog_needs_manual_check,
+                        class_name="focus-demo-button",
+                        **atributos_acao("criar_exemplar", "Adicionar exemplar"),
+                    ),
+                    rx.button(
+                        conteudo_acao("voltar"),
+                        type="button",
+                        on_click=State.toggle_admin_title_copies(title["id"]),
+                        class_name="nav-logout",
+                        **atributos_acao("voltar"),
+                    ),
+                    class_name="admin-panel-actions",
+                ),
+                id="painel-exemplares-titulo-" + title["id"].to(str),
+                class_name="admin-title-panel admin-copies-panel",
+            ),
+            rx.fragment(),
         ),
         rx.cond(
             State.admin_catalog_title_action_title_id == title["id"],
@@ -4306,6 +4393,17 @@ def catalog_admin() -> rx.Component:
                             **atributos_acao("fechar_cadastro"),
                         ),
                         rx.fragment(),
+                    ),
+                    rx.el.label(
+                        rx.el.input(
+                            type="checkbox",
+                            checked=State.admin_catalog_show_inactive,
+                            on_change=State.set_admin_catalog_show_inactive,
+                            class_name="campo-check",
+                            aria_label="Mostrar desativados",
+                        ),
+                        "Mostrar desativados",
+                        class_name="campo-check-row",
                     ),
                     class_name="admin-acervo-toolbar",
                 ),
@@ -6227,8 +6325,8 @@ app = rx.App(
             "width": "100%",
         },
         ".admin-catalog-grid": {
-            "display": "grid",
-            "grid_template_columns": "repeat(auto-fill, minmax(min(100%, 11.25rem), 15rem))",
+            "display": "flex",
+            "flex_direction": "column",
             "gap": "1.1rem",
             "width": "100%",
             "max_width": "100%",
@@ -6250,11 +6348,59 @@ app = rx.App(
             "align_items": "stretch",
             "gap": "0.75rem",
             "min_width": "0",
+            "width": "100%",
             "padding": "1.1rem",
             "border": "1px solid var(--line)",
             "border_radius": "0.9rem",
             "background_color": "var(--bg-panel)",
             "box_shadow": "var(--shadow-soft)",
+        },
+        ".admin-title-row": {
+            "display": "grid",
+            "grid_template_columns": "72px minmax(0, 1fr) auto",
+            "align_items": "start",
+            "gap": "1rem",
+            "width": "100%",
+        },
+        ".admin-title-cover": {
+            "width": "72px",
+        },
+        ".admin-catalog-cover-image, .admin-catalog-cover-fallback": {
+            "width": "72px",
+            "height": "108px",
+            "object_fit": "cover",
+            "border_radius": "0.45rem",
+            "border": "1px solid var(--line)",
+        },
+        ".admin-catalog-cover-fallback": {
+            "display": "flex",
+            "align_items": "center",
+            "justify_content": "center",
+            "padding": "0.35rem",
+            "overflow": "hidden",
+            "background": "var(--bg-soft)",
+            "color": "var(--slate-900)",
+            "font_size": "0.72rem",
+            "text_align": "center",
+        },
+        ".admin-title-data": {
+            "min_width": "0",
+        },
+        ".admin-title-data p": {
+            "margin": "0.25rem 0",
+        },
+        ".admin-title-actions, .admin-panel-actions": {
+            "display": "flex",
+            "flex_wrap": "wrap",
+            "align_items": "center",
+            "gap": "0.5rem",
+        },
+        ".admin-title-panel": {
+            "width": "100%",
+            "padding": "1rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.75rem",
+            "background": "var(--bg-soft)",
         },
         ".admin-title-edit-form": {
             "display": "grid",
@@ -6976,6 +7122,16 @@ app = rx.App(
             },
             ".admin-catalog-section, .librarian-management-section": {
                 "padding": "1.1rem 0.75rem",
+            },
+            ".admin-title-row": {
+                "grid_template_columns": "72px minmax(0, 1fr)",
+            },
+            ".admin-title-actions": {
+                "grid_column": "1 / -1",
+                "width": "100%",
+            },
+            ".admin-title-actions button": {
+                "flex": "1 1 8rem",
             },
             ".admin-title-edit-form, .librarian-form": {
                 "padding": "0.75rem",

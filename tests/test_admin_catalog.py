@@ -287,6 +287,76 @@ def test_acervo_has_one_edit_panel():
         ).to(frontend.AdminCatalogDisplayEntry)
     )
     assert "admin-title-edit-form" in repr(card)
+    assert "painel-exemplares-titulo-" in repr(card)
+    assert "aria-controls" in repr(card)
+
+
+def test_acervo_hides_inactive_by_default_and_keeps_one_panel_open():
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(
+                ident=f"acervo-inactive-{uuid4()}",
+                cls=rx.State,
+            )
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state.admin_catalog_entries = [
+                _entry(active=True),
+                _entry(active=False),
+            ]
+            state.admin_catalog_entries[1]["titulo"]["id"] = 82
+            state.admin_catalog_entries[1]["titulo"]["titulo"] = "Desativado"
+
+            assert state.admin_catalog_show_inactive is False
+            assert all(
+                entry["ativo"]
+                for entry in state.filtered_admin_catalog_entries
+            )
+
+            state.set_admin_catalog_show_inactive(True)
+            assert any(
+                not entry["ativo"]
+                for entry in state.filtered_admin_catalog_entries
+            )
+
+            state.open_admin_title_edit(81)
+            assert state.admin_catalog_edit_title_id == 81
+            assert state.admin_catalog_copy_title_id is None
+
+            state.toggle_admin_title_copies(81)
+            assert state.admin_catalog_edit_title_id is None
+            assert state.admin_catalog_copy_title_id == 81
+
+            state.toggle_admin_title_copies(82)
+            assert state.admin_catalog_copy_title_id == 82
+
+            state.toggle_admin_title_copies(82)
+            assert state.admin_catalog_copy_title_id is None
+
+    asyncio.run(verify())
+
+
+def test_acervo_vertical_layout_is_responsive_and_covers_are_fixed():
+    page = repr(frontend.catalog_admin())
+    style = frontend.app.style
+    mobile = style["@media screen and (max-width: 40rem)"]
+
+    assert "admin-catalog-grid" in page
+    assert "Mostrar desativados" in page
+    assert "admin-title-row" in page
+    assert style[".admin-catalog-grid"]["display"] == "flex"
+    assert style[".admin-catalog-grid"]["flex_direction"] == "column"
+    assert style[".admin-title-row"]["grid_template_columns"] == (
+        "72px minmax(0, 1fr) auto"
+    )
+    cover_style = style[
+        ".admin-catalog-cover-image, .admin-catalog-cover-fallback"
+    ]
+    assert cover_style["width"] == "72px"
+    assert cover_style["height"] == "108px"
+    assert mobile[".admin-title-row"]["grid_template_columns"] == (
+        "72px minmax(0, 1fr)"
+    )
 
 
 def test_acervo_paginates_in_groups_of_ten():
