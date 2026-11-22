@@ -541,31 +541,31 @@ def test_librarian_creates_catalog_and_registers_pickup_through_mock_transport(
     [
         (
             401,
-            "401 — Sua sessão expirou, entre de novo",
+            "[RES-401] Sua sessão expirou, entre de novo",
         ),
         (
             403,
-            "403 — Seu perfil não pode reservar",
+            "[RES-403] Seu perfil não pode reservar",
         ),
         (
             404,
-            "404 — Este recurso ainda não está disponível no servidor",
+            "[RES-404] Este recurso ainda não está disponível no servidor",
         ),
         (
             409,
-            "409 — Há limite ou duplicidade nesta reserva",
+            "[RES-409] Há limite ou duplicidade nesta reserva",
         ),
         (
             422,
-            "422 — Não foi possível confirmar a reserva",
+            "[RES-422] Não foi possível confirmar a reserva",
         ),
         (
             429,
-            "429 — Não foi possível confirmar a reserva",
+            "[RES-429] Não foi possível confirmar a reserva",
         ),
         (
             500,
-            "5xx — O servidor teve um problema (código 5xx)",
+            "[RES-5XX] O servidor teve um problema (código 5xx)",
         ),
     ],
 )
@@ -672,7 +672,7 @@ def test_student_request_uncertain_result_is_not_reported_or_retried(
             assert state.student_request_pending is False
             assert (
                 "Minhas reservas" in state.student_request_message
-                or "Resposta inválida" in state.student_request_message
+                or "[RES-INVALID]" in state.student_request_message
             )
             assert "registrada" not in state.student_request_message
             serialized = json.dumps(state.dict(), default=str)

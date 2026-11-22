@@ -869,7 +869,7 @@ class State(rx.State):
             self.student_request_message = (
                 reservation_request_error_message(error)
                 if not isinstance(error, XanoConfigurationError)
-                else "Serviço — O servidor de reservas está temporariamente indisponível"
+                else "[RES-SERVICE] O servidor de reservas está temporariamente indisponível"
             )
             if (
                 isinstance(error, XanoResponseError)

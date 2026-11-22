@@ -473,23 +473,23 @@ def test_student_library_loads_only_session_data_and_deduplicates_linked_reserve
 @pytest.mark.parametrize(
     ("error", "expected"),
     [
-        (XanoResponseError(401), "401 — Sua sessão expirou, entre de novo"),
-        (XanoResponseError(403), "403 — Seu perfil não pode reservar"),
+        (XanoResponseError(401), "[RES-401] Sua sessão expirou, entre de novo"),
+        (XanoResponseError(403), "[RES-403] Seu perfil não pode reservar"),
         (
             XanoResponseError(404),
-            "404 — Este recurso ainda não está disponível no servidor",
+            "[RES-404] Este recurso ainda não está disponível no servidor",
         ),
         (
             XanoResponseError(409),
-            "409 — Há limite ou duplicidade nesta reserva",
+            "[RES-409] Há limite ou duplicidade nesta reserva",
         ),
         (
             XanoResponseError(503),
-            "5xx — O servidor teve um problema (código 5xx)",
+            "[RES-5XX] O servidor teve um problema (código 5xx)",
         ),
         (
             XanoTimeoutError("tempo esgotado"),
-            "Tempo esgotado — Sem resposta do servidor. "
+            "[RES-TIMEOUT] Sem resposta do servidor. "
             "Confira Minhas reservas antes de tentar de novo.",
         ),
     ],
@@ -528,24 +528,24 @@ def test_student_request_does_not_retry_uncertain_result(monkeypatch):
         (
             "Solicitacao duplicada. Consulte Minha biblioteca.",
             403,
-            "403 — Seu perfil não pode reservar",
+            "[RES-403] Seu perfil não pode reservar",
         ),
         (
             "Já existe solicitação ativa para este título.",
             409,
-            "409 — Você já tem uma solicitação ativa para este título. "
+            "[RES-409] Você já tem uma solicitação ativa para este título. "
             "Consulte Minha biblioteca.",
         ),
         (
             "Já existe reserva ativa para este título.",
             409,
-            "409 — Você já tem uma reserva ativa para este título. "
+            "[RES-409] Você já tem uma reserva ativa para este título. "
             "Consulte Minha biblioteca.",
         ),
         (
             "Titulo nao encontrado.",
             404,
-            "404 — Este recurso ainda não está disponível no servidor",
+            "[RES-404] Este recurso ainda não está disponível no servidor",
         ),
     ],
 )
@@ -647,7 +647,7 @@ def test_student_request_explains_backend_eligibility_refusal_without_retry(
             assert calls == [14]
             assert state.student_request_has_error is True
             assert state.student_request_message == (
-                "409 — Há limite ou duplicidade nesta reserva"
+                "[RES-409] Há limite ou duplicidade nesta reserva"
             )
 
     asyncio.run(verify())
