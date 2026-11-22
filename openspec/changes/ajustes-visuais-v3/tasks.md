@@ -34,7 +34,7 @@
 
 ## 9. Seed seguro
 
-- [ ] 9.1 Criar `scripts/seed_catalogo_real.py`, documentação `docs/seed-catalogo.md` e testes simulados de dry-run, credenciais, idempotência e categorias; verificar que a senha nunca aparece e que nenhuma escrita ocorre no modo padrão.
+- [x] 9.1 Criar `scripts/seed_catalogo_real.py`, documentação `docs/seed-catalogo.md` e testes simulados de dry-run, credenciais, idempotência e categorias; verificar que a senha nunca aparece e que nenhuma escrita ocorre no modo padrão. Commit `a9a323a`. Verificação: dry-run imprimiu 30 títulos planejados sem escrita; `reflex compile --dry` aprovado; `pytest --ignore=evaluation -q`: 277 passed.
 
 ## 10. Limpeza da Change refino-visual-biblioteca
 
