@@ -58,6 +58,7 @@ from biblioteca_mais_nova.circulation import (
     register_request_pickup,
     register_reservation_pickup,
     request_title_loan,
+    reservation_request_error_message,
 )
 from biblioteca_mais_nova.user_admin import (
     UserAdminValidationError,
@@ -75,8 +76,10 @@ from biblioteca_mais_nova.staff_reservations import (
 )
 from biblioteca_mais_nova.xano_client import (
     XanoConfigurationError,
+    XanoInvalidResponseError,
     XanoRequestError,
     XanoResponseError,
+    XanoTimeoutError,
 )
 
 
@@ -855,37 +858,24 @@ class State(rx.State):
         self.student_request_has_error = False
         try:
             result = await request_title_loan(title_id, self._session_token)
-        except XanoResponseError as error:
-            self.student_request_has_error = True
-            if error.public_detail:
-                self.student_request_message = error.public_detail
-            elif error.status_code == 403:
-                self.student_request_message = (
-                    "Seu perfil não está autorizado a solicitar este título."
-                )
-            elif error.status_code == 409:
-                self.student_request_message = (
-                    "A solicitação foi recusada. Verifique se há atraso, uma reserva "
-                    "ativa ou outro impedimento antes de tentar novamente."
-                )
-            elif error.status_code >= 500:
-                self.student_request_message = (
-                    "Não foi possível confirmar o resultado. Confira Minha biblioteca "
-                    "antes de fazer outra solicitação."
-                )
-            else:
-                self.student_request_message = (
-                    "Não foi possível solicitar este título. Confira sua sessão e "
-                    "tente novamente."
-                )
-        except (XanoConfigurationError, XanoRequestError) as error:
+        except (
+            XanoResponseError,
+            XanoTimeoutError,
+            XanoInvalidResponseError,
+            XanoRequestError,
+            XanoConfigurationError,
+        ) as error:
             self.student_request_has_error = True
             self.student_request_message = (
-                "Não foi possível confirmar o resultado. Confira Minha biblioteca "
-                "antes de fazer outra solicitação."
-                if isinstance(error, XanoRequestError)
-                else catalog_error_message(error)
+                reservation_request_error_message(error)
+                if not isinstance(error, XanoConfigurationError)
+                else "Serviço — O servidor de reservas está temporariamente indisponível"
             )
+            if (
+                isinstance(error, XanoResponseError)
+                and error.status_code == 401
+            ):
+                self._clear_session_token()
         else:
             if result["estado"] == "em_reserva":
                 self.student_request_message = (

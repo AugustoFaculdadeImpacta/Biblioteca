@@ -10,6 +10,8 @@ from biblioteca_mais_nova.xano_client import (
     XanoClient,
     XanoInvalidResponseError,
     XanoRequestError,
+    XanoResponseError,
+    XanoTimeoutError,
 )
 
 
@@ -350,6 +352,38 @@ async def list_admin_loans(
         token,
         transport=transport,
     )
+
+
+def reservation_request_error_message(error: Exception) -> str:
+    if isinstance(error, XanoTimeoutError):
+        return (
+            "Tempo esgotado — Sem resposta do servidor. "
+            "Confira Minhas reservas antes de tentar de novo."
+        )
+    if isinstance(error, XanoResponseError):
+        if error.status_code == 401:
+            return "401 — Sua sessão expirou, entre de novo"
+        if error.status_code == 403:
+            return "403 — Seu perfil não pode reservar"
+        if error.status_code == 404:
+            return "404 — Este recurso ainda não está disponível no servidor"
+        if error.status_code == 409:
+            if error.public_detail:
+                return f"409 — {error.public_detail}"
+            return "409 — Há limite ou duplicidade nesta reserva"
+        if error.status_code >= 500:
+            return "5xx — O servidor teve um problema (código 5xx)"
+        if error.public_detail:
+            return f"{error.status_code} — {error.public_detail}"
+        return f"{error.status_code} — Não foi possível confirmar a reserva"
+    if isinstance(error, XanoInvalidResponseError):
+        return "Resposta inválida — Não foi possível confirmar a reserva"
+    if isinstance(error, XanoRequestError):
+        return (
+            "Sem resposta — Não foi possível confirmar a reserva. "
+            "Confira Minhas reservas antes de tentar de novo."
+        )
+    return "Erro — Não foi possível confirmar a reserva"
 
 
 async def request_title_loan(

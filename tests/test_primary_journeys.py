@@ -541,31 +541,31 @@ def test_librarian_creates_catalog_and_registers_pickup_through_mock_transport(
     [
         (
             401,
-            "Não foi possível solicitar este título. Confira sua sessão e tente novamente.",
+            "401 — Sua sessão expirou, entre de novo",
         ),
         (
             403,
-            "Seu perfil não está autorizado a solicitar este título.",
+            "403 — Seu perfil não pode reservar",
         ),
         (
             404,
-            "Não foi possível solicitar este título. Confira sua sessão e tente novamente.",
+            "404 — Este recurso ainda não está disponível no servidor",
         ),
         (
             409,
-            "A solicitação foi recusada. Verifique se há atraso, uma reserva ativa ou outro impedimento antes de tentar novamente.",
+            "409 — Há limite ou duplicidade nesta reserva",
         ),
         (
             422,
-            "Não foi possível solicitar este título. Confira sua sessão e tente novamente.",
+            "422 — Não foi possível confirmar a reserva",
         ),
         (
             429,
-            "Não foi possível solicitar este título. Confira sua sessão e tente novamente.",
+            "429 — Não foi possível confirmar a reserva",
         ),
         (
             500,
-            "Não foi possível confirmar o resultado. Confira Minha biblioteca antes de fazer outra solicitação.",
+            "5xx — O servidor teve um problema (código 5xx)",
         ),
     ],
 )
@@ -670,7 +670,10 @@ def test_student_request_uncertain_result_is_not_reported_or_retried(
 
             assert state.student_request_has_error is True
             assert state.student_request_pending is False
-            assert "Minha biblioteca" in state.student_request_message
+            assert (
+                "Minhas reservas" in state.student_request_message
+                or "Resposta inválida" in state.student_request_message
+            )
             assert "registrada" not in state.student_request_message
             serialized = json.dumps(state.dict(), default=str)
             assert token not in serialized
