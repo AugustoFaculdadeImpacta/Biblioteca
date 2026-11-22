@@ -14,7 +14,7 @@
 
 ## 4. Completar e verificar o tema escuro
 
-- [ ] 4.1 Auditar cores fixas e tokens, ajustar componentes e capas CSS para o tema escuro e calcular WCAG AA nos pares texto/fundo e limites de controles; atualizar `test_dark_and_high_contrast_tokens_meet_wcag_aa` e adicionar `test_dark_theme_tokens_cover_operational_components` e `test_dark_cover_fallbacks_use_saturated_palette`; criar commit em português e, após ele, executar `.\.venv\Scripts\python.exe -m reflex compile --dry` e `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`.
+- [x] 4.1 Auditar cores fixas e tokens, ajustar componentes e capas CSS para o tema escuro e calcular WCAG AA para texto/fundo e limites de controles. Commit `f65f591`. Testes novos: `test_dark_theme_tokens_cover_operational_components`, `test_dark_cover_fallbacks_use_saturated_palette`. Atualizado: `test_dark_and_high_contrast_tokens_meet_wcag_aa`. Verificação local após o commit: Reflex compilou; pytest: 251 passed. Visual: feito, aguarda conferência do usuário.
 
 ## 5. Simplificar o hero da home
 
