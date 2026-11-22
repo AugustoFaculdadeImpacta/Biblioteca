@@ -1,4 +1,28 @@
+from urllib.parse import unquote
+from xml.etree import ElementTree
+
 from biblioteca_mais_nova.covers import gerar_capa_svg
+from scripts.seed_catalogo_real import TITULOS
+
+
+def _contrast_ratio(foreground: str, background: str) -> float:
+    def luminance(color: str) -> float:
+        channels = [int(color[index : index + 2], 16) / 255 for index in (1, 3, 5)]
+        linear = [
+            channel / 12.92
+            if channel <= 0.04045
+            else ((channel + 0.055) / 1.055) ** 2.4
+            for channel in channels
+        ]
+        return sum(
+            weight * channel
+            for weight, channel in zip(linear, (0.2126, 0.7152, 0.0722))
+        )
+
+    light, dark = sorted(
+        (luminance(foreground), luminance(background)), reverse=True
+    )
+    return (light + 0.05) / (dark + 0.05)
 
 
 def test_generated_cover_is_deterministic():
@@ -46,6 +70,34 @@ def test_generated_cover_is_distinct_across_seed_titles():
         for titulo, autoria in titulos
     }
     assert len(capas) == len(titulos)
+
+
+def test_seed_cover_title_bands_meet_wcag_aa():
+    namespace = {"svg": "http://www.w3.org/2000/svg"}
+    for livro in TITULOS:
+        documento = ElementTree.fromstring(
+            unquote(
+                gerar_capa_svg(
+                    livro["titulo"], livro["autores"], livro["categoria"]
+                ).partition(",")[2]
+            )
+        )
+        faixa = documento.find(
+            ".//svg:rect[@x='28'][@y='280']", namespace
+        )
+        textos_titulo = [
+            texto
+            for texto in documento.findall(".//svg:text", namespace)
+            if int(texto.attrib["y"]) <= 400
+        ]
+
+        assert faixa is not None
+        assert "opacity" not in faixa.attrib
+        assert textos_titulo
+        assert all(
+            _contrast_ratio(texto.attrib["fill"], faixa.attrib["fill"]) >= 4.5
+            for texto in textos_titulo
+        ), f"A capa de {livro['titulo']} não atinge WCAG AA"
 
 
 def test_generated_cover_has_no_external_scripts():

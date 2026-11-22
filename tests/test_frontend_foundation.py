@@ -145,18 +145,45 @@ def test_motion_rules_have_reduced_motion_override():
     )
 
 
-def test_primary_actions_meet_wcag_contrast():
-    dark = app.style[".a11y-shell.a11y-dark"]
-    primary = app.style[".a11y-shell.a11y-dark .primary-cta"]
-    button = app.style[".a11y-shell.a11y-dark .focus-demo-button"]
+def test_button_variants_meet_wcag_aa_in_both_themes():
+    variants = {
+        "primary": (".focus-demo-button", ".focus-demo-button:hover"),
+        "secondary": (".nav-logout", ".nav-logout:hover"),
+        "danger": (".destructive-action", ".destructive-action:hover"),
+        "warning": (".warning-action", ".warning-action:hover"),
+        "subtle": (".subtle-action", ".subtle-action:hover"),
+    }
 
-    assert primary["background_color"] == "var(--brand-700)"
-    assert primary["color"] == "#183a4a"
-    assert _contrast_ratio(primary["color"], dark["--brand-700"]) >= 4.5
-    assert _contrast_ratio(dark["--brand-700"], dark["--bg-page"]) >= 3
-    assert button["background_color"] == "var(--brand-700)"
-    assert button["color"] == "#183a4a"
-    assert _contrast_ratio(button["color"], dark["--brand-700"]) >= 4.5
+    for theme_selector in (".a11y-shell", ".a11y-shell.a11y-dark"):
+        theme = app.style[theme_selector]
+        for variant, (base_selector, hover_selector) in variants.items():
+            foreground = theme[f"--button-{variant}-text"]
+            backgrounds = (
+                theme[f"--button-{variant}-bg"],
+                theme[f"--button-{variant}-hover-bg"],
+            )
+            assert all(
+                _contrast_ratio(foreground, background) >= 4.5
+                for background in backgrounds
+            ), f"{variant} não atinge WCAG AA em {theme_selector}"
+            assert app.style[base_selector]["color"] == (
+                f"var(--button-{variant}-text)"
+            )
+            assert app.style[base_selector]["background_color"] == (
+                f"var(--button-{variant}-bg)"
+            )
+            assert app.style[hover_selector]["background_color"] == (
+                f"var(--button-{variant}-hover-bg)"
+            )
+
+    assert app.style[":focus-visible"]["outline"].startswith("3px solid")
+    disabled = app.style[
+        ".focus-demo-button:disabled, .nav-logout:disabled, "
+        ".destructive-action:disabled, .warning-action:disabled, "
+        ".subtle-action:disabled"
+    ]
+    assert disabled["border_style"] == "dashed"
+    assert "opacity" not in disabled
 
 
 def test_dark_theme_tokens_cover_operational_components():
@@ -211,9 +238,6 @@ def test_dark_cover_fallbacks_use_saturated_palette():
         _contrast_ratio("#ffffff", background) >= 4.5
         for background in cover_backgrounds
     )
-    assert app.style[".a11y-shell.a11y-dark .focus-demo-button"][
-        "color"
-    ] == "#183a4a"
 
 
 def test_text_fields_align_and_autofill_safely():

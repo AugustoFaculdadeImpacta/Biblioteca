@@ -47,6 +47,30 @@ def _linhas(texto: str, limite: int = 18, maximo: int = 3) -> list[str]:
     return linhas[:maximo]
 
 
+def _luminancia(cor: str) -> float:
+    canais = [int(cor[indice : indice + 2], 16) / 255 for indice in (1, 3, 5)]
+    lineares = [
+        canal / 12.92
+        if canal <= 0.04045
+        else ((canal + 0.055) / 1.055) ** 2.4
+        for canal in canais
+    ]
+    return sum(
+        peso * canal for peso, canal in zip(lineares, (0.2126, 0.7152, 0.0722))
+    )
+
+
+def _cor_texto_contraste(fundo: str) -> str:
+    return max(
+        ("#000000", "#ffffff"),
+        key=lambda texto: (
+            max(_luminancia(texto), _luminancia(fundo)) + 0.05
+        ) / (
+            min(_luminancia(texto), _luminancia(fundo)) + 0.05
+        ),
+    )
+
+
 def _motivo_svg(motivo: str, cor: str) -> str:
     if motivo == "ondas":
         return (
@@ -112,13 +136,14 @@ def gerar_capa_svg(titulo: object, autoria: object, categoria: object) -> str:
     numero = _hash(valor)
     motivo = _MOTIVOS[numero % len(_MOTIVOS)]
     base, detalhe, faixa = _PALETAS[_hash(categoria_limpa) % len(_PALETAS)]
+    cor_titulo = _cor_texto_contraste(base)
     linhas = _linhas(titulo_limpo)
     autoria_linhas = _linhas(autoria_limpa, limite=22, maximo=2)
 
     titulo_svg = "".join(
         f'<text x="200" y="{310 + i * 34}" text-anchor="middle" '
         f'font-family="Georgia, serif" font-size="28" font-weight="700" '
-        f'fill="{faixa}">{escape(linha)}</text>'
+        f'fill="{cor_titulo}">{escape(linha)}</text>'
         for i, linha in enumerate(linhas)
     )
     autoria_svg = "".join(
@@ -134,7 +159,7 @@ def gerar_capa_svg(titulo: object, autoria: object, categoria: object) -> str:
         f'<rect width="400" height="600" fill="{base}"/>'
         + _motivo_svg(motivo, detalhe)
         + f'<rect x="28" y="280" width="344" height="{86 + len(linhas) * 34}" rx="12" '
-        f'fill="{base}" opacity=".92"/>'
+        f'fill="{base}"/>'
         + titulo_svg
         + f'<rect x="28" y="470" width="344" height="92" rx="12" fill="{faixa}" opacity=".96"/>'
         + autoria_svg
