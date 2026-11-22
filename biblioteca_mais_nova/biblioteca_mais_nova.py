@@ -1576,10 +1576,6 @@ class State(rx.State):
             message = catalog_error_message(error)
             self.admin_catalog_message = message
             self.admin_catalog_has_error = True
-            self.admin_catalog_title_action_title_id = title_id
-            self.admin_catalog_title_action_message = message
-            self.admin_catalog_title_action_error = True
-            self.admin_catalog_confirm_title_id = None
         finally:
             self.admin_catalog_pending = False
 

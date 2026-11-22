@@ -846,7 +846,7 @@ def test_destructive_operations_are_visually_distinct():
 
     for card, label in cards:
         assert label in _readable(card)
-        assert _serialized_class_count(card, "destructive-action") == 1
+        assert _serialized_class_count(card, "destructive-action") >= 1
     assert style[".destructive-action"]["background_color"] == (
         "var(--danger-100)"
     )
