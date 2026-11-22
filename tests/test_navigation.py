@@ -75,7 +75,7 @@ def test_homepage_is_storefront_and_authenticated_sessions_go_to_catalog():
     homepage = repr(frontend.index())
     assert "Entrar" in homepage
     assert "Cadastrar-se" in homepage
-    assert "home-catalog-search" in homepage
+    assert "home-catalog-search" not in homepage
     assert "login-email" not in homepage
     assert "login-senha" not in homepage
     assert "form-login-home" not in homepage
@@ -129,30 +129,45 @@ def test_authenticated_users_redirect_from_auth_pages_to_profile_home():
     asyncio.run(verify())
 
 
-def test_home_has_no_login_or_signup_form_and_keeps_profile_shortcuts():
-    homepage = _readable(frontend.index())
-    assert "form-busca-home" in homepage
-    assert "Buscar no catálogo" in homepage
-    assert "home-catalog-search" in homepage
+def test_home_has_no_login_or_signup_form_and_keeps_profile_menu():
+    page = frontend.index()
+    homepage = _readable(page)
+    assert "form-busca-home" not in homepage
+    assert "Buscar no catálogo" not in homepage
+    assert "home-catalog-search" not in homepage
     assert "type:\"password\"" not in homepage
     assert "login-email" not in homepage
     assert "login-senha" not in homepage
     assert "Entrar" in homepage
     assert "Cadastrar-se" in homepage
-    assert "Reservas" in homepage
-    assert "Acervo" in homepage
-    assert "Contas" in homepage
+    assert "hero-quick-links" not in homepage
 
-    async def verify_search():
-        async with frontend.app.modify_state(
-            BaseStateToken(ident=f"home-search-{uuid4()}", cls=rx.State)
-        ) as root:
-            state = await root.get_state(frontend.State)
-            redirect = state.search_home_catalog({"busca": "  A Ilha  "})
-            assert state.public_catalog_search == "A Ilha"
-            assert "/catalogo" in repr(redirect)
 
-    asyncio.run(verify_search())
+def test_home_hero_omits_search_and_actions_for_all_profiles():
+    hero = next(
+        component
+        for component in _components(frontend.index())
+        if component.id == "conteudo-home"
+    )
+    hero_text = _readable(hero)
+    components = list(_components(hero))
+
+    assert "hero-stat-grid" in hero_text
+    assert "home-catalog-search" not in hero_text
+    assert "form-busca-home" not in hero_text
+    assert "Ver catálogo" not in hero_text
+    assert "Entrar" not in hero_text
+    assert "Cadastrar-se" not in hero_text
+    assert not any(
+        component.alias in {
+            "RadixThemesButton",
+            "ReactRouterLink",
+            "RadixThemesTextField.Root",
+        }
+        for component in components
+    )
+    assert "active_navigation_role_rx_state_" not in repr(hero)
+    assert "is_authenticated_rx_state_" not in repr(hero)
 
 
 def test_home_statistics_are_derived_from_public_catalog():
@@ -205,22 +220,24 @@ def test_home_statistics_are_derived_from_public_catalog():
     asyncio.run(verify_statistics())
 
 
-def test_home_shows_profile_shortcuts_and_about_section():
-    homepage = _readable(frontend.index())
+def test_home_keeps_featured_and_about_without_hero_shortcuts():
+    page = frontend.index()
+    homepage = _readable(page)
+    hero = next(
+        component
+        for component in _components(page)
+        if component.id == "conteudo-home"
+    )
 
     assert "Sobre a biblioteca" in homepage
     assert "Livros em destaque" in homepage
     assert "Ver mais" in homepage
     assert "hero-stat-grid" in homepage
-    assert all(
-        route in homepage
-        for route in (
-            "/reservas",
-            "/admin/acervo",
-            "/admin/reservas",
-            "/admin/bibliotecarios",
-        )
-    )
+    assert "hero-quick-links" not in homepage
+    assert "/reservas" not in repr(hero)
+    assert "/admin/acervo" not in repr(hero)
+    assert "/admin/reservas" not in repr(hero)
+    assert "/admin/bibliotecarios" not in repr(hero)
 
 
 def test_home_omits_popularity_without_loan_counts():
@@ -431,7 +448,8 @@ def test_site_header_brand_and_footer_links_preserve_profile_access():
     assert "/admin/bibliotecarios" in header
     assert "Voltar à visão de admin" in header
     assert "/admin/circulacao" not in header
-    assert "Sobre a biblioteca" in footer
+    assert "Biblioteca escolar" in footer
+    assert "Sobre a biblioteca" not in footer
     assert "Links úteis" in footer
     assert "/catalogo" in footer
     assert "/acessibilidade" not in footer
@@ -478,11 +496,21 @@ def test_all_routes_use_one_shared_header_and_footer():
         assert _serialized_class_count(page, "site-footer") == 1, route
 
     footer = _readable(frontend.site_footer())
-    assert "Sobre a biblioteca" in footer
+    assert "Biblioteca escolar" in footer
+    assert "Sobre a biblioteca" not in footer
     assert "Catálogo" in footer
     assert "Acessibilidade" not in footer
     assert "/acessibilidade" not in footer
     assert "/#controles-acessibilidade" not in footer
+
+
+def test_footer_uses_library_name_without_repeating_home_about():
+    footer = _readable(frontend.site_footer())
+    homepage = _readable(frontend.index())
+
+    assert footer.count("Biblioteca escolar") == 1
+    assert "Sobre a biblioteca" in homepage
+    assert "Sobre a biblioteca" not in footer
 
 
 def test_page_bodies_do_not_duplicate_global_navigation():
@@ -495,7 +523,7 @@ def test_page_bodies_do_not_duplicate_global_navigation():
     assert "Voltar ao catálogo" not in detail
     assert "Acompanhar em Minha biblioteca" not in detail
     assert "Voltar ao catálogo" not in student_library
-    assert "Ver catálogo" in home
+    assert "Ver catálogo" not in home
     assert "Ver catálogo sem entrar" in login
     assert "Não tem conta? Cadastre-se" in login
     assert "Já tem conta? Entrar" in signup

@@ -652,14 +652,6 @@ class State(rx.State):
         self.public_catalog_search = value
 
     @rx.event
-    def search_home_catalog(self, form_data: dict[str, Any]):
-        value = form_data.get("busca", "")
-        if not isinstance(value, str):
-            raise ValueError("O termo de busca precisa ser um texto.")
-        self.public_catalog_search = value.strip()
-        return rx.redirect("/catalogo")
-
-    @rx.event
     def set_public_catalog_category(self, value: str):
         if not value:
             self.public_catalog_category_id = ""
@@ -2437,10 +2429,9 @@ def site_footer() -> rx.Component:
     return rx.el.footer(
         rx.el.section(
             rx.text(
-                "Sobre a biblioteca",
+                "Biblioteca escolar",
                 class_name="footer-about-title",
             ),
-            rx.text("Biblioteca escolar."),
             class_name="footer-about",
         ),
         rx.el.nav(
@@ -3222,60 +3213,6 @@ def index() -> rx.Component:
                             "Explore o acervo, acompanhe empréstimos e reservas e aproveite uma biblioteca que combina tradição e praticidade.",
                             class_name="hero-copy",
                         ),
-                        rx.form(
-                            rx.el.label(
-                                "Buscar no catálogo",
-                                html_for="home-catalog-search",
-                                class_name="signup-label",
-                            ),
-                            rx.hstack(
-                                rx.input(
-                                    id="home-catalog-search",
-                                    name="busca",
-                                    type="search",
-                                    aria_label="Buscar livros por título ou autoria",
-                                    class_name="signup-input",
-                                ),
-                                rx.button(
-                                    "Buscar",
-                                    type="submit",
-                                    class_name="primary-cta",
-                                ),
-                                align="center",
-                                width="100%",
-                                class_name="home-search-controls",
-                            ),
-                            id="form-busca-home",
-                            on_submit=State.search_home_catalog,
-                            reset_on_submit=False,
-                            class_name="home-search-form",
-                        ),
-                        rx.hstack(
-                            rx.link(
-                                "Ver catálogo",
-                                href="/catalogo",
-                                class_name="primary-cta",
-                            ),
-                            rx.cond(
-                                State.is_authenticated,
-                                rx.fragment(),
-                                rx.fragment(
-                                    rx.link(
-                                        "Entrar",
-                                        href="/login",
-                                        class_name="secondary-cta",
-                                    ),
-                                    rx.link(
-                                        "Cadastrar-se",
-                                        href="/cadastro",
-                                        class_name="secondary-cta",
-                                    ),
-                                ),
-                            ),
-                            flex_wrap="wrap",
-                            align="center",
-                            gap="3",
-                        ),
                         align="start",
                         spacing="3",
                         class_name="hero-copy-wrap",
@@ -3336,43 +3273,6 @@ def index() -> rx.Component:
                         ),
                     ),
                     class_name="hero-layout",
-                ),
-                rx.el.div(
-                    rx.cond(
-                        State.active_navigation_role == "Estudante",
-                        rx.link(
-                            "Reservas",
-                            href="/reservas",
-                            class_name="feature-card",
-                        ),
-                        rx.fragment(),
-                    ),
-                    rx.cond(
-                        State.active_navigation_role == "Bibliotecária",
-                        rx.fragment(
-                            rx.link(
-                                "Acervo",
-                                href="/admin/acervo",
-                                class_name="feature-card",
-                            ),
-                            rx.link(
-                                "Reservas",
-                                href="/admin/reservas",
-                                class_name="feature-card",
-                            ),
-                        ),
-                        rx.fragment(),
-                    ),
-                    rx.cond(
-                        State.active_navigation_role == "Admin",
-                        rx.link(
-                            "Contas",
-                            href="/admin/bibliotecarios",
-                            class_name="feature-card",
-                        ),
-                        rx.fragment(),
-                    ),
-                    class_name="hero-quick-links",
                 ),
                 id="conteudo-home",
                 class_name="content-section home-hero",
@@ -5453,12 +5353,6 @@ app = rx.App(
             "text_transform": "uppercase",
             "letter_spacing": "0.08em",
             "color": "var(--slate-500)",
-        },
-        ".hero-quick-links": {
-            "display": "flex",
-            "flex_wrap": "wrap",
-            "gap": "0.75rem",
-            "width": "100%",
         },
         ".catalog-section": {
             "width": "100%",

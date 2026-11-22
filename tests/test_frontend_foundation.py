@@ -1,6 +1,11 @@
 import reflex as rx
 
-from biblioteca_mais_nova.biblioteca_mais_nova import app, index, site_header
+from biblioteca_mais_nova.biblioteca_mais_nova import (
+    app,
+    index,
+    login_page,
+    site_header,
+)
 from rxconfig import config
 
 
@@ -36,11 +41,6 @@ def test_index_renders_navigable_application_shell():
     components = list(_components(page))
     nav = next(component for component in components if type(component).__name__ == "Nav")
     nav_content = repr(nav)
-    fields = [
-        component
-        for component in components
-        if component.alias == "RadixThemesTextField.Root"
-    ]
     button = next(
         component
         for component in components
@@ -56,9 +56,8 @@ def test_index_renders_navigable_application_shell():
     assert "Início" not in repr(page)
     assert "Modo escuro" in repr(page)
     assert "#conteudo-home" in repr(page.children[0].children)
-    assert "form-busca-home" in repr(page)
-    assert {field.id for field in fields} == {"home-catalog-search"}
-    assert all(getattr(field, "disabled", None) is None for field in fields)
+    assert "home-catalog-search" not in repr(page)
+    assert "form-busca-home" not in repr(page)
     assert getattr(button, "disabled", None) is None
     assert not any(component.id == "conteudo-login" for component in components)
     assert not any(
@@ -68,7 +67,7 @@ def test_index_renders_navigable_application_shell():
 
 
 def test_focusable_field_and_button_have_visible_keyboard_focus_style():
-    components = list(_components(index()))
+    components = list(_components(login_page()))
     aliases = {component.alias for component in components}
 
     assert "RadixThemesTextField.Root" in aliases
