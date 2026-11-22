@@ -509,7 +509,9 @@ def test_catalog_controls_and_card_states_are_responsive():
     assert "Dispon" in catalog
     assert "Indisp" in catalog
     assert "Ver detalhes" in catalog
-    assert "repeat(auto-fit" in style[".catalog-grid"]["grid_template_columns"]
+    assert "repeat(auto-fill" in style[".catalog-grid"]["grid_template_columns"]
+    assert "11.25rem" in style[".catalog-grid"]["grid_template_columns"]
+    assert "15rem" in style[".catalog-grid"]["grid_template_columns"]
     assert "repeat(auto-fit" in style[".catalog-controls"]["grid_template_columns"]
     assert style[".catalog-card-cover"]["aspect_ratio"] == "0.72"
     assert style[".catalog-card-cover"]["min_height"] == "11rem"
