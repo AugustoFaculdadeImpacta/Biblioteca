@@ -190,6 +190,46 @@ def test_dark_cover_fallbacks_use_saturated_palette():
     ] == "#183a4a"
 
 
+def test_text_fields_align_and_autofill_safely():
+    inner = app.style[".signup-input input, .rt-TextFieldInput"]
+    general = app.style[
+        "input:not([type='checkbox']):not([type='radio']):not(.rt-TextFieldInput), textarea, select"
+    ]
+    autofill = app.style[
+        ".signup-input input:-webkit-autofill, .signup-input input:autofill, input:-webkit-autofill, input:autofill"
+    ]
+
+    assert inner["height"] == "100%"
+    assert inner["line_height"] == "normal"
+    assert inner["padding"] == "0 0.75rem"
+    assert general["height"] == "2.75rem"
+    assert general["line_height"] == "normal"
+    assert autofill["-webkit_text_fill_color"] == "var(--slate-900)"
+    assert autofill["caret_color"] == "var(--slate-900)"
+    assert "var(--bg-panel)" in autofill["box_shadow"]
+    assert "9999s" in autofill["transition"]
+
+
+def test_editing_controls_keep_external_border_only():
+    editing = app.style[
+        ".admin-title-edit-form input:not([type='hidden']):not([type='checkbox']), .admin-title-edit-form textarea, .admin-title-edit-form select"
+    ]
+    assert editing["border"] == "0"
+    assert editing["background_color"] == "transparent"
+    assert editing["box_shadow"] == "none"
+
+
+def test_category_checkboxes_share_44px_row():
+    from biblioteca_mais_nova.biblioteca_mais_nova import catalog_category_option
+
+    category = rx.Var.create({"id": 3, "nome": "Ciências"})
+    row = catalog_category_option(category)
+    assert row.class_name == "category-checkbox-row"
+    assert app.style[".category-checkbox-row"]["display"] == "inline-flex"
+    assert app.style[".category-checkbox-row"]["align_items"] == "center"
+    assert app.style[".category-checkbox-row"]["min_height"] == "2.75rem"
+
+
 def test_text_controls_have_explicit_theme_aware_colors_and_focus():
     controls_style = app.style[
         "input:not([type='checkbox']):not([type='radio']):not(.rt-TextFieldInput), textarea, select"

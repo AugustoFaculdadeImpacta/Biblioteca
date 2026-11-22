@@ -3622,11 +3622,14 @@ def accessibility_page() -> rx.Component:
 
 
 def catalog_category_option(category: rx.Var[dict[str, Any]]) -> rx.Component:
-    return rx.checkbox(
-        text=category["nome"],
-        checked=State.selected_category_ids.contains(category["id"]),
-        disabled=State.catalog_title_created,
-        on_change=State.toggle_catalog_category(category["id"]),
+    return rx.el.label(
+        rx.checkbox(
+            checked=State.selected_category_ids.contains(category["id"]),
+            disabled=State.catalog_title_created,
+            on_change=State.toggle_catalog_category(category["id"]),
+        ),
+        category["nome"],
+        class_name="category-checkbox-row",
     )
 
 
@@ -5918,14 +5921,43 @@ app = rx.App(
             "outline": "none !important",
             "background_color": "transparent !important",
             "min_height": "2.75rem",
+            "height": "100%",
+            "line_height": "normal",
+            "padding": "0 0.75rem",
         },
         "input:not([type='checkbox']):not([type='radio']):not(.rt-TextFieldInput), textarea, select": {
             "min_height": "2.75rem",
+            "height": "2.75rem",
+            "line_height": "normal",
+            "padding": "0 0.75rem",
             "color": "var(--slate-900)",
             "border": "1px solid var(--line)",
             "border_radius": "0.5rem",
             "background_color": "var(--bg-panel)",
             "caret_color": "var(--slate-900)",
+        },
+        "textarea": {
+            "height": "auto",
+            "min_height": "5.5rem",
+            "padding": "0.75rem",
+            "line_height": "1.5",
+        },
+        ".admin-title-edit-form input:not([type='hidden']):not([type='checkbox']), .admin-title-edit-form textarea, .admin-title-edit-form select": {
+            "border": "0",
+            "background_color": "transparent",
+            "box_shadow": "none",
+        },
+        ".signup-input input:-webkit-autofill, .signup-input input:autofill, input:-webkit-autofill, input:autofill": {
+            "-webkit_text_fill_color": "var(--slate-900)",
+            "caret_color": "var(--slate-900)",
+            "box_shadow": "inset 0 0 0 1000px var(--bg-panel)",
+            "transition": "background-color 9999s ease-out 0s",
+        },
+        ".category-checkbox-row": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "min_height": "2.75rem",
+            "gap": "0.5rem",
         },
         ".rt-SelectTrigger": {
             "min_height": "2.75rem",
