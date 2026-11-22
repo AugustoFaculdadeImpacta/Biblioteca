@@ -490,6 +490,7 @@ As fases funcionais avançaram parcialmente. A tentativa de seed remoto foi inte
 | 8 — Acervo compacto | `e0b6110`, `17a4c22` | `test_acervo_search_normalizes_text_and_empty_state`, `test_acervo_has_one_edit_panel`, `test_acervo_paginates_in_groups_of_ten`, `test_staff_can_edit_from_catalog_and_detail` | Feito, aguarda conferência visual |
 | 9 — seed seguro | `a9a323a`, `4bcd52f` | `test_dry_run_makes_no_write`, `test_apply_without_credentials_aborts`, `test_seed_mapping_categories_and_idempotency`, `test_seed_never_prints_password` | Pronto; não aplicado ao Xano |
 | 10 — limpeza da Change | `829dc3c`, `317aee7` | Nenhum teste novo; `openspec.cmd validate --specs --strict` aprovou 7 specs | Arquivada sem sincronizar specs |
+| 11 — relatório e fechamento | `bc8dd28` | Nenhum teste novo; validação da Change, specs e compilação final | Arquivada em `2026-11-22-ajustes-visuais-v3`; push pendente até este commit |
 
 ### Verificações locais
 

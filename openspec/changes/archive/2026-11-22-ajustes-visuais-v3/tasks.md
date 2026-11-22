@@ -42,7 +42,7 @@
 
 ## 11. Evidências e fechamento
 
-- [x] 11.1 Atualizar `docs/relatorio-noite.md`, registrar os commits e testes, incluir `openspec.cmd list --json` e o bloco “O que o usuário precisa publicar no Xano”, sincronizar `frontend-foundation` e `catalog`, arquivar a Change em `openspec/changes/archive/2026-11-22-ajustes-visuais-v3/` e fazer push sem `--force`. Commits principais `f5f2818`, `ad51bd2`, `eb9485e`, `24b955f`, `012b03a`, `8d987cf`, `92fa83d`, `e0b6110`, `a9a323a`, `829dc3c`; validações: `openspec.cmd validate ajustes-visuais-v3 --strict` aprovado, `openspec.cmd validate --specs --strict` 7/7 aprovado, `reflex compile --dry` aprovado e suíte final 277 passed. Visual: feito, aguarda conferência do usuário. Xano real não foi escrito.
+- [x] 11.1 Atualizar `docs/relatorio-noite.md`, registrar os commits e testes, incluir `openspec.cmd list --json` e o bloco “O que o usuário precisa publicar no Xano”, sincronizar `frontend-foundation` e `catalog`, arquivar a Change em `openspec/changes/archive/2026-11-22-ajustes-visuais-v3/` e fazer push sem `--force`. Commits principais `f5f2818`, `ad51bd2`, `eb9485e`, `24b955f`, `012b03a`, `8d987cf`, `92fa83d`, `e0b6110`, `a9a323a`, `829dc3c`, `bc8dd28`; validações: `openspec.cmd validate ajustes-visuais-v3 --strict` aprovado, `openspec.cmd validate --specs --strict` 7/7 aprovado, `reflex compile --dry` aprovado e suíte final 277 passed. Visual: feito, aguarda conferência do usuário. Xano real não foi escrito.
 
 ## Workflow follow-up
 
