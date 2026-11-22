@@ -109,6 +109,10 @@ class State(rx.State):
     admin_catalog_has_error: bool = False
     admin_catalog_pending: bool = False
     admin_catalog_needs_manual_check: bool = False
+    admin_catalog_confirm_title_id: int | None = None
+    admin_catalog_title_action_title_id: int | None = None
+    admin_catalog_title_action_message: str = ""
+    admin_catalog_title_action_error: bool = False
     _session_token: str = ""
     _session_profile: str = ""
     _session_name: str = ""
@@ -1569,8 +1573,13 @@ class State(rx.State):
             XanoRequestError,
             XanoResponseError,
         ) as error:
-            self.admin_catalog_message = catalog_error_message(error)
+            message = catalog_error_message(error)
+            self.admin_catalog_message = message
             self.admin_catalog_has_error = True
+            self.admin_catalog_title_action_title_id = title_id
+            self.admin_catalog_title_action_message = message
+            self.admin_catalog_title_action_error = True
+            self.admin_catalog_confirm_title_id = None
         finally:
             self.admin_catalog_pending = False
 
@@ -1632,6 +1641,19 @@ class State(rx.State):
         await self._refresh_admin_catalog()
 
     @rx.event
+    def request_title_deactivation(self, title_id: int):
+        self.admin_catalog_confirm_title_id = title_id
+        self.admin_catalog_title_action_title_id = title_id
+        self.admin_catalog_title_action_message = "Confirme a desativação deste título."
+        self.admin_catalog_title_action_error = False
+
+    @rx.event
+    def cancel_title_deactivation(self):
+        self.admin_catalog_confirm_title_id = None
+        self.admin_catalog_title_action_message = ""
+        self.admin_catalog_title_action_error = False
+
+    @rx.event
     async def set_title_active(self, title_id: int, active: bool):
         if not self._is_librarian():
             return self._redirect_non_librarian()
@@ -1642,6 +1664,9 @@ class State(rx.State):
         if type(title_id) is not int or title_id < 1 or type(active) is not bool:
             self.admin_catalog_message = "Não foi possível identificar o título."
             self.admin_catalog_has_error = True
+            return
+        if not active and self.admin_catalog_confirm_title_id != title_id:
+            self.request_title_deactivation(title_id)
             return
 
         entry = next(
@@ -1674,6 +1699,9 @@ class State(rx.State):
         form_data["ano_publicacao"] = str(year) if year is not None else ""
         try:
             self.admin_catalog_pending = True
+            self.admin_catalog_title_action_title_id = title_id
+            self.admin_catalog_title_action_message = "Processando..."
+            self.admin_catalog_title_action_error = False
             payload = build_title_payload(form_data)
             await update_title(
                 title_id,
@@ -1697,6 +1725,10 @@ class State(rx.State):
             "Título reativado." if active else "Título desativado."
         )
         self.admin_catalog_has_error = False
+        self.admin_catalog_confirm_title_id = None
+        self.admin_catalog_title_action_title_id = title_id
+        self.admin_catalog_title_action_message = self.admin_catalog_message
+        self.admin_catalog_title_action_error = False
         await self._refresh_admin_catalog()
 
     @rx.event
@@ -3901,13 +3933,38 @@ def admin_title_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
             ),
             rx.cond(
                 title["ativo"],
-                rx.button(
-                    rx.el.span("🚫", aria_hidden="true"),
-                    rx.text(" Desativar título"),
-                    type="button",
-                    on_click=State.set_title_active(title["id"], False),
-                    disabled=State.admin_catalog_pending,
-                    class_name="destructive-action",
+                rx.cond(
+                    State.admin_catalog_confirm_title_id == title["id"],
+                    rx.fragment(
+                        rx.button(
+                            rx.text("Confirmar desativação"),
+                            type="button",
+                            on_click=State.set_title_active(title["id"], False),
+                            disabled=State.admin_catalog_pending,
+                            class_name="destructive-action",
+                        ),
+                        rx.button(
+                            "Cancelar",
+                            type="button",
+                            on_click=State.cancel_title_deactivation,
+                            disabled=State.admin_catalog_pending,
+                            class_name="focus-demo-button",
+                        ),
+                    ),
+                    rx.button(
+                        rx.cond(
+                            State.admin_catalog_pending,
+                            rx.text("Processando..."),
+                            rx.fragment(
+                                rx.el.span("🚫", aria_hidden="true"),
+                                rx.text(" Desativar título"),
+                            ),
+                        ),
+                        type="button",
+                        on_click=State.request_title_deactivation(title["id"]),
+                        disabled=State.admin_catalog_pending,
+                        class_name="destructive-action",
+                    ),
                 ),
                 rx.button(
                     rx.el.span("♻️", aria_hidden="true"),
@@ -3920,6 +3977,24 @@ def admin_title_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
             ),
             flex_wrap="wrap",
             align="center",
+        ),
+        rx.cond(
+            State.admin_catalog_title_action_title_id == title["id"],
+            rx.el.p(
+                State.admin_catalog_title_action_message,
+                role=rx.cond(
+                    State.admin_catalog_title_action_error,
+                    "alert",
+                    "status",
+                ),
+                aria_live="polite",
+                class_name=rx.cond(
+                    State.admin_catalog_title_action_error,
+                    "signup-feedback signup-feedback-error",
+                    "signup-feedback signup-feedback-success",
+                ),
+            ),
+            rx.fragment(),
         ),
         class_name="admin-title-card",
     )

@@ -57,3 +57,4 @@ Estas validações são somente backlog. Nenhuma operação remota no Xano foi e
 - [ ] Confirmar que `GET /minhas/solicitacoes` retorna `solicitada_em` quando a jornada exigir a data do pedido.
 - [ ] Disponibilizar uma contagem confiável de empréstimos por título para uma futura seção de popularidade no catálogo.
 - [ ] Definir um endpoint autorizado para alteração genérica do perfil de contas; até então, a interface limita a gestão ao cadastro, ativação e desativação de bibliotecários.
+- [ ] Confirmar em runtime o comportamento de `PATCH /catalogo/titulos/{titulo_id}` para desativar e reativar títulos. O arquivo local e o pull somente de definições são `xano/api/default/catalogo/titulos_id_PATCH.xs` e `api/biblioteca/catalogo/titulos/titulo_id_PATCH.xs`; validar perfil, empréstimo ativo, reserva ativa e respostas 404/403/200 sem gravar dados reais. O usuário precisa publicar ou confirmar esta rota no ambiente antes de testar desativação remota.

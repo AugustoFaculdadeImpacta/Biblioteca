@@ -109,6 +109,18 @@ def test_public_catalog_detail_treats_inactive_title_as_not_found(monkeypatch):
     assert error.value.status_code == 404
 
 
+def test_admin_actions_handle_success_404_403_and_connection():
+    assert catalog_error_message(XanoResponseError(404)) == (
+        "O recurso não foi encontrado ou a rota ainda não está disponível."
+    )
+    assert catalog_error_message(XanoResponseError(403)) == (
+        "Sua conta não tem permissão para acessar este recurso."
+    )
+    assert catalog_error_message(XanoRequestError("Falha de rede")) == (
+        "Não foi possível se comunicar com o serviço Xano. Verifique a conexão e tente novamente."
+    )
+
+
 def test_catalog_error_message_allows_only_known_business_messages(monkeypatch):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
     responses = [
@@ -284,6 +296,8 @@ def test_admin_catalog_edits_titles_and_adds_copies_without_repeating_writes(
             assert updates[0][3] is None
             assert state.admin_catalog_message == "Título atualizado."
 
+            state.request_title_deactivation(81)
+            assert state.admin_catalog_confirm_title_id == 81
             await state.set_title_active(81, False)
             assert updates[1][0] == 81
             assert updates[1][3] is False
