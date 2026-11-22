@@ -13,7 +13,7 @@
 ## 3. Acervo e desativação
 
 - [x] 3.1 Exibir o Acervo em lista vertical com miniatura 72×108, dados e ações solicitados, busca sem acentos, painel único de edição/exemplares, dez itens por página e filtro de desativados desligado; validar busca, painéis, paginação, estados inativos e catálogo público com testes novos/alterados em `tests/test_admin_catalog.py`.
-- [ ] 3.2 Confirmar desativação após recarregar e comparar `ativo`; testar sucesso real, sucesso aparente, 403, 404 e falta de conexão em `tests/test_admin_catalog.py`. Em Apply, confirmar workspace/branch/ambiente pelo Xano CLI e comparar somente definições locais/remotas por pull de leitura em pasta temporária externa ao repositório; se a definição local estiver errada, corrigir apenas o arquivo local e registrar a publicação pendente em `docs/publicacao-xano-pendente.md`, sem sincronizar nem publicar.
+- [x] 3.2 Confirmar desativação após recarregar e comparar `ativo`; testar sucesso real, sucesso aparente, 403, 404 e falta de conexão em `tests/test_admin_catalog.py`. Em Apply, confirmar workspace/branch/ambiente pelo Xano CLI e comparar somente definições locais/remotas por pull de leitura em pasta temporária externa ao repositório; se a definição local estiver errada, corrigir apenas o arquivo local e registrar a publicação pendente em `docs/publicacao-xano-pendente.md`, sem sincronizar nem publicar.
 
 ## 4. Reservas e seed
 
