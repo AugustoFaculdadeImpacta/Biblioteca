@@ -6,11 +6,11 @@
 
 ## 2. Compartilhar acessibilidade com visitantes
 
-- [ ] 2.1 Reutilizar no Perfil visitante os controles de fonte, alto contraste, redução de movimento e modo escuro; adicionar `test_visitor_profile_menu_exposes_shared_accessibility_controls`; criar commit em português e, após ele, executar `.\.venv\Scripts\python.exe -m reflex compile --dry` e `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`.
+- [x] 2.1 Reutilizar no Perfil visitante os controles de fonte, alto contraste, redução de movimento e modo escuro. Commit `537a649`. Teste novo: `test_visitor_profile_menu_exposes_shared_accessibility_controls`. Verificação: `reflex compile --dry` aprovado; `pytest --ignore=evaluation -q`: 246 passed. Visual: feito, aguarda conferência do usuário.
 
 ## 3. Persistir somente preferências de aparência
 
-- [ ] 3.1 Persistir tema, escala, contraste e movimento na chave local `biblioteca-aparencia`, migrando apenas as três preferências legadas, aplicando o tema antes da pintura em todas as rotas e preservando valores ao sair; adicionar `test_appearance_preferences_bootstrap_on_every_route`, `test_appearance_storage_contains_only_four_preferences`, `test_appearance_storage_never_contains_session_data` e `test_legacy_accessibility_preferences_migrate`; criar commit em português e, após ele, executar `.\.venv\Scripts\python.exe -m reflex compile --dry` e `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`.
+- [x] 3.1 Persistir tema, escala, contraste e movimento na chave local `biblioteca-aparencia`, migrando apenas as três preferências legadas e aplicando o tema em todas as rotas antes da pintura. Commit `9d85754`. Testes novos: `test_appearance_preferences_bootstrap_on_every_route`, `test_appearance_storage_contains_only_four_preferences`, `test_appearance_storage_never_contains_session_data`, `test_legacy_accessibility_preferences_migrate`, `test_appearance_controls_enforce_limits_and_apply_classes`. Atualizados: `test_visitor_profile_menu_exposes_shared_accessibility_controls`, `test_profile_disclosure_escape_and_outside_click_script`, `test_accessibility_page_reuses_existing_controls`, `test_dark_mode_toggles_scoped_theme_tokens`, `test_dark_mode_follows_system_and_persists_appearance`. Verificação local após o commit: Reflex compilou; pytest: 249 passed. Visual: feito, aguarda conferência do usuário.
 
 ## 4. Completar e verificar o tema escuro
 
