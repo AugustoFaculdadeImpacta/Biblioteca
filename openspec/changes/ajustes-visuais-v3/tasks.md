@@ -18,7 +18,7 @@
 
 ## 5. Animações leves e reduzidas
 
-- [ ] 5.1 Adicionar entrada de página, cascata limitada, elevação, zoom de capa, abertura do menu, gradiente flutuante do hero, transição de tema e pulso único dos selos; verificar todas as regras com `test_motion_rules_have_reduced_motion_override`.
+- [x] 5.1 Adicionar entrada de página, cascata limitada, elevação, zoom de capa, abertura do menu, gradiente flutuante do hero, transição de tema e pulso único dos selos; verificar todas as regras com `test_motion_rules_have_reduced_motion_override`. Commit `012b03a`. Verificação: `reflex compile --dry` aprovado; `pytest --ignore=evaluation -q`: 263 passed. Visual: feito, aguarda conferência do usuário.
 
 ## 6. Capas únicas
 
