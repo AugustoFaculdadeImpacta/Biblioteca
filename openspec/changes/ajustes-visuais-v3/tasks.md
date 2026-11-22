@@ -22,7 +22,7 @@
 
 ## 6. Capas únicas
 
-- [ ] 6.1 Criar `biblioteca_mais_nova/covers.py`, derivar `capa_gerada` nas entradas e usá-la em home, catálogo, detalhe e Acervo; verificar com `test_generated_cover_is_deterministic`, `test_generated_cover_is_distinct_across_seed_titles`, `test_generated_cover_has_no_external_scripts`, `test_generated_cover_handles_invalid_data` e limites do grid.
+- [x] 6.1 Criar `biblioteca_mais_nova/covers.py`, derivar `capa_gerada` nas entradas e usá-la em home, catálogo, detalhe e Acervo; verificar com `test_generated_cover_is_deterministic`, `test_generated_cover_is_distinct_across_seed_titles`, `test_generated_cover_has_no_external_scripts`, `test_generated_cover_handles_invalid_data` e limites do grid. Commits `8d987cf` e `cfc1792`. Verificação: `reflex compile --dry` aprovado; `pytest --ignore=evaluation -q`: 268 passed. Visual: feito, aguarda conferência do usuário.
 
 ## 7. Diagnóstico e ações operacionais
 
