@@ -20,6 +20,7 @@ O sistema MUST apresentar uma estrutura comum com a home como vitrine pública e
 #### Scenario: Navegação por teclado
 - **WHEN** visitante percorre a estrutura base usando teclado
 - **THEN** os controles podem ser alcançados e ativados sem ponteiro, com foco visível
+
 ### Requirement: Controles interativos exibem foco visível
 O sistema MUST apresentar um indicador visual distinguível de foco `:focus-visible` em campos e botões quando alcançados por navegação de teclado. Campos de texto MUST ter uma única demarcação visual, altura mínima de 44 px e foco perceptível no controle que os contém, sem borda ou sombra duplicada no conteúdo interno.
 
@@ -34,6 +35,7 @@ O sistema MUST apresentar um indicador visual distinguível de foco `:focus-visi
 #### Scenario: Foco por teclado em botão
 - **WHEN** visitante move o foco para um botão usando teclado
 - **THEN** o botão apresenta um indicador visual de foco perceptível
+
 ### Requirement: Cliente Xano usa configuração de ambiente no backend
 O sistema MUST enviar requisições ao Xano a partir do backend Reflex e obter a URL base de uma variável de ambiente, sem embutir a URL no código cliente ou no bundle público.
 
@@ -44,6 +46,7 @@ O sistema MUST enviar requisições ao Xano a partir do backend Reflex e obter a
 #### Scenario: URL base ausente ou inválida
 - **WHEN** o cliente precisa enviar uma requisição e `XANO_API_BASE_URL` está ausente ou inválida
 - **THEN** o backend informa um erro de configuração sem realizar a requisição
+
 ### Requirement: Token de sessão permanece privado no backend Reflex
 O sistema MUST manter o token de sessão somente em estado isolado por sessão no backend Reflex e impedir que ele seja exposto ao navegador, ao bundle público ou aos logs da aplicação.
 
@@ -58,6 +61,7 @@ O sistema MUST manter o token de sessão somente em estado isolado por sessão n
 #### Scenario: Registro de erros de rede
 - **WHEN** uma requisição autenticada falha
 - **THEN** o erro apresentado e os logs não contêm o token nem o cabeçalho de autorização
+
 ### Requirement: Navegação compartilhada apresenta opções adequadas à sessão
 
 A aplicação MUST exibir em todas as telas uma barra compacta de uma linha, com a marca ligada a `/`, acesso ao catálogo e opções coerentes com a identidade e a visão ativa. O controle Perfil MUST apresentar os dados e ações adequados sem expor token ou senha.
@@ -137,13 +141,13 @@ A caixa Perfil e a caixa Acessibilidade MUST fechar por Escape e por interação
 - **WHEN** pessoa alcança Perfil por teclado, expande a caixa e pressiona Escape
 - **THEN** a caixa fecha e o foco retorna ao controle Perfil
 
-#### Scenario: Fechar ao clicar fora
-- **WHEN** qualquer uma das caixas está expandida e pessoa ativa outro ponto da página
-- **THEN** a caixa fecha sem impedir a ação no destino
-
 #### Scenario: Fechar Acessibilidade por Escape
 - **WHEN** pessoa expande Acessibilidade e pressiona Escape
 - **THEN** Acessibilidade fecha e o foco retorna ao controle Acessibilidade
+
+#### Scenario: Fechar ao clicar fora
+- **WHEN** qualquer uma das caixas está expandida e pessoa ativa outro ponto da página
+- **THEN** a caixa fecha sem impedir a ação no destino
 
 #### Scenario: Abrir uma caixa fecha a outra
 - **WHEN** Perfil ou Acessibilidade está aberta e pessoa abre a outra caixa
@@ -190,12 +194,14 @@ O sistema MUST oferecer alternância de tema escuro com tokens aplicados ao cont
 #### Scenario: Alto contraste permanece disponível
 - **WHEN** pessoa usa qualquer tema e ativa alto contraste
 - **THEN** os tokens de alto contraste continuam aplicados e os controles permanecem operáveis por teclado
+
 ### Requirement: Login oferece acesso ao catálogo público
 A tela de login MUST oferecer uma ação claramente rotulada para acessar o catálogo público sem autenticação.
 
 #### Scenario: Visitante abre catálogo pelo login
 - **WHEN** visitante ativa “Ver catálogo sem entrar” na tela de login
 - **THEN** o sistema abre o catálogo público sem exigir sessão autenticada
+
 ### Requirement: Preferências de acessibilidade são globais e persistentes
 O sistema MUST oferecer controles de acessibilidade operáveis por teclado, aplicar suas escolhas em todas as telas e preservá-las entre navegações e recargas no mesmo navegador.
 
@@ -230,6 +236,7 @@ O sistema MUST oferecer controles de acessibilidade operáveis por teclado, apli
 #### Scenario: Layout permanece utilizável em telas estreitas e largas
 - **WHEN** a aplicação é exibida nas larguras de 360px ou 1366px
 - **THEN** o conteúdo e os controles de acessibilidade não provocam rolagem horizontal
+
 ### Requirement: Telas principais mantêm hierarquia visual coerente
 A aplicação MUST apresentar uma hierarquia visual consistente entre autenticação, catálogo, área pessoal, acervo e circulação, sem reduzir legibilidade ou acessibilidade.
 
@@ -244,6 +251,7 @@ A aplicação MUST apresentar uma hierarquia visual consistente entre autentica�
 #### Scenario: Listas operacionais em tela estreita
 - **WHEN** pessoa consulta tabelas ou listas operacionais em viewport de 360 px
 - **THEN** conteúdo permanece legível e qualquer rolagem horizontal fica contida na própria lista, sem rolagem horizontal da página
+
 ### Requirement: Navegação administrativa oferece acesso às reservas por estudante
 
 A interface MUST oferecer acesso à tela de reservas administrativas somente a bibliotecários e admins autenticados, mantendo a autorização do backend para qualquer busca ou criação.
@@ -263,6 +271,7 @@ A interface MUST oferecer acesso à tela de reservas administrativas somente a b
 #### Scenario: Perfil sem privilégio tenta acessar a tela
 - **WHEN** visitante ou estudante acessa diretamente `/admin/reservas`
 - **THEN** a interface bloqueia ou redireciona e não envia busca de estudante nem criação de reserva
+
 ### Requirement: Execução local do Reflex funciona no Windows
 
 O projeto MUST oferecer um fluxo documentado para iniciar frontend e backend Reflex no Windows com `reflex run`, sem editar manualmente a saída gerada nem reduzir as proteções do sistema operacional.
@@ -274,6 +283,7 @@ O projeto MUST oferecer um fluxo documentado para iniciar frontend e backend Ref
 #### Scenario: Configuração regenerada
 - **WHEN** o Reflex recria seus arquivos de frontend gerados
 - **THEN** o fluxo documentado continua iniciando a aplicação sem depender de edições manuais nesses arquivos
+
 ### Requirement: Falha de inicialização preserva o erro original
 
 O projeto MUST encerrar os processos iniciados pela tentativa e apresentar a falha original de inicialização sem substituí-la por uma exceção secundária de limpeza.
@@ -291,7 +301,7 @@ O cabeçalho MUST oferecer aos visitantes os controles globais de aparência, se
 
 #### Scenario: Controles de aparência no Perfil visitante
 - **WHEN** visitante abre o controle Acessibilidade
-- **THEN** pode ajustar tamanho da fonte, alto contraste, redução de movimento e modo escuro, além de abrir Entrar ou Cadastrar-se
+- **THEN** pode ajustar tamanho da fonte, alto contraste, redução de movimento e modo escuro, além de abrir Entrar ou Cadastrar-se pelo controle Perfil
 
 #### Scenario: Perfil do visitante
 - **WHEN** visitante abre Perfil
