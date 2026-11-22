@@ -26,7 +26,7 @@
 
 ## 7. Registrar evidências e fechar a Change
 
-- [ ] 7.1 Atualizar `docs/relatorio-noite.md` com item, commit, testes e status visual “feito, aguarda conferência do usuário” ou pendência Xano; validar a Change e as specs com `openspec.cmd validate ajustes-visuais-v2 --strict` e `openspec.cmd validate --specs --strict`, sincronizar `frontend-foundation`, arquivar usando o fluxo OpenSpec, validar novamente, criar commit final em português e fazer push sem `--force`.
+- [x] 7.1 Atualizar `docs/relatorio-noite.md`, sincronizar `frontend-foundation` e arquivar a Change. Commit de sincronização/archive `e16ec8e`. Sem testes de código novos ou alterados neste item; regressões incluídas na suíte: `test_staff_admin_workflows_have_visible_feedback_and_empty_states`, `test_destructive_operations_are_visually_distinct`, `test_operational_lists_keep_horizontal_scroll_inside_container` (256 passed). Validações: `openspec.cmd validate ajustes-visuais-v2 --strict` aprovado antes do archive; `openspec.cmd validate --specs --strict` aprovado antes e depois; `openspec.cmd validate --archived --strict` aprovou esta Change (22 passaram), com uma Change antiga incompleta; `reflex compile --dry` aprovado após o commit; `pytest --ignore=evaluation -q` isolado após o commit: 256 passed. Archive: `2026-11-22-ajustes-visuais-v2`; sem alterações adicionais de specs pelo comando de archive porque a sincronização já estava concluída. Push final sem `--force`.
 
 ## Workflow follow-up
 

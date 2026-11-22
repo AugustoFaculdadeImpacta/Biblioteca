@@ -741,6 +741,7 @@ O backlog em `openspec/changes/validacao-remota-xano/tasks.md` agora mantém abe
 | Item | Commit | Testes novos/alterados ou regressões | Status |
 |---|---|---|---|
 | 6 — Jornadas de bibliotecário e admin | `e254525` | Novos: `test_staff_admin_workflows_have_visible_feedback_and_empty_states`, `test_destructive_operations_are_visually_distinct`, `test_operational_lists_keep_horizontal_scroll_inside_container`. Regressões: `test_staff_reservations_tabs_reuse_current_operations`, `test_admin_accounts_search_and_supported_actions`, `test_header_navigation_by_profile_and_view`. Suíte: 256 passaram. | Feito, aguarda conferência do usuário |
+| 7 — Sincronização e arquivamento | `e16ec8e` | Sem testes de código novos/alterados; regressões: `test_staff_admin_workflows_have_visible_feedback_and_empty_states`, `test_destructive_operations_are_visually_distinct`, `test_operational_lists_keep_horizontal_scroll_inside_container` (256 passaram). Validações estritas da Change e das specs aprovadas. | Arquivada em `2026-11-22-ajustes-visuais-v2`; Xano não tocado |
 
 ### Achados e dependências Xano
 
@@ -754,3 +755,5 @@ O backlog em `openspec/changes/validacao-remota-xano/tasks.md` agora mantém abe
 
 - Após o commit `e254525`, `.\.venv\Scripts\python.exe -m reflex compile --dry`: aprovado.
 - Após o commit `e254525`, `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`: 256 passaram.
+- Após o commit `e16ec8e`, `.\.venv\Scripts\python.exe -m reflex compile --dry`: aprovado; a suíte foi repetida isoladamente após uma corrida de coleta observada ao executá-la em paralelo com o compile, com 256 testes aprovados.
+- As validações globais também encontraram pendências preexistentes fora desta Change: `openspec.cmd validate --archived --strict` marcou somente `2026-11-17-devolvido-em-nulavel` (20 tarefas ainda abertas; a Change desta execução passou); `openspec.cmd validate --changes --strict` apontou `refino-visual-biblioteca` por cenários omitidos no delta e uma informação de requisito já existente em `execucao-reflex-windows`. Essas Changes não foram alteradas.
