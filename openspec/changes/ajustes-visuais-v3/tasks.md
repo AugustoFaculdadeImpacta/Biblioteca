@@ -38,7 +38,7 @@
 
 ## 10. Limpeza da Change refino-visual-biblioteca
 
-- [ ] 10.1 Arquivar `refino-visual-biblioteca` sem sincronizar specs, registrar o motivo no relatório e confirmar as specs consolidadas com `openspec.cmd validate --specs --strict`.
+- [x] 10.1 Arquivar `refino-visual-biblioteca` sem sincronizar specs, registrar o motivo no relatório e confirmar as specs consolidadas com `openspec.cmd validate --specs --strict`. Commit `829dc3c`. Motivo: a Change 1/13 foi superada pelas Changes `simplifica-navegacao` e `ajustes-visuais-v2`, além desta v3; o arquivo foi arquivado sem atualizar specs. Verificação: `openspec.cmd validate --specs --strict`: 7 specs aprovadas.
 
 ## 11. Evidências e fechamento
 
