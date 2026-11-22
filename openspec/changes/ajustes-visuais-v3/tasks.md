@@ -30,7 +30,7 @@
 
 ## 8. Acervo compacta
 
-- [ ] 8.1 Implementar busca normalizada, cadastro fechado, uma edição aberta por vez, “Mostrar mais”, lista compacta e edição staff no catálogo/detalhe; verificar com `test_acervo_search_normalizes_text_and_empty_state`, `test_acervo_has_one_edit_panel`, `test_acervo_paginates_in_groups_of_ten`, `test_staff_can_edit_from_catalog_and_detail`.
+- [x] 8.1 Implementar busca normalizada, cadastro fechado, uma edição aberta por vez, “Mostrar mais”, lista compacta e edição staff no catálogo/detalhe; verificar com `test_acervo_search_normalizes_text_and_empty_state`, `test_acervo_has_one_edit_panel`, `test_acervo_paginates_in_groups_of_ten`, `test_staff_can_edit_from_catalog_and_detail`. Commit `e0b6110`. Verificação: `reflex compile --dry` aprovado; `pytest --ignore=evaluation -q`: 273 passed. Visual: feito, aguarda conferência do usuário.
 
 ## 9. Seed seguro
 
