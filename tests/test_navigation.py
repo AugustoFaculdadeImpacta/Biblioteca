@@ -523,7 +523,7 @@ def test_visitor_profile_menu_exposes_shared_accessibility_controls():
     menu = _readable(component)
 
     assert _serialized_class_count(component, "profile-appearance-controls") == 2
-    assert "data-dark-mode-toggle" in menu
+    assert "data-appearance-action" in menu
     assert "Diminuir fonte" in menu
     assert "Aumentar fonte" in menu
     assert "Ativar alto contraste" in menu
@@ -543,7 +543,7 @@ def test_profile_disclosure_uses_details_without_rx_menu():
 
 
 def test_profile_disclosure_escape_and_outside_click_script():
-    script = _readable(frontend.profile_menu())
+    script = frontend._APPEARANCE_SCRIPT
 
     assert "__bibliotecaProfileDisclosureInstalled" in script
     assert 'event.key !== "Escape"' in script
@@ -657,9 +657,7 @@ def test_accessibility_page_reuses_existing_controls():
     assert "Aumentar fonte" in page
     assert "Ativar alto contraste" in page
     assert "Reduzir movimento" in page
-    assert "increase_accessibility_font" in page
-    assert "toggle_accessibility_high_contrast" in page
-    assert "toggle_accessibility_reduce_motion" in page
+    assert "data-appearance-action" in page
     assert "aria-pressed" in page
     assert style[".a11y-controls button"]["min_height"] == "2.75rem"
 
@@ -717,68 +715,97 @@ def test_header_navigation_by_profile_and_view():
     asyncio.run(verify())
 
 
-def test_accessibility_font_limits_restoration_and_invalid_storage():
-    async def verify():
-        async with frontend.app.modify_state(
-            BaseStateToken(ident=f"accessibility-font-{uuid4()}", cls=rx.State)
-        ) as root:
-            state = await root.get_state(frontend.State)
-            state.accessibility_font_scale_raw = "150"
-            state.increase_accessibility_font()
-            assert state.accessibility_font_scale == 150
-            assert state.accessibility_font_scale_raw == "150"
-
-            state.accessibility_font_scale_raw = "100"
-            state.decrease_accessibility_font()
-            assert state.accessibility_font_scale == 100
-            assert state.accessibility_font_scale_raw == "100"
-
-            state.accessibility_font_scale_raw = "bogus"
-            assert state.accessibility_font_scale == 100
-            state.increase_accessibility_font()
-            assert state.accessibility_font_scale_raw == "110"
-
-            state.reset_accessibility_font()
-            assert state.accessibility_font_scale == 100
-
-    asyncio.run(verify())
+def test_appearance_preferences_bootstrap_on_every_route():
+    assert len(frontend.app.head_components) == 1
+    assert "localStorage" in repr(frontend.app.head_components[0])
+    assert all(
+        page.component().class_name == "a11y-shell"
+        for page in frontend.app._unevaluated_pages.values()
+    )
+    assert "window.localStorage.getItem(key)" in frontend._APPEARANCE_SCRIPT
+    assert "new MutationObserver(apply)" in frontend._APPEARANCE_SCRIPT
 
 
-def test_accessibility_toggle_state_is_validated_and_reflected_globally():
-    async def verify():
-        async with frontend.app.modify_state(
-            BaseStateToken(ident=f"accessibility-modes-{uuid4()}", cls=rx.State)
-        ) as root:
-            state = await root.get_state(frontend.State)
-            state.accessibility_high_contrast_raw = "invalid"
-            state.accessibility_reduce_motion_raw = "invalid"
-            assert state.accessibility_high_contrast is False
-            assert state.accessibility_reduce_motion is False
+def test_appearance_storage_contains_only_four_preferences():
+    script = frontend._APPEARANCE_SCRIPT
+    normalized = re.search(
+        r"const normalize = .*?return \{(.*?)\n\s*\};",
+        script,
+        re.DOTALL,
+    )
+    assert normalized is not None
+    normalized_fields = set(
+        re.findall(
+            r"^\s*([A-Za-z][A-Za-z0-9]*):",
+            normalized.group(1),
+            re.MULTILINE,
+        )
+    )
+    assert normalized_fields == {
+        "theme",
+        "fontScale",
+        "highContrast",
+        "reduceMotion",
+    }
+    assert re.findall(
+        r"window\.localStorage\.setItem\(([^,]+),",
+        script,
+    ) == ["key", "key", "key"]
 
-            state.toggle_accessibility_high_contrast()
-            state.toggle_accessibility_reduce_motion()
-            assert state.accessibility_high_contrast is True
-            assert state.accessibility_reduce_motion is True
-            assert state.accessibility_classes == (
-                "a11y-shell a11y-high-contrast a11y-reduce-motion"
-            )
 
-            state.toggle_accessibility_high_contrast()
-            state.toggle_accessibility_reduce_motion()
-            assert state.accessibility_high_contrast is False
-            assert state.accessibility_reduce_motion is False
-            assert state.accessibility_classes == "a11y-shell"
+def test_appearance_storage_never_contains_session_data():
+    script = frontend._APPEARANCE_SCRIPT
+    source = Path(frontend.__file__).read_text(encoding="utf-8")
 
-    asyncio.run(verify())
+    assert "rx.LocalStorage" not in source
+    assert "sessionStorage" not in script
+    assert "document.cookie" not in script
+    assert "token" not in script
+    assert "session_email" not in script
+    assert "greeting_name" not in script
+
+
+def test_legacy_accessibility_preferences_migrate():
+    script = frontend._APPEARANCE_SCRIPT
+    legacy = re.search(r"const legacyKeys = \[(.*?)\];", script, re.DOTALL)
+
+    assert legacy is not None
+    assert re.findall(r'"([^"]+)"', legacy.group(1)) == [
+        "biblioteca-acessibilidade-fonte",
+        "biblioteca-acessibilidade-contraste",
+        "biblioteca-acessibilidade-movimento",
+    ]
+    assert "if (saved !== null)" in script
+    assert "if (hasLegacy)" in script
+    assert (
+        "legacyKeys.forEach((oldKey) => window.localStorage.removeItem(oldKey))"
+        in script
+    )
+
+
+def test_appearance_controls_enforce_limits_and_apply_classes():
+    script = frontend._APPEARANCE_SCRIPT
+
+    assert "Math.max(100, preferences.fontScale - 10)" in script
+    assert "Math.min(150, preferences.fontScale + 10)" in script
+    assert (
+        'shell.classList.toggle("a11y-high-contrast", preferences.highContrast)'
+        in script
+    )
+    assert (
+        'shell.classList.toggle("a11y-reduce-motion", preferences.reduceMotion)'
+        in script
+    )
 
 
 def test_dark_mode_toggles_scoped_theme_tokens():
     menu = _readable(frontend.profile_menu())
     style = frontend.app.style
-    script = menu
+    script = frontend._APPEARANCE_SCRIPT
 
     assert "Modo escuro" in menu
-    assert "data-dark-mode-toggle" in menu
+    assert "data-appearance-action" in menu
+    assert 'button.setAttribute("aria-checked", String(dark))' in script
     assert "a11y-dark" in script
     assert "a11y-light" in script
     assert ".a11y-shell.a11y-dark" in style
@@ -786,13 +813,12 @@ def test_dark_mode_toggles_scoped_theme_tokens():
     assert "background_color" not in style.get(":root", {})
 
 
-def test_dark_mode_follows_system_without_persistence():
-    menu = _readable(frontend.profile_menu())
-    script = menu
+def test_dark_mode_follows_system_and_persists_appearance():
+    script = frontend._APPEARANCE_SCRIPT
 
     assert "prefers-color-scheme: dark" in script
     assert "window.matchMedia" in script
-    assert "localStorage" not in script
+    assert 'const key = "biblioteca-aparencia"' in script
     assert "sessionStorage" not in script
     assert "document.cookie" not in script
 

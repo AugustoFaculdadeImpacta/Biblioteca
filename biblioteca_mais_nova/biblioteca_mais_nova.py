@@ -112,15 +112,6 @@ class State(rx.State):
     _session_name: str = ""
     _session_email: str = ""
     _admin_view_mode: str = ""
-    accessibility_font_scale_raw: str = rx.LocalStorage(
-        "100", name="biblioteca-acessibilidade-fonte", sync=True
-    )
-    accessibility_high_contrast_raw: str = rx.LocalStorage(
-        "false", name="biblioteca-acessibilidade-contraste", sync=True
-    )
-    accessibility_reduce_motion_raw: str = rx.LocalStorage(
-        "false", name="biblioteca-acessibilidade-movimento", sync=True
-    )
     _catalog_title_id: int | None = None
     _pending_category_ids: list[int] = []
     _uncertain_category_ids: list[int] = []
@@ -232,64 +223,6 @@ class State(rx.State):
     @rx.event
     def close_mobile_navigation(self):
         self.mobile_navigation_open = False
-
-    def _valid_accessibility_font_scale(self) -> int:
-        try:
-            scale = int(self.accessibility_font_scale_raw)
-        except (TypeError, ValueError):
-            return 100
-        return scale if scale in range(100, 151, 10) else 100
-
-    @rx.var
-    def accessibility_font_scale(self) -> int:
-        return self._valid_accessibility_font_scale()
-
-    @rx.var
-    def accessibility_font_size(self) -> str:
-        return f"{self.accessibility_font_scale}%"
-
-    @rx.var
-    def accessibility_high_contrast(self) -> bool:
-        return self.accessibility_high_contrast_raw == "true"
-
-    @rx.var
-    def accessibility_reduce_motion(self) -> bool:
-        return self.accessibility_reduce_motion_raw == "true"
-
-    @rx.var
-    def accessibility_classes(self) -> str:
-        classes = ["a11y-shell"]
-        if self.accessibility_high_contrast:
-            classes.append("a11y-high-contrast")
-        if self.accessibility_reduce_motion:
-            classes.append("a11y-reduce-motion")
-        return " ".join(classes)
-
-    @rx.event
-    def increase_accessibility_font(self):
-        scale = self._valid_accessibility_font_scale()
-        self.accessibility_font_scale_raw = str(min(150, scale + 10))
-
-    @rx.event
-    def decrease_accessibility_font(self):
-        scale = self._valid_accessibility_font_scale()
-        self.accessibility_font_scale_raw = str(max(100, scale - 10))
-
-    @rx.event
-    def reset_accessibility_font(self):
-        self.accessibility_font_scale_raw = "100"
-
-    @rx.event
-    def toggle_accessibility_high_contrast(self):
-        self.accessibility_high_contrast_raw = (
-            "false" if self.accessibility_high_contrast else "true"
-        )
-
-    @rx.event
-    def toggle_accessibility_reduce_motion(self):
-        self.accessibility_reduce_motion_raw = (
-            "false" if self.accessibility_reduce_motion else "true"
-        )
 
     def _read_session_token(self) -> str | None:
         return self._session_token or None
@@ -2117,58 +2050,212 @@ def admin_view_status() -> rx.Component:
     )
 
 
+_APPEARANCE_SCRIPT = r"""
+(() => {
+  if (window.__bibliotecaAppearanceInstalled) return;
+  window.__bibliotecaAppearanceInstalled = true;
+  const key = "biblioteca-aparencia";
+  const legacyKeys = [
+    "biblioteca-acessibilidade-fonte",
+    "biblioteca-acessibilidade-contraste",
+    "biblioteca-acessibilidade-movimento"
+  ];
+  const defaults = {
+    theme: "system",
+    fontScale: 100,
+    highContrast: false,
+    reduceMotion: false
+  };
+  const normalize = (value) => {
+    const source = value && typeof value === "object" ? value : {};
+    const scale = Number(source.fontScale);
+    return {
+      theme: ["system", "dark", "light"].includes(source.theme)
+        ? source.theme : "system",
+      fontScale: Number.isInteger(scale) && scale >= 100 &&
+        scale <= 150 && scale % 10 === 0 ? scale : 100,
+      highContrast: source.highContrast === true,
+      reduceMotion: source.reduceMotion === true
+    };
+  };
+  const load = () => {
+    try {
+      const saved = window.localStorage.getItem(key);
+      if (saved !== null) {
+        const preferences = normalize(JSON.parse(saved));
+        const sanitized = JSON.stringify(preferences);
+        if (saved !== sanitized) window.localStorage.setItem(key, sanitized);
+        return preferences;
+      }
+      const migrated = { ...defaults };
+      const oldFont = window.localStorage.getItem(legacyKeys[0]);
+      const oldContrast = window.localStorage.getItem(legacyKeys[1]);
+      const oldMotion = window.localStorage.getItem(legacyKeys[2]);
+      const hasLegacy = oldFont !== null || oldContrast !== null ||
+        oldMotion !== null;
+      if (oldFont !== null) migrated.fontScale = Number(oldFont);
+      if (oldContrast !== null) migrated.highContrast = oldContrast === "true";
+      if (oldMotion !== null) migrated.reduceMotion = oldMotion === "true";
+      const preferences = normalize(migrated);
+      if (hasLegacy) {
+        window.localStorage.setItem(key, JSON.stringify(preferences));
+        legacyKeys.forEach((oldKey) => window.localStorage.removeItem(oldKey));
+      }
+      return preferences;
+    } catch {
+      return { ...defaults };
+    }
+  };
+  let preferences = load();
+  const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
+  const save = () => {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(normalize(preferences)));
+    } catch {}
+  };
+  const setText = (element, value) => {
+    if (element && element.textContent !== value) element.textContent = value;
+  };
+  window.__bibliotecaProfileDisclosureInstalled = true;
+  const syncControls = () => {
+    document.querySelectorAll("[data-appearance-action]").forEach((button) => {
+      const action = button.getAttribute("data-appearance-action");
+      if (action === "font-decrease") button.disabled = preferences.fontScale <= 100;
+      if (action === "font-increase") button.disabled = preferences.fontScale >= 150;
+      if (action === "font-reset") {
+        setText(button.querySelector("[data-appearance-font-value]"),
+          `${preferences.fontScale}%`);
+      }
+      if (action === "high-contrast") {
+        setText(button, preferences.highContrast
+          ? "Alto contraste: ativo" : "Ativar alto contraste");
+        button.setAttribute("aria-pressed", String(preferences.highContrast));
+      }
+      if (action === "reduce-motion") {
+        setText(button, preferences.reduceMotion
+          ? "Movimento reduzido: ativo" : "Reduzir movimento");
+        button.setAttribute("aria-pressed", String(preferences.reduceMotion));
+      }
+      if (action === "theme") {
+        const dark = preferences.theme === "dark" ||
+          (preferences.theme === "system" && colorScheme.matches);
+        button.setAttribute("aria-checked", String(dark));
+      }
+    });
+  };
+  const apply = () => {
+    const dark = preferences.theme === "dark" ||
+      (preferences.theme === "system" && colorScheme.matches);
+    document.querySelectorAll(".a11y-shell").forEach((shell) => {
+      shell.classList.toggle("a11y-dark", dark);
+      shell.classList.toggle("a11y-light", !dark);
+      shell.classList.toggle("a11y-high-contrast", preferences.highContrast);
+      shell.classList.toggle("a11y-reduce-motion", preferences.reduceMotion);
+      shell.style.fontSize = `${preferences.fontScale}%`;
+    });
+    syncControls();
+  };
+  document.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) return;
+    const button = event.target.closest("[data-appearance-action]");
+    if (button) {
+      const action = button.getAttribute("data-appearance-action");
+      if (action === "font-decrease") {
+        preferences.fontScale = Math.max(100, preferences.fontScale - 10);
+      } else if (action === "font-increase") {
+        preferences.fontScale = Math.min(150, preferences.fontScale + 10);
+      } else if (action === "font-reset") {
+        preferences.fontScale = 100;
+      } else if (action === "high-contrast") {
+        preferences.highContrast = !preferences.highContrast;
+      } else if (action === "reduce-motion") {
+        preferences.reduceMotion = !preferences.reduceMotion;
+      } else if (action === "theme") {
+        const dark = preferences.theme === "dark" ||
+          (preferences.theme === "system" && colorScheme.matches);
+        preferences.theme = dark ? "light" : "dark";
+      } else {
+        return;
+      }
+      save();
+      apply();
+    }
+    document.querySelectorAll("details.profile-menu[open]").forEach((item) => {
+      if (!item.contains(event.target)) item.open = false;
+    });
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    const disclosure = document.querySelector("details.profile-menu[open]");
+    if (!disclosure) return;
+    document.querySelectorAll("details.profile-menu[open]").forEach((item) => {
+      item.open = false;
+    });
+    disclosure.querySelector("summary")?.focus();
+    event.preventDefault();
+  });
+  colorScheme.addEventListener("change", () => {
+    if (preferences.theme === "system") apply();
+  });
+  window.addEventListener("storage", (event) => {
+    if (event.key !== key || event.newValue === null) return;
+    try {
+      preferences = normalize(JSON.parse(event.newValue));
+    } catch {
+      preferences = { ...defaults };
+    }
+    apply();
+  });
+  new MutationObserver(apply).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class"]
+  });
+  apply();
+})();
+"""
+
+
 def profile_appearance_controls() -> rx.Component:
     return rx.el.div(
-        rx.el.div(
-            "Tamanho da fonte",
-            class_name="profile-menu-identity",
-        ),
+        rx.el.div("Tamanho da fonte", class_name="profile-menu-identity"),
         rx.el.div(
             rx.button(
                 "A−",
                 type="button",
                 aria_label="Diminuir fonte",
-                on_click=State.decrease_accessibility_font,
-                disabled=State.accessibility_font_scale <= 100,
+                data_appearance_action="font-decrease",
                 class_name="profile-menu-item",
             ),
             rx.button(
-                State.accessibility_font_size,
+                rx.el.span("100%", data_appearance_font_value="true"),
                 type="button",
                 aria_label="Tamanho atual da fonte",
-                on_click=State.reset_accessibility_font,
+                data_appearance_action="font-reset",
                 class_name="profile-menu-item",
             ),
             rx.button(
                 "A+",
                 type="button",
                 aria_label="Aumentar fonte",
-                on_click=State.increase_accessibility_font,
-                disabled=State.accessibility_font_scale >= 150,
+                data_appearance_action="font-increase",
                 class_name="profile-menu-item",
             ),
             class_name="profile-menu-controls",
         ),
         rx.button(
-            rx.cond(
-                State.accessibility_high_contrast,
-                "Alto contraste: ativo",
-                "Ativar alto contraste",
-            ),
+            "Ativar alto contraste",
             type="button",
-            aria_pressed=State.accessibility_high_contrast,
-            on_click=State.toggle_accessibility_high_contrast,
+            aria_pressed=False,
+            data_appearance_action="high-contrast",
             class_name="profile-menu-item",
         ),
         rx.button(
-            rx.cond(
-                State.accessibility_reduce_motion,
-                "Movimento reduzido: ativo",
-                "Reduzir movimento",
-            ),
+            "Reduzir movimento",
             type="button",
-            aria_pressed=State.accessibility_reduce_motion,
-            on_click=State.toggle_accessibility_reduce_motion,
+            aria_pressed=False,
+            data_appearance_action="reduce-motion",
             class_name="profile-menu-item",
         ),
         rx.el.button(
@@ -2176,7 +2263,7 @@ def profile_appearance_controls() -> rx.Component:
             type="button",
             role="switch",
             aria_checked=False,
-            data_dark_mode_toggle="true",
+            data_appearance_action="theme",
             class_name="profile-menu-item",
         ),
         class_name="profile-appearance-controls",
@@ -2286,74 +2373,6 @@ def profile_menu() -> rx.Component:
                 class_name="profile-menu-content",
             ),
             class_name="profile-menu",
-        ),
-        rx.script(
-            """
-            (() => {
-              if (window.__bibliotecaProfileDisclosureInstalled) return;
-              window.__bibliotecaProfileDisclosureInstalled = true;
-              document.addEventListener("keydown", (event) => {
-                if (event.key !== "Escape") return;
-                const disclosure = document.querySelector(
-                  "details.profile-menu[open]"
-                );
-                if (!disclosure) return;
-                document.querySelectorAll("details.profile-menu[open]")
-                  .forEach((item) => { item.open = false; });
-                disclosure.querySelector("summary")?.focus();
-                event.preventDefault();
-              });
-              document.addEventListener("click", (event) => {
-                const toggle = event.target.closest(
-                  "[data-dark-mode-toggle]"
-                );
-                if (toggle) {
-                  const shell = toggle.closest(".a11y-shell");
-                  if (shell) {
-                    const dark = shell.classList.contains("a11y-dark") ||
-                      (!shell.classList.contains("a11y-light") &&
-                        window.matchMedia(
-                          "(prefers-color-scheme: dark)"
-                        ).matches);
-                    shell.classList.toggle("a11y-dark", !dark);
-                    shell.classList.toggle("a11y-light", dark);
-                    document.querySelectorAll(
-                      "[data-dark-mode-toggle]"
-                    ).forEach((button) => {
-                      button.setAttribute("aria-checked", String(!dark));
-                    });
-                  }
-                }
-                document.querySelectorAll("details.profile-menu[open]")
-                  .forEach((item) => {
-                    if (!item.contains(event.target)) item.open = false;
-                  });
-              });
-              const initializeThemeSwitches = () => {
-                const shell = document.querySelector(".a11y-shell");
-                if (!shell) return;
-                const dark = shell.classList.contains("a11y-dark") ||
-                  (!shell.classList.contains("a11y-light") &&
-                    window.matchMedia(
-                      "(prefers-color-scheme: dark)"
-                    ).matches);
-                document.querySelectorAll(
-                  "[data-dark-mode-toggle]"
-                ).forEach((button) => {
-                  button.setAttribute("aria-checked", String(dark));
-                });
-              };
-              if (document.readyState === "loading") {
-                document.addEventListener(
-                  "DOMContentLoaded",
-                  initializeThemeSwitches,
-                  { once: true }
-                );
-              } else {
-                initializeThemeSwitches();
-              }
-            })();
-            """
         ),
     )
 
@@ -3630,7 +3649,7 @@ def accessibility_controls() -> rx.Component:
         rx.heading("Controles de acessibilidade", size="5"),
         rx.text(
             "Tamanho atual da fonte: ",
-            State.accessibility_font_size,
+            rx.el.span("100%", data_appearance_font_value="true"),
             role="status",
             aria_live="polite",
         ),
@@ -3638,46 +3657,36 @@ def accessibility_controls() -> rx.Component:
             rx.button(
                 "Diminuir fonte",
                 type="button",
-                on_click=State.decrease_accessibility_font,
-                disabled=State.accessibility_font_scale <= 100,
+                data_appearance_action="font-decrease",
                 class_name="a11y-control-button",
             ),
             rx.button(
                 "Tamanho padrão",
                 type="button",
-                on_click=State.reset_accessibility_font,
+                data_appearance_action="font-reset",
                 class_name="a11y-control-button",
             ),
             rx.button(
                 "Aumentar fonte",
                 type="button",
-                on_click=State.increase_accessibility_font,
-                disabled=State.accessibility_font_scale >= 150,
+                data_appearance_action="font-increase",
                 class_name="a11y-control-button",
             ),
             class_name="a11y-controls",
         ),
         rx.el.div(
             rx.button(
-                rx.cond(
-                    State.accessibility_high_contrast,
-                    "Alto contraste: ativo",
-                    "Ativar alto contraste",
-                ),
+                "Ativar alto contraste",
                 type="button",
-                aria_pressed=State.accessibility_high_contrast,
-                on_click=State.toggle_accessibility_high_contrast,
+                aria_pressed=False,
+                data_appearance_action="high-contrast",
                 class_name="a11y-control-button",
             ),
             rx.button(
-                rx.cond(
-                    State.accessibility_reduce_motion,
-                    "Movimento reduzido: ativo",
-                    "Reduzir movimento",
-                ),
+                "Reduzir movimento",
                 type="button",
-                aria_pressed=State.accessibility_reduce_motion,
-                on_click=State.toggle_accessibility_reduce_motion,
+                aria_pressed=False,
+                data_appearance_action="reduce-motion",
                 class_name="a11y-control-button",
             ),
             class_name="a11y-controls",
@@ -4933,11 +4942,10 @@ def accessible_page(page: Callable[[], rx.Component]) -> Callable[[], rx.Compone
     def wrapped() -> rx.Component:
         return rx.el.div(
             page(),
-            class_name=State.accessibility_classes,
+            class_name="a11y-shell",
             style={
                 "width": "100%",
                 "min_height": "100vh",
-                "font_size": State.accessibility_font_size,
             },
         )
 
@@ -6234,7 +6242,8 @@ app = rx.App(
                 "padding": "0.75rem",
             },
         },
-    }
+    },
+    head_components=[rx.script(_APPEARANCE_SCRIPT)],
 )
 app.add_page(
     accessible_page(index),
