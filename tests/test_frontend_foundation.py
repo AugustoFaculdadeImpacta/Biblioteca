@@ -137,9 +137,10 @@ def test_motion_rules_have_reduced_motion_override():
     assert "@keyframes biblioteca-profile-enter" in app.style
     assert "@keyframes biblioteca-hero-gradient" in app.style
     assert "@keyframes biblioteca-availability-pulse" in app.style
-    assert app.style[".profile-menu[open] .profile-menu-content"]["animation"].startswith(
-        "biblioteca-profile-enter"
-    )
+    assert app.style[
+        ".profile-menu[open] .profile-menu-content, "
+        ".accessibility-menu[open] .profile-menu-content"
+    ]["animation"].startswith("biblioteca-profile-enter")
     assert app.style[".status-pill-success"]["animation"].startswith(
         "biblioteca-availability-pulse"
     )
@@ -406,7 +407,7 @@ def test_touch_targets_and_keyboard_accessibility_at_mobile_viewport():
         ".campo-check-row",
         ".site-primary-nav a",
         ".site-menu-toggle",
-        ".profile-menu-trigger",
+        ".profile-menu-trigger, .accessibility-menu-trigger",
         ".profile-menu-item",
         ".admin-view-reset",
         ".a11y-controls button",
@@ -447,7 +448,7 @@ def test_shared_navigation_is_conditioned_on_private_session_profile():
     assert "active_navigation_role_rx_state_" in nav_content
     assert "Início" not in repr(header)
     assert "Meu perfil" not in repr(header)
-    assert "Acessibilidade" not in repr(header)
+    assert "Acessibilidade" in repr(header)
     assert "Aumentar fonte" in repr(header)
     assert "Modo escuro" in repr(header)
     assert "aria-controls" in repr(header)
