@@ -104,12 +104,77 @@ def test_dark_and_high_contrast_tokens_meet_wcag_aa():
     assert _contrast_ratio(dark["--slate-900"], dark["--bg-page"]) >= 4.5
     assert _contrast_ratio(dark["--slate-900"], dark["--bg-panel"]) >= 4.5
     assert _contrast_ratio(dark["--slate-700"], dark["--bg-panel"]) >= 4.5
+    assert _contrast_ratio(dark["--slate-500"], dark["--bg-page"]) >= 4.5
+    assert _contrast_ratio(dark["--brand-text"], dark["--bg-panel"]) >= 4.5
+    assert _contrast_ratio(dark["--brand-text"], dark["--bg-soft"]) >= 4.5
+    assert _contrast_ratio(dark["--brand-text"], dark["--brand-100"]) >= 4.5
     assert _contrast_ratio(dark["--brand-700"], dark["--bg-panel"]) >= 4.5
+    assert _contrast_ratio(dark["--line"], dark["--bg-page"]) >= 3
+    assert _contrast_ratio(dark["--line"], dark["--bg-panel"]) >= 3
+    assert _contrast_ratio(dark["--brand-700"], dark["--bg-page"]) >= 3
+    assert _contrast_ratio("#ffffff", dark["--brand-900"]) >= 4.5
     assert _contrast_ratio(dark["--success-700"], dark["--success-100"]) >= 4.5
     assert _contrast_ratio(dark["--warning-700"], dark["--warning-100"]) >= 4.5
     assert _contrast_ratio(dark["--danger-700"], dark["--danger-100"]) >= 4.5
     assert _contrast_ratio("#000000", "#ffffff") >= 7
     assert _contrast_ratio("#00008b", "#ffffff") >= 7
+
+
+def test_dark_theme_tokens_cover_operational_components():
+    token_backgrounds = {
+        ".student-library-section": "var(--bg-panel)",
+        ".catalog-controls": "var(--bg-panel)",
+        ".admin-catalog-section": "var(--bg-panel)",
+        ".admin-title-card": "var(--bg-panel)",
+        ".admin-title-edit-form": "var(--bg-soft)",
+        ".librarian-management-section": "var(--bg-panel)",
+        ".librarian-form": "var(--bg-soft)",
+        ".librarian-card": "var(--bg-panel)",
+        ".circulation-tab": "var(--bg-soft)",
+        ".circulation-tab[aria-selected='true']": "var(--brand-100)",
+        ".signup-feedback-error": "var(--danger-100)",
+        ".signup-feedback-success": "var(--success-100)",
+    }
+
+    for selector, background in token_backgrounds.items():
+        assert app.style[selector]["background_color"] == background
+
+    for selector in (
+        ".student-library-section",
+        ".catalog-controls",
+        ".admin-catalog-section",
+        ".admin-title-card",
+        ".admin-title-edit-form",
+        ".librarian-management-section",
+        ".librarian-form",
+        ".librarian-card",
+        ".circulation-tab",
+    ):
+        assert app.style[selector]["border"].endswith("var(--line)")
+
+
+def test_dark_cover_fallbacks_use_saturated_palette():
+    cover_backgrounds = [
+        app.style[f".a11y-shell.a11y-dark .catalog-cover-{index}"][
+            "background_color"
+        ]
+        for index in range(5)
+    ]
+
+    assert cover_backgrounds == [
+        "#163b5c",
+        "#14532d",
+        "#7c2d12",
+        "#7f1d1d",
+        "#312e81",
+    ]
+    assert all(
+        _contrast_ratio("#ffffff", background) >= 4.5
+        for background in cover_backgrounds
+    )
+    assert app.style[".a11y-shell.a11y-dark .focus-demo-button"][
+        "color"
+    ] == "#ffffff"
 
 
 def test_text_controls_have_explicit_theme_aware_colors_and_focus():

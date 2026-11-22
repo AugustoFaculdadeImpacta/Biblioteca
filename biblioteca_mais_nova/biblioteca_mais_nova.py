@@ -4960,6 +4960,7 @@ dark_theme_tokens = {
     "--brand-700": "#9bd6e3",
     "--brand-500": "#70bfd2",
     "--brand-100": "#243e4b",
+    "--brand-text": "#9bd6e3",
     "--success-700": "#a3e6bf",
     "--success-100": "#1f4533",
     "--warning-700": "#f5ca75",
@@ -4971,7 +4972,7 @@ dark_theme_tokens = {
     "--slate-500": "#c3ced8",
     "--sand-200": "#364152",
     "--sand-100": "#283342",
-    "--line": "#475569",
+    "--line": "#8292a8",
     "--shadow-soft": "0 0.7rem 1.5rem rgba(0, 0, 0, 0.3)",
 }
 
@@ -4986,6 +4987,7 @@ app = rx.App(
             "--brand-700": "#245d6d",
             "--brand-500": "#2d7287",
             "--brand-100": "#dfeef2",
+            "--brand-text": "#183a4a",
             "--success-700": "#245c45",
             "--success-100": "#dfeee7",
             "--warning-700": "#8b5e17",
@@ -5047,7 +5049,7 @@ app = rx.App(
             "display": "inline-flex",
             "align_items": "center",
             "white_space": "nowrap",
-            "color": "var(--brand-900)",
+            "color": "var(--brand-text)",
             "font_weight": "800",
             "text_decoration": "none",
             "font_family": "Georgia, 'Times New Roman', serif",
@@ -5092,7 +5094,7 @@ app = rx.App(
             "border": "1px solid var(--line)",
             "border_radius": "0.55rem",
             "background_color": "var(--bg-panel)",
-            "color": "var(--brand-900)",
+            "color": "var(--brand-text)",
             "cursor": "pointer",
         },
         ".menu-hamburger-icon": {
@@ -5257,7 +5259,7 @@ app = rx.App(
         },
         ".admin-view-mode-label": {
             "font_weight": "700",
-            "color": "var(--brand-900)",
+            "color": "var(--brand-text)",
             "font_size": "0.8rem",
         },
         ".admin-view-reset": {
@@ -5266,7 +5268,7 @@ app = rx.App(
             "border": "1px solid var(--brand-700)",
             "border_radius": "0.5rem",
             "background_color": "var(--brand-100)",
-            "color": "var(--brand-900)",
+            "color": "var(--brand-text)",
             "font_weight": "600",
             "cursor": "pointer",
         },
@@ -5338,7 +5340,7 @@ app = rx.App(
             "border": "1px solid var(--line)",
             "border_radius": "0.5rem",
             "background_color": "var(--brand-100)",
-            "color": "var(--brand-900)",
+            "color": "var(--brand-text)",
             "font_weight": "600",
             "cursor": "pointer",
         },
@@ -5384,7 +5386,7 @@ app = rx.App(
             "padding": "0.25rem 0.6rem",
             "border_radius": "999px",
             "background_color": "var(--brand-100)",
-            "color": "var(--brand-900)",
+            "color": "var(--brand-text)",
             "font_size": "0.75rem",
             "font_weight": "700",
             "text_transform": "uppercase",
@@ -5414,13 +5416,13 @@ app = rx.App(
         ".secondary-cta": {
             "border": "1px solid var(--line)",
             "background_color": "var(--bg-soft)",
-            "color": "var(--brand-900)",
+            "color": "var(--brand-text)",
         },
         ".feature-card": {
             "flex": "1 1 12rem",
             "border": "1px solid var(--line)",
             "background_color": "var(--sand-100)",
-            "color": "var(--brand-900)",
+            "color": "var(--brand-text)",
         },
         ".hero-stat-grid": {
             "display": "grid",
@@ -5441,7 +5443,7 @@ app = rx.App(
             "box_shadow": "var(--shadow-soft)",
         },
         ".hero-stat-value": {
-            "color": "var(--brand-900)",
+            "color": "var(--brand-text)",
             "font_family": "Georgia, 'Times New Roman', serif",
             "font_size": "1.75rem",
             "line_height": "1.1",
@@ -5508,7 +5510,7 @@ app = rx.App(
             "padding": "0.55rem 0.9rem",
             "border_radius": "0.65rem",
             "background_color": "var(--brand-100)",
-            "color": "var(--brand-900)",
+            "color": "var(--brand-text)",
             "font_weight": "700",
             "text_decoration": "none",
         },
@@ -5564,7 +5566,7 @@ app = rx.App(
             "padding": "0.4rem",
             "border_radius": "999px",
             "background_color": "var(--brand-100)",
-            "color": "var(--brand-900)",
+            "color": "var(--brand-text)",
             "font_weight": "700",
         },
         ".student-overdue-alert": {
@@ -5622,7 +5624,7 @@ app = rx.App(
             "min_width": "0",
         },
         ".catalog-filter .signup-label": {
-            "color": "var(--brand-900)",
+            "color": "var(--brand-text)",
             "font_size": "0.9rem",
         },
         ".catalog-grid": {
@@ -5706,7 +5708,7 @@ app = rx.App(
             "width": "100%",
             "min_height": "11rem",
             "aspect_ratio": "0.72",
-            "border": "1px solid rgba(24, 58, 74, 0.12)",
+            "border": "1px solid var(--line)",
             "border_radius": "0.8rem",
             "background_color": "var(--brand-900)",
             "color": "#ffffff",
@@ -5754,13 +5756,35 @@ app = rx.App(
             "font_size": "2rem",
             "font_weight": "700",
         },
+        ".a11y-shell.a11y-dark .catalog-cover-0": {
+            "background_color": "#163b5c",
+        },
+        ".a11y-shell.a11y-dark .catalog-cover-1": {
+            "background_color": "#14532d",
+        },
+        ".a11y-shell.a11y-dark .catalog-cover-2": {
+            "background_color": "#7c2d12",
+        },
+        ".a11y-shell.a11y-dark .catalog-cover-3": {
+            "background_color": "#7f1d1d",
+        },
+        ".a11y-shell.a11y-dark .catalog-cover-4": {
+            "background_color": "#312e81",
+        },
+        ".a11y-shell.a11y-dark .focus-demo-button": {
+            "background_color": "var(--brand-900)",
+            "color": "#ffffff",
+        },
+        ".a11y-shell.a11y-dark .focus-demo-button:hover": {
+            "background_color": "var(--bg-panel)",
+        },
         ".catalog-tag": {
             "display": "inline-flex",
             "align_self": "flex-start",
             "padding": "0.25rem 0.5rem",
             "border_radius": "999px",
             "background_color": "var(--brand-100)",
-            "color": "var(--brand-900)",
+            "color": "var(--brand-text)",
             "font_size": "0.75rem",
             "font_weight": "700",
         },
@@ -5821,7 +5845,7 @@ app = rx.App(
             "padding": "0.45rem 0.75rem",
             "border_radius": "0.5rem",
             "background_color": "var(--brand-100)",
-            "color": "var(--brand-900)",
+            "color": "var(--brand-text)",
             "font_weight": "700",
             "text_decoration": "none",
         },
@@ -5894,7 +5918,7 @@ app = rx.App(
         ".circulation-tab[aria-selected='true']": {
             "border_color": "var(--brand-700)",
             "background_color": "var(--brand-100)",
-            "color": "var(--brand-900)",
+            "color": "var(--brand-text)",
         },
         ".circulation-tab-panel": {
             "display": "flex",
@@ -6028,7 +6052,7 @@ app = rx.App(
             "border_left": "4px solid var(--brand-700)",
             "border_radius": "0.6rem",
             "background_color": "var(--brand-100)",
-            "color": "var(--brand-900)",
+            "color": "var(--brand-text)",
         },
         ".content-section > [role='alert']:not(.signup-feedback)": {
             "width": "100%",
