@@ -5,6 +5,7 @@ import pytest
 
 from scripts.seed_catalogo_real import (
     TITULOS,
+    TITULOS_TESTE,
     executar_seed,
     normalizar,
     preparar_plano,
@@ -23,16 +24,20 @@ def test_dry_run_makes_no_write(monkeypatch, capsys):
     saida = capsys.readouterr().out
 
     assert len(TITULOS) == 30
+    assert all(item["descricao"].strip() for item in TITULOS)
+    assert all(item["exemplares"] in {2, 3} for item in TITULOS)
+    assert saida.splitlines()[0] == "alvo: demonstração local"
     assert len(resultado["criados"]) == 30
     assert "nenhuma escrita" in saida.lower()
 
 
-def test_apply_without_credentials_aborts(monkeypatch):
+def test_apply_without_credentials_aborts(monkeypatch, capsys):
     monkeypatch.delenv("XANO_SEED_EMAIL", raising=False)
     monkeypatch.delenv("XANO_SEED_PASSWORD", raising=False)
 
     with pytest.raises(SystemExit, match="Credenciais ausentes"):
         asyncio.run(executar_seed(aplicar=True))
+    assert capsys.readouterr().out.splitlines()[0] == "alvo: Xano remoto"
 
 
 def test_seed_mapping_categories_and_idempotency():
@@ -60,3 +65,17 @@ def test_seed_never_prints_password(monkeypatch):
     source = open("scripts/seed_catalogo_real.py", encoding="utf-8").read()
     assert 'print(senha)' not in source
     assert "senha-super-secreta" not in source
+
+
+def test_seed_identifies_existing_test_titles_for_deactivation():
+    existentes = [
+        {"titulo": {"id": 12, "titulo": "Jack Sparrow", "autores": "Teste"}},
+        {"titulo": {"id": 14, "titulo": "Something", "autores": "Teste"}},
+    ]
+    plano = preparar_plano([], existentes)
+
+    assert TITULOS_TESTE == ("Jack Sparrow", "Something")
+    assert {item["titulo"] for item in plano["desativacoes"]} == {
+        "Jack Sparrow",
+        "Something",
+    }

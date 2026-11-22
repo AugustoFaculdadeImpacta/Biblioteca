@@ -11,6 +11,7 @@ Antes de qualquer execução remota, faça backup dos dados no painel do Xano.
 ```
 
 No modo padrão, o script imprime o plano e não realiza escritas.
+Sua primeira linha é `alvo: demonstração local`.
 
 ## Aplicação
 
@@ -26,3 +27,4 @@ $env:XANO_SEED_PASSWORD = "senha da conta"
 Não informe senha ou token em arquivos, commits, logs ou capturas. O script usa os clientes existentes de catálogo e login, não cria categorias e não envia `capa_url`.
 
 O script pula títulos já existentes por comparação sem caixa e sem acentos e desativa somente os títulos de teste com nomes exatos `Jack Sparrow` e `Something`, caso existam.
+Com `--apply`, a primeira linha da saída é `alvo: Xano remoto`.

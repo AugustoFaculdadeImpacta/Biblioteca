@@ -59,6 +59,8 @@ TITULOS = [
     {"titulo": "A Revolução dos Bichos", "autores": "George Orwell", "categoria": "Literatura estrangeira", "exemplares": 3, "descricao": "Fábula política sobre mudança de governo, poder e linguagem em uma comunidade de animais."},
 ]
 
+TITULOS_TESTE = ("Jack Sparrow", "Something")
+
 
 def normalizar(texto: object) -> str:
     valor = unicodedata.normalize("NFKD", str(texto or "").strip().casefold())
@@ -83,10 +85,6 @@ def preparar_plano(categorias: list[dict], existentes: list[dict], titulos: list
     for item in escolhidos:
         chave = normalizar(item["titulo"])
         categoria_id = mapa_categorias.get(normalizar(item["categoria"]))
-        if chave in {"jack sparrow", "something"}:
-            if chave in existentes_normalizados:
-                desativacoes.append(item)
-            continue
         if chave in existentes_normalizados:
             pulados.append(item)
         elif categoria_id is None:
@@ -95,6 +93,26 @@ def preparar_plano(categorias: list[dict], existentes: list[dict], titulos: list
                 categorias_puladas.append(item["categoria"])
         else:
             criados.append(item)
+    for nome_teste in TITULOS_TESTE:
+        chave = normalizar(nome_teste)
+        if chave not in existentes_normalizados:
+            continue
+        existente = existentes_normalizados[chave]
+        titulo = (
+            existente["titulo"]
+            if isinstance(existente.get("titulo"), dict)
+            else {"titulo": nome_teste, "autores": ""}
+        )
+        desativacoes.append(
+            {
+                "titulo": titulo["titulo"],
+                "autores": titulo.get("autores", ""),
+                "categoria": "",
+                "exemplares": 0,
+                "descricao": "",
+                "_existente": existente,
+            }
+        )
     return {
         "criados": criados,
         "pulados": pulados,
@@ -114,6 +132,7 @@ def _resumo(plano: dict) -> str:
 
 async def executar_seed(*, aplicar: bool, transport: httpx.AsyncBaseTransport | None = None) -> dict:
     if not aplicar:
+        print("alvo: demonstração local")
         categorias = [
             {"id": index + 1, "nome": item["categoria"]}
             for index, item in enumerate(
@@ -126,6 +145,7 @@ async def executar_seed(*, aplicar: bool, transport: httpx.AsyncBaseTransport | 
         print(_resumo(plano))
         return plano
 
+    print("alvo: Xano remoto")
     email = os.environ.get("XANO_SEED_EMAIL", "").strip()
     senha = os.environ.get("XANO_SEED_PASSWORD", "")
     if not email or not senha:
