@@ -17,7 +17,7 @@
 
 ## 4. Reservas e seed
 
-- [ ] 4.1 Mapear falhas da solicitação de reserva para 401, 403, 404, 409, 5xx, timeout e demais erros seguros; validar cada caso com testes novos/alterados em `tests/test_catalog.py`. Em Apply, comparar a definição local e um pull remoto somente de leitura após confirmar o destino, registrando que o endpoint público local exige perfil estudante; nunca gravar no Xano.
+- [x] 4.1 Mapear falhas da solicitação de reserva para 401, 403, 404, 409, 5xx, timeout e demais erros seguros; validar cada caso com testes novos/alterados em `tests/test_catalog.py`. Em Apply, comparar a definição local e um pull remoto somente de leitura após confirmar o destino, registrando que o endpoint público local exige perfil estudante; nunca gravar no Xano.
 - [ ] 4.2 Auditar/completar o seed e `docs/seed-catalogo.md`: saída inicia com o alvo correto, dry-run permanece padrão, credenciais só vêm do ambiente, os 30 títulos têm descrições e 2–3 exemplares, categorias não são criadas e nomes de teste existentes são desativados; validar com `tests/test_seed_catalogo.py` sem executar `--apply`.
 
 ## Workflow follow-up
