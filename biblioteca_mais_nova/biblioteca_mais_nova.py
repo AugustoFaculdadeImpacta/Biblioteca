@@ -1819,9 +1819,70 @@ class State(rx.State):
         ) as error:
             self.admin_catalog_message = catalog_error_message(error)
             self.admin_catalog_has_error = True
+            self.admin_catalog_title_action_title_id = title_id
+            self.admin_catalog_title_action_message = catalog_error_message(error)
+            self.admin_catalog_title_action_error = True
+            self.admin_catalog_confirm_title_id = None
             return
         finally:
             self.admin_catalog_pending = False
+
+        await self._refresh_admin_catalog()
+        refreshed_entry = next(
+            (
+                item
+                for item in self.admin_catalog_entries
+                if item["titulo"]["id"] == title_id
+            ),
+            None,
+        )
+
+        if self.admin_catalog_has_error:
+            self.admin_catalog_message = (
+                "Não foi possível confirmar a atualização do título após a resposta "
+                "do servidor."
+            )
+            self.admin_catalog_title_action_title_id = title_id
+            self.admin_catalog_title_action_message = (
+                "Não foi possível confirmar a atualização do título."
+            )
+            self.admin_catalog_title_action_error = True
+            return
+
+        if refreshed_entry is None:
+            self.admin_catalog_message = (
+                "Não foi possível confirmar a atualização do título após a resposta "
+                "do servidor."
+            )
+            self.admin_catalog_title_action_title_id = title_id
+            self.admin_catalog_title_action_message = (
+                "Não foi possível confirmar a atualização do título."
+            )
+            self.admin_catalog_title_action_error = True
+            return
+
+        refreshed_active = (
+            refreshed_entry["titulo"].get("ativo") is not False
+        )
+        if refreshed_active != active:
+            if not active:
+                self.admin_catalog_message = (
+                    "O servidor respondeu, mas o título continua ativo. "
+                    "A atualização do servidor pode não estar publicada"
+                )
+            else:
+                self.admin_catalog_message = (
+                    "O servidor respondeu, mas o título continua desativado. "
+                    "A atualização do servidor pode não estar publicada"
+                )
+            self.admin_catalog_has_error = True
+            self.admin_catalog_confirm_title_id = None
+            self.admin_catalog_title_action_title_id = title_id
+            self.admin_catalog_title_action_message = (
+                self.admin_catalog_message
+            )
+            self.admin_catalog_title_action_error = True
+            return
 
         self.admin_catalog_message = (
             "Título reativado." if active else "Título desativado."
@@ -1831,7 +1892,6 @@ class State(rx.State):
         self.admin_catalog_title_action_title_id = title_id
         self.admin_catalog_title_action_message = self.admin_catalog_message
         self.admin_catalog_title_action_error = False
-        await self._refresh_admin_catalog()
 
     @rx.event
     async def add_copy_to_title(self, title_id: int):

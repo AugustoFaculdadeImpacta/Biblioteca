@@ -121,6 +121,116 @@ def test_admin_actions_handle_success_404_403_and_connection():
     )
 
 
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (XanoResponseError(403), "Sua conta não tem permissão"),
+        (XanoResponseError(404), "O recurso não foi encontrado"),
+        (XanoRequestError("Falha de rede"), "Não foi possível se comunicar"),
+    ],
+)
+def test_title_deactivation_reports_http_and_connection_errors(
+    monkeypatch,
+    error,
+    expected,
+):
+    async def fail_update(*args, **kwargs):
+        raise error
+
+    async def admin_catalog(token):
+        return [_entry(active=True)]
+
+    monkeypatch.setattr(frontend, "update_title", fail_update)
+    monkeypatch.setattr(frontend, "list_admin_catalog", admin_catalog)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(
+                ident=f"title-error-{uuid4()}",
+                cls=rx.State,
+            )
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-falso", "bibliotecario")
+            state.admin_catalog_entries = [_entry(active=True)]
+            state.request_title_deactivation(81)
+
+            await state.set_title_active(81, False)
+
+            assert state.admin_catalog_has_error is True
+            assert expected in state.admin_catalog_title_action_message
+            assert state.admin_catalog_confirm_title_id is None
+
+    asyncio.run(verify())
+
+
+def test_title_deactivation_detects_apparent_success(monkeypatch):
+    async def update(title_id, payload, token, *, active=None):
+        assert active is False
+        return {"id": title_id, "ativo": False}
+
+    async def admin_catalog(token):
+        return [_entry(active=True)]
+
+    monkeypatch.setattr(frontend, "update_title", update)
+    monkeypatch.setattr(frontend, "list_admin_catalog", admin_catalog)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(
+                ident=f"title-apparent-{uuid4()}",
+                cls=rx.State,
+            )
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-falso", "bibliotecario")
+            state.admin_catalog_entries = [_entry(active=True)]
+            state.request_title_deactivation(81)
+
+            await state.set_title_active(81, False)
+
+            assert state.admin_catalog_title_action_error is True
+            assert state.admin_catalog_title_action_message == (
+                "O servidor respondeu, mas o título continua ativo. "
+                "A atualização do servidor pode não estar publicada"
+            )
+            assert state.admin_catalog_display_entries[0]["ativo"] is True
+
+    asyncio.run(verify())
+
+
+def test_title_deactivation_reports_refresh_connection_failure(monkeypatch):
+    async def update(title_id, payload, token, *, active=None):
+        return {"id": title_id, "ativo": False}
+
+    async def fail_refresh(token):
+        raise XanoRequestError("Falha de comunicação")
+
+    monkeypatch.setattr(frontend, "update_title", update)
+    monkeypatch.setattr(frontend, "list_admin_catalog", fail_refresh)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(
+                ident=f"title-refresh-error-{uuid4()}",
+                cls=rx.State,
+            )
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-falso", "bibliotecario")
+            state.admin_catalog_entries = [_entry(active=True)]
+            state.request_title_deactivation(81)
+
+            await state.set_title_active(81, False)
+
+            assert state.admin_catalog_title_action_error is True
+            assert state.admin_catalog_title_action_message == (
+                "Não foi possível confirmar a atualização do título."
+            )
+
+    asyncio.run(verify())
+
+
 def test_catalog_error_message_allows_only_known_business_messages(monkeypatch):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
     responses = [
@@ -387,6 +497,8 @@ def test_admin_catalog_edits_titles_and_adds_copies_without_repeating_writes(
 
     async def admin_catalog(token):
         assert token == "token-falso"
+        if updates and updates[-1][3] is not None:
+            return [_entry(active=updates[-1][3])]
         return [_entry(active=True)]
 
     async def update(title_id, payload, token, *, active=None):
