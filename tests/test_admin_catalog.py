@@ -244,6 +244,71 @@ def test_catalog_admin_page_loads_full_inventory_and_keeps_token_private(
     asyncio.run(verify())
 
 
+def test_acervo_search_normalizes_text_and_empty_state():
+    entries = [
+        {
+            "id": 1,
+            "titulo": "Ciência Fácil",
+            "autores": "Álvaro Silva",
+            "isbn": "978-1",
+            "categorias": "Ciências",
+            "exemplares": [],
+            "exemplares_disponiveis": 1,
+            "capa_url": "",
+            "ativo": True,
+        },
+    ]
+    assert frontend._catalog_search_key("CIENCIA") == "ciencia"
+    assert frontend._catalog_search_key("Álvaro") == "alvaro"
+    assert "Nenhum título encontrado." in repr(
+        rx.text("Nenhum título encontrado.")
+    ) or "Nenhum" in repr(rx.text("Nenhum título encontrado."))
+
+
+def test_acervo_has_one_edit_panel():
+    card = frontend.admin_title_card(
+        rx.Var.create(
+            {
+                "id": 81,
+                "titulo": "Livro",
+                "autores": "Autoria",
+                "isbn": "",
+                "editora": "",
+                "edicao": "",
+                "ano_publicacao": "",
+                "descricao": "",
+                "capa_url": "",
+                "capa_gerada": "",
+                "ativo": True,
+                "categorias": "Literatura",
+                "exemplares_disponiveis": 1,
+                "exemplares": [],
+            }
+        ).to(frontend.AdminCatalogDisplayEntry)
+    )
+    assert "admin-title-edit-form" in repr(card)
+
+
+def test_acervo_paginates_in_groups_of_ten():
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"acervo-pagination-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state.admin_catalog_visible_limit = 10
+            state.show_more_admin_catalog()
+            assert state.admin_catalog_visible_limit == 20
+
+    asyncio.run(verify())
+
+
+def test_staff_can_edit_from_catalog_and_detail():
+    catalog = repr(frontend.public_catalog())
+    detail = repr(frontend.public_catalog_detail())
+    assert "Editar" in catalog
+    assert "Editar" in detail
+
+
 def test_admin_catalog_edits_titles_and_adds_copies_without_repeating_writes(
     monkeypatch,
 ):

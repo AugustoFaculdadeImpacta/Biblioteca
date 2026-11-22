@@ -113,6 +113,10 @@ class State(rx.State):
     admin_catalog_title_action_title_id: int | None = None
     admin_catalog_title_action_message: str = ""
     admin_catalog_title_action_error: bool = False
+    admin_catalog_search: str = ""
+    admin_catalog_visible_limit: int = 10
+    admin_catalog_edit_title_id: int | None = None
+    admin_catalog_new_title_open: bool = False
     _session_token: str = ""
     _session_profile: str = ""
     _session_name: str = ""
@@ -483,6 +487,32 @@ class State(rx.State):
             }
             display_entries.append(display_entry)
         return display_entries
+
+    @rx.var
+    def filtered_admin_catalog_entries(self) -> list[AdminCatalogDisplayEntry]:
+        query = _catalog_search_key(self.admin_catalog_search)
+        visible: list[AdminCatalogDisplayEntry] = []
+        for entry in self.admin_catalog_display_entries:
+            haystack = _catalog_search_key(
+                f"{entry['titulo']} {entry['autores']} {entry['isbn']}"
+            )
+            if not query or query in haystack:
+                visible.append(entry)
+        return visible[: self.admin_catalog_visible_limit]
+
+    @rx.var
+    def admin_catalog_has_more(self) -> bool:
+        query = _catalog_search_key(self.admin_catalog_search)
+        total = sum(
+            1
+            for entry in self.admin_catalog_display_entries
+            if not query
+            or query
+            in _catalog_search_key(
+                f"{entry['titulo']} {entry['autores']} {entry['isbn']}"
+            )
+        )
+        return total > len(self.filtered_admin_catalog_entries)
 
     @rx.var
     def has_student_library_loans(self) -> bool:
@@ -1578,6 +1608,34 @@ class State(rx.State):
             self.admin_catalog_has_error = True
         finally:
             self.admin_catalog_pending = False
+
+    @rx.event
+    def set_admin_catalog_search(self, value: str):
+        self.admin_catalog_search = value
+        self.admin_catalog_visible_limit = 10
+        self.admin_catalog_edit_title_id = None
+
+    @rx.event
+    def show_more_admin_catalog(self):
+        self.admin_catalog_visible_limit += 10
+
+    @rx.event
+    def open_admin_new_title(self):
+        self.admin_catalog_new_title_open = True
+        self.admin_catalog_edit_title_id = None
+
+    @rx.event
+    def close_admin_new_title(self):
+        self.admin_catalog_new_title_open = False
+
+    @rx.event
+    def open_admin_title_edit(self, title_id: int):
+        self.admin_catalog_edit_title_id = title_id
+        self.admin_catalog_new_title_open = False
+
+    @rx.event
+    def close_admin_title_edit(self):
+        self.admin_catalog_edit_title_id = None
 
     @rx.event
     async def refresh_admin_catalog(self):
@@ -2729,6 +2787,16 @@ def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
             class_name="catalog-card-meta-row",
         ),
         rx.link("Ver detalhes", href=title["href"], class_name="catalog-card-link"),
+        rx.cond(
+            State.is_librarian,
+            rx.link(
+                rx.el.span("✏️", aria_hidden="true"),
+                rx.text(" Editar este título"),
+                href="/admin/acervo?titulo=" + title["id"].to(str),
+                class_name="catalog-card-link",
+            ),
+            rx.fragment(),
+        ),
         class_name="catalog-card",
     )
 
@@ -3086,6 +3154,16 @@ def public_catalog_detail() -> rx.Component:
                             class_name="primary-cta",
                         ),
                     ),
+                ),
+                rx.cond(
+                    State.is_librarian,
+                    rx.link(
+                        rx.el.span("✏️", aria_hidden="true"),
+                        rx.text(" Editar este título"),
+                        href="/admin/acervo?titulo=" + State.public_catalog_detail["id"].to(str),
+                        class_name="primary-cta",
+                    ),
+                    rx.fragment(),
                 ),
                 id="conteudo-detalhe",
                 class_name="content-section catalog-section",
@@ -3816,7 +3894,9 @@ def admin_title_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
             ),
             rx.text("Nenhum exemplar cadastrado.", role="status"),
         ),
-        rx.form(
+        rx.cond(
+            State.admin_catalog_edit_title_id == title["id"],
+            rx.form(
             rx.input(type="hidden", name="titulo_id", value=title["id"]),
             rx.el.label(
                 "Título",
@@ -3917,8 +3997,18 @@ def admin_title_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
             on_submit=State.save_admin_title,
             reset_on_submit=False,
             class_name="admin-title-edit-form",
+            ),
+            rx.fragment(),
         ),
         rx.hstack(
+            rx.button(
+                rx.el.span("✏️", aria_hidden="true"),
+                rx.text(" Editar"),
+                type="button",
+                on_click=State.open_admin_title_edit(title["id"]),
+                disabled=State.admin_catalog_pending,
+                class_name="focus-demo-button",
+            ),
             rx.button(
                 "Adicionar exemplar",
                 type="button",
@@ -4007,6 +4097,35 @@ def catalog_admin() -> rx.Component:
                     "Acesso restrito a bibliotecários e admins. As categorias disponíveis "
                     "são carregadas do catálogo."
                 ),
+                rx.el.div(
+                    rx.input(
+                        id="admin-acervo-busca",
+                        type="search",
+                        value=State.admin_catalog_search,
+                        on_change=State.set_admin_catalog_search,
+                        placeholder="🔎 Buscar por título, autoria ou ISBN",
+                        aria_label="Buscar por título, autoria ou ISBN",
+                        class_name="signup-input",
+                    ),
+                    rx.button(
+                        rx.el.span("➕", aria_hidden="true"),
+                        rx.text(" Novo título"),
+                        type="button",
+                        on_click=State.open_admin_new_title,
+                        class_name="focus-demo-button",
+                    ),
+                    rx.cond(
+                        State.admin_catalog_new_title_open,
+                        rx.button(
+                            "Fechar cadastro",
+                            type="button",
+                            on_click=State.close_admin_new_title,
+                            class_name="nav-logout",
+                        ),
+                        rx.fragment(),
+                    ),
+                    class_name="admin-acervo-toolbar",
+                ),
                 rx.cond(
                     State.catalog_message != "",
                     rx.el.p(
@@ -4086,7 +4205,9 @@ def catalog_admin() -> rx.Component:
                         align="start",
                         width="100%",
                     ),
-                    rx.form(
+                    rx.cond(
+                        State.admin_catalog_new_title_open,
+                        rx.form(
                         rx.el.label(
                             "Título",
                             html_for="catalog-titulo",
@@ -4203,6 +4324,8 @@ def catalog_admin() -> rx.Component:
                         on_submit=State.submit_catalog_title,
                         reset_on_submit=False,
                         class_name="signup-form",
+                        ),
+                        rx.fragment(),
                     ),
                 ),
                 id="conteudo-acervo",
@@ -4238,10 +4361,10 @@ def catalog_admin() -> rx.Component:
                     rx.fragment(),
                 ),
                 rx.cond(
-                    State.admin_catalog_display_entries.length() > 0,
+                    State.filtered_admin_catalog_entries.length() > 0,
                     rx.el.div(
                         rx.foreach(
-                            State.admin_catalog_display_entries,
+                            State.filtered_admin_catalog_entries,
                             admin_title_card,
                         ),
                         class_name="admin-catalog-grid",
@@ -4252,12 +4375,23 @@ def catalog_admin() -> rx.Component:
                         rx.cond(
                             State.admin_catalog_has_error,
                             rx.fragment(),
-                            rx.text(
-                                "Nenhum título cadastrado.",
-                                role="status",
+                            rx.cond(
+                                State.admin_catalog_search != "",
+                                rx.text("Nenhum título encontrado.", role="status"),
+                                rx.text("Nenhum título cadastrado.", role="status"),
                             ),
                         ),
                     ),
+                ),
+                rx.cond(
+                    State.admin_catalog_has_more,
+                    rx.button(
+                        "Mostrar mais",
+                        type="button",
+                        on_click=State.show_more_admin_catalog,
+                        class_name="focus-demo-button",
+                    ),
+                    rx.fragment(),
                 ),
                 rx.button(
                     "Atualizar acervo",
@@ -6169,6 +6303,17 @@ app = rx.App(
             "flex_direction": "column",
             "gap": "0.75rem",
             "width": "100%",
+        },
+        ".acervo-new-title-closed": {
+            "display": "none",
+        },
+        ".admin-acervo-toolbar": {
+            "display": "grid",
+            "grid_template_columns": "minmax(0, 1fr) auto",
+            "align_items": "center",
+            "gap": "0.75rem",
+            "width": "100%",
+            "max_width": "72rem",
         },
         ".signup-label": {
             "font_weight": "600",
