@@ -18,7 +18,7 @@
 
 ## 5. Simplificar o hero da home
 
-- [ ] 5.1 Remover do hero busca, ações e atalhos para todos os perfis, eliminar estado/evento/estilos exclusivos da busca da home, manter destaques e “Sobre a biblioteca” e renomear o título do rodapé; atualizar `test_home_has_no_login_or_signup_form_and_keeps_profile_shortcuts` e adicionar `test_home_hero_omits_search_and_actions_for_all_profiles` e `test_footer_uses_library_name_without_repeating_home_about`; criar commit em português e, após ele, executar `.\.venv\Scripts\python.exe -m reflex compile --dry` e `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`.
+- [x] 5.1 Remover busca, ações e atalhos do hero; manter destaques e “Sobre a biblioteca” e renomear o título do rodapé para “Biblioteca escolar”. Commit `8a0b16c`. Testes novos: `test_home_hero_omits_search_and_actions_for_all_profiles`, `test_footer_uses_library_name_without_repeating_home_about`. Atualizados: `test_homepage_is_storefront_and_authenticated_sessions_go_to_catalog`, `test_home_has_no_login_or_signup_form_and_keeps_profile_menu`, `test_home_keeps_featured_and_about_without_hero_shortcuts`, `test_site_header_brand_and_footer_links_preserve_profile_access`, `test_all_routes_use_one_shared_header_and_footer`, `test_page_bodies_do_not_duplicate_global_navigation`, `test_index_renders_navigable_application_shell`, `test_focusable_field_and_button_have_visible_keyboard_focus_style`. Verificação local após o commit: Reflex compilou; pytest: 253 passed. Visual: feito, aguarda conferência do usuário.
 
 ## 6. Revisar jornadas de bibliotecário e admin
 
