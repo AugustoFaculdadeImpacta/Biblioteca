@@ -26,7 +26,7 @@
 
 ## 7. Diagnóstico e ações operacionais
 
-- [ ] 7.1 Investigar evento, cliente e endpoints de desativação comparando código, documentação e pull temporário de definições; corrigir processamento, confirmação, mensagens e atualização da linha; testar sucesso, 404, 403 e conexão com `test_admin_actions_handle_success_404_403_and_connection`, registrar pendências exatas sem marcar concluída.
+- [x] 7.1 Investigar evento, cliente e endpoints de desativação comparando código, documentação e pull temporário de definições; corrigir processamento, confirmação, mensagens e atualização da linha; testar sucesso, 404, 403 e conexão com `test_admin_actions_handle_success_404_403_and_connection`, registrar pendências exatas sem marcar concluída. Commits `92fa83d` e `edbcd6b`. Verificação: `reflex compile --dry` aprovado; `pytest --ignore=evaluation -q`: 269 passed. Visual: feito, aguarda conferência do usuário.
 
 ## 8. Acervo compacta
 
