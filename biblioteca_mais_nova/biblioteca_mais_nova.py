@@ -3772,7 +3772,7 @@ def admin_title_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
                     type="button",
                     on_click=State.set_title_active(title["id"], False),
                     disabled=State.admin_catalog_pending,
-                    class_name="nav-logout",
+                    class_name="destructive-action",
                 ),
                 rx.button(
                     "Reativar título",
@@ -4094,7 +4094,7 @@ def librarian_card(librarian: rx.Var[dict[str, Any]]) -> rx.Component:
                 type="button",
                 on_click=State.set_librarian_active(librarian["id"], False),
                 disabled=State.librarian_management_pending,
-                class_name="nav-logout",
+                class_name="destructive-action",
             ),
             rx.button(
                 "Reativar",
@@ -4522,7 +4522,7 @@ def circulation_request_card(request: LoanRequest) -> rx.Component:
             on_click=State.circulation_refuse_request(request["id"]),
             disabled=State.circulation_pending
             | State.circulation_needs_manual_check,
-            class_name="nav-logout",
+            class_name="destructive-action",
         ),
         class_name="librarian-card",
     )
@@ -4566,7 +4566,7 @@ def circulation_reservation_card(
                     ),
                     disabled=State.circulation_pending
                     | State.circulation_needs_manual_check,
-                    class_name="nav-logout",
+                    class_name="destructive-action",
                 ),
             ),
             rx.cond(
@@ -5247,6 +5247,20 @@ app = rx.App(
         ".nav-logout:hover": {
             "background_color": "var(--bg-soft)",
         },
+        ".destructive-action": {
+            "min_height": "2.75rem",
+            "padding": "0.4rem 0.75rem",
+            "border": "1px solid var(--danger-700)",
+            "border_radius": "0.5rem",
+            "background_color": "var(--danger-100)",
+            "color": "var(--danger-700)",
+            "font_weight": "600",
+            "cursor": "pointer",
+        },
+        ".destructive-action:hover": {
+            "background_color": "var(--danger-700)",
+            "color": "var(--danger-100)",
+        },
         ".main-content": {
             "width": "100%",
             "max_width": "72rem",
@@ -5532,6 +5546,9 @@ app = rx.App(
             "grid_template_columns": "repeat(auto-fit, minmax(min(100%, 20rem), 1fr))",
             "gap": "1.1rem",
             "width": "100%",
+            "max_width": "100%",
+            "min_width": "0",
+            "overflow_x": "auto",
         },
         ".admin-catalog-section": {
             "width": "min(100%, 72rem)",
@@ -5837,6 +5854,9 @@ app = rx.App(
             "grid_template_columns": "repeat(auto-fit, minmax(min(100%, 18rem), 1fr))",
             "gap": "1rem",
             "width": "100%",
+            "max_width": "100%",
+            "min_width": "0",
+            "overflow_x": "auto",
         },
         ".librarian-card": {
             "display": "flex",

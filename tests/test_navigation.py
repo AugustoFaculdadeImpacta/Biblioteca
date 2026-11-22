@@ -8,6 +8,9 @@ import reflex as rx
 from reflex.istate.manager.token import BaseStateToken
 
 import biblioteca_mais_nova.biblioteca_mais_nova as frontend
+from biblioteca_mais_nova.catalog import AdminCatalogDisplayEntry
+from biblioteca_mais_nova.circulation import AdminReservation, LoanRequest
+from biblioteca_mais_nova.user_admin import Librarian
 
 
 def _components(component: rx.Component):
@@ -741,6 +744,127 @@ def test_header_navigation_by_profile_and_view():
             assert state.active_navigation_role == "Estudante"
 
     asyncio.run(verify())
+
+
+def test_staff_admin_workflows_have_visible_feedback_and_empty_states():
+    catalog = _readable(frontend.catalog_admin())
+    accounts = _readable(frontend.librarian_management())
+    circulation = _readable(frontend.circulation_page())
+    view = _readable(frontend.admin_view_status())
+
+    assert "Carregando acervo" in catalog
+    assert "Nenhum título cadastrado." in catalog
+    assert "signup-feedback-error" in catalog
+    assert "signup-feedback-success" in catalog
+    assert "Carregando bibliotecários" in accounts
+    assert "Nenhuma conta corresponde à busca." in accounts
+    assert "Nenhum bibliotecário cadastrado." in accounts
+    assert "signup-feedback-error" in accounts
+    assert "signup-feedback-success" in accounts
+    assert "Carregando reservas e circulação" in circulation
+    assert "Não há solicitações pendentes." in circulation
+    assert "Não há reservas aguardando ou ofertadas." in circulation
+    assert "Não há empréstimos ativos." in circulation
+    assert "signup-feedback-error" in circulation
+    assert "signup-feedback-success" in circulation
+    assert "Modo de visualização atual" in view
+    assert "Voltar à visão de admin" in view
+
+
+def test_destructive_operations_are_visually_distinct():
+    cards = (
+        (
+            frontend.admin_title_card(
+                rx.Var.create(
+                    {
+                        "id": 81,
+                        "titulo": "Livro",
+                        "autores": "Autoria",
+                        "isbn": "",
+                        "editora": "",
+                        "edicao": "",
+                        "ano_publicacao": "",
+                        "descricao": "",
+                        "capa_url": "",
+                        "ativo": True,
+                        "categorias": "Literatura",
+                        "exemplares_disponiveis": 1,
+                        "exemplares": [],
+                    }
+                ).to(AdminCatalogDisplayEntry)
+            ),
+            "Desativar título",
+        ),
+        (
+            frontend.librarian_card(
+                rx.Var.create(
+                    {
+                        "id": 12,
+                        "nome": "Ana",
+                        "email": "ana@example.test",
+                        "ativo": True,
+                    }
+                ).to(Librarian)
+            ),
+            "Desativar",
+        ),
+        (
+            frontend.circulation_request_card(
+                rx.Var.create(
+                    {
+                        "id": 7,
+                        "usuario_id": 1,
+                        "titulo_id": 2,
+                        "estado": "pendente",
+                    }
+                ).to(LoanRequest)
+            ),
+            "Recusar solicitação",
+        ),
+        (
+            frontend.circulation_reservation_card(
+                rx.Var.create(
+                    {
+                        "id": 15,
+                        "usuario_id": 1,
+                        "usuario_nome": "Bia",
+                        "titulo_id": 2,
+                        "titulo": "Livro",
+                        "criada_em": "2026-01-01",
+                        "estado": "aguardando",
+                        "exemplar_id": None,
+                        "ofertada_em": None,
+                        "expira_em": None,
+                        "expira_em_sao_paulo": None,
+                    }
+                ).to(AdminReservation)
+            ),
+            "Recusar reserva",
+        ),
+    )
+    style = frontend.app.style
+
+    for card, label in cards:
+        assert label in _readable(card)
+        assert _serialized_class_count(card, "destructive-action") == 1
+    assert style[".destructive-action"]["background_color"] == (
+        "var(--danger-100)"
+    )
+    assert style[".destructive-action"]["color"] == "var(--danger-700)"
+    assert style[".destructive-action:hover"]["background_color"] == (
+        "var(--danger-700)"
+    )
+    assert style[".destructive-action:hover"]["color"] == "var(--danger-100)"
+    assert style[".destructive-action"] != style[".nav-logout"]
+
+
+def test_operational_lists_keep_horizontal_scroll_inside_container():
+    for selector in (".admin-catalog-grid", ".librarian-list"):
+        styles = frontend.app.style[selector]
+        assert styles["width"] == "100%"
+        assert styles["max_width"] == "100%"
+        assert styles["min_width"] == "0"
+        assert styles["overflow_x"] == "auto"
 
 
 def test_appearance_preferences_bootstrap_on_every_route():
