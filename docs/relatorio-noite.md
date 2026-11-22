@@ -733,3 +733,24 @@ O backlog em `openspec/changes/validacao-remota-xano/tasks.md` agora mantém abe
   }
 }
 ```
+
+## Continuação — Change ajustes-visuais-v2
+
+### Evidências dos itens concluídos nesta retomada
+
+| Item | Commit | Testes novos/alterados ou regressões | Status |
+|---|---|---|---|
+| 6 — Jornadas de bibliotecário e admin | `e254525` | Novos: `test_staff_admin_workflows_have_visible_feedback_and_empty_states`, `test_destructive_operations_are_visually_distinct`, `test_operational_lists_keep_horizontal_scroll_inside_container`. Regressões: `test_staff_reservations_tabs_reuse_current_operations`, `test_admin_accounts_search_and_supported_actions`, `test_header_navigation_by_profile_and_view`. Suíte: 256 passaram. | Feito, aguarda conferência do usuário |
+
+### Achados e dependências Xano
+
+- Feedback de carregamento, vazio, sucesso e erro já estava presente nas páginas auditadas. As abas de reservas/circulação, a busca de contas e o seletor de visão mantêm as operações existentes; os testes de regressão indicados acima cobrem esses fluxos.
+- As ações de desativar título, desativar bibliotecário e recusar solicitação/reserva usavam o estilo visual de saída da sessão. O commit `e254525` as diferencia com o estilo de ação destrutiva.
+- As listas `.admin-catalog-grid` e `.librarian-list` não limitavam explicitamente largura nem continham a rolagem horizontal. O mesmo commit limita a largura e mantém a rolagem dentro dos contêineres.
+- Dependências observadas no cliente local: acervo administrativo em `GET /admin/acervo` e atualização de título em `PATCH /catalogo/titulos/{id}`; contas bibliotecárias em `GET/PATCH /admin/usuarios`; circulação lê `GET /admin/solicitacoes`, `/admin/reservas` e `/admin/emprestimos`, e usa as operações administrativas existentes de retirada/recusa/oferta/devolução. Essas rotas são contratos codificados no cliente, não confirmação de disponibilidade ou compatibilidade no Xano real.
+- Nenhum endpoint, payload ou regra de domínio foi alterado. Não houve acesso ou escrita no Xano; a confirmação remota dos contratos permanece fora desta Change. Não foram usadas capturas nem navegador; a revisão visual aguarda conferência do usuário.
+
+### Verificações locais
+
+- Após o commit `e254525`, `.\.venv\Scripts\python.exe -m reflex compile --dry`: aprovado.
+- Após o commit `e254525`, `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`: 256 passaram.

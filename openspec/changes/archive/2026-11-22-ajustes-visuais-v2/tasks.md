@@ -22,7 +22,7 @@
 
 ## 6. Revisar jornadas de bibliotecário e admin
 
-- [ ] 6.1 Auditar Perfil/visão, acervo, reservas/circulação e contas ponta a ponta; corrigir somente problemas reproduzidos de feedback, estados vazios, ações destrutivas, alvos e rolagem móvel, sem alterar contratos Xano; para cada correção, adicionar teste focado, incluindo `test_staff_admin_workflows_have_visible_feedback_and_empty_states`, `test_destructive_operations_are_visually_distinct` e `test_operational_lists_keep_horizontal_scroll_inside_container`; registrar no relatório o que foi encontrado e dependências reais de Xano; criar commit em português e, após ele, executar `.\.venv\Scripts\python.exe -m reflex compile --dry` e `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`.
+- [x] 6.1 Auditar Perfil/visão, acervo, reservas/circulação e contas ponta a ponta; corrigir somente problemas reproduzidos de feedback, estados vazios, ações destrutivas, alvos e rolagem móvel, sem alterar contratos Xano. Commit `e254525`. Testes novos: `test_staff_admin_workflows_have_visible_feedback_and_empty_states`, `test_destructive_operations_are_visually_distinct`, `test_operational_lists_keep_horizontal_scroll_inside_container`. Regressões existentes incluídas na suíte: `test_staff_reservations_tabs_reuse_current_operations`, `test_admin_accounts_search_and_supported_actions`, `test_header_navigation_by_profile_and_view`. Após o commit: `reflex compile --dry` aprovado; `pytest --ignore=evaluation -q`: 256 passed. Relatório registra os achados e os contratos Xano consumidos pelo cliente local; não houve validação remota. Visual: feito, aguarda conferência do usuário.
 
 ## 7. Registrar evidências e fechar a Change
 
