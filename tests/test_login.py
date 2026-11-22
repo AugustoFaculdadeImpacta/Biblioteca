@@ -31,7 +31,7 @@ def test_login_page_has_only_labeled_email_and_password_fields():
     fields = [
         component
         for component in form.children
-        if component.alias == "RadixThemesTextField.Root"
+        if type(component).__name__ == "Input"
     ]
 
     assert "login" in frontend.app._unevaluated_pages

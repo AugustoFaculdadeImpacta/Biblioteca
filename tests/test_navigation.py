@@ -165,8 +165,8 @@ def test_home_hero_omits_search_and_actions_for_all_profiles():
         component.alias in {
             "RadixThemesButton",
             "ReactRouterLink",
-            "RadixThemesTextField.Root",
         }
+        or type(component).__name__ in {"Input", "Textarea", "Select"}
         for component in components
     )
     assert "active_navigation_role_rx_state_" not in repr(hero)
@@ -256,7 +256,7 @@ def test_login_page_contains_only_login_form():
     input_ids = {
         component.id
         for component in components
-        if component.alias == "RadixThemesTextField.Root"
+        if type(component).__name__ == "Input"
     }
 
     assert "form-login" in page
@@ -274,7 +274,7 @@ def test_signup_page_contains_only_signup_form():
     input_ids = {
         component.id
         for component in components
-        if component.alias == "RadixThemesTextField.Root"
+        if type(component).__name__ == "Input"
     }
 
     assert "form-cadastro-estudante" in page
@@ -652,7 +652,7 @@ def test_profile_page_shows_session_identity_read_only():
     assert "session_email_rx_state_" in text
     assert "session_role_label_rx_state_" in text
     assert not any(
-        component.alias == "RadixThemesTextField.Root"
+        type(component).__name__ == "Input"
         for component in components
     )
     assert "type:\"password\"" not in text

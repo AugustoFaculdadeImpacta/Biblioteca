@@ -35,7 +35,7 @@ def test_signup_route_has_labeled_fields_in_keyboard_order_and_visible_focus():
     fields = [
         component
         for component in form.children
-        if component.alias == "RadixThemesTextField.Root"
+        if type(component).__name__ == "Input"
     ]
 
     assert "cadastro" in frontend.app._unevaluated_pages

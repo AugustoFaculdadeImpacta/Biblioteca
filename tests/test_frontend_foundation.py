@@ -70,7 +70,8 @@ def test_focusable_field_and_button_have_visible_keyboard_focus_style():
     components = list(_components(login_page()))
     aliases = {component.alias for component in components}
 
-    assert "RadixThemesTextField.Root" in aliases
+    assert any(type(component).__name__ == "Input" for component in components)
+    assert "RadixThemesTextField.Root" not in aliases
     assert "RadixThemesButton" in aliases
     assert app.style[":focus-visible"] == {
         "outline": "3px solid var(--brand-700)",
@@ -216,32 +217,72 @@ def test_dark_cover_fallbacks_use_saturated_palette():
 
 
 def test_text_fields_align_and_autofill_safely():
-    inner = app.style[".signup-input input, .rt-TextFieldInput"]
-    general = app.style[
-        "input:not([type='checkbox']):not([type='radio']):not(.rt-TextFieldInput), textarea, select"
-    ]
-    autofill = app.style[
-        ".signup-input input:-webkit-autofill, .signup-input input:autofill, input:-webkit-autofill, input:autofill"
-    ]
+    field = app.style[".campo"]
+    area = app.style[".campo-area"]
+    select = app.style[".campo-select"]
+    autofill = app.style["input.campo:-webkit-autofill, input.campo:autofill"]
 
-    assert inner["height"] == "100%"
-    assert inner["line_height"] == "normal"
-    assert inner["padding"] == "0 0.75rem"
-    assert general["height"] == "2.75rem"
-    assert general["line_height"] == "normal"
+    assert field["min_height"] == "2.75rem"
+    assert field["height"] == "2.75rem"
+    assert field["line_height"] == "normal"
+    assert area["min_height"] == "5.5rem"
+    assert select["min_height"] == "2.75rem"
     assert autofill["-webkit_text_fill_color"] == "var(--slate-900)"
     assert autofill["caret_color"] == "var(--slate-900)"
     assert "var(--bg-panel)" in autofill["box_shadow"]
     assert "9999s" in autofill["transition"]
 
 
-def test_editing_controls_keep_external_border_only():
-    editing = app.style[
-        ".admin-title-edit-form input:not([type='hidden']):not([type='checkbox']), .admin-title-edit-form textarea, .admin-title-edit-form select"
+def test_form_routes_use_native_fields_and_hidden_ids_are_invisible():
+    from biblioteca_mais_nova import biblioteca_mais_nova as frontend
+
+    routes = (
+        frontend.login_page(),
+        frontend.student_signup(),
+        frontend.catalog_admin(),
+        frontend.librarian_management(),
+    )
+    components = [
+        item
+        for route in routes
+        for item in _components(route)
     ]
-    assert editing["border"] == "0"
-    assert editing["background_color"] == "transparent"
-    assert editing["box_shadow"] == "none"
+    assert not any(
+        item.alias is not None
+        and (
+            item.alias.startswith("RadixThemesTextField")
+            or item.alias in {"RadixThemesTextArea", "RadixThemesCheckbox"}
+        )
+        for item in components
+    )
+    title = rx.Var.create(
+        {
+            "id": 81,
+            "titulo": "Livro",
+            "autores": "Autoria",
+            "isbn": "",
+            "editora": "",
+            "edicao": "",
+            "ano_publicacao": "",
+            "descricao": "",
+            "capa_url": "",
+            "capa_gerada": "",
+            "ativo": True,
+            "categorias": "Literatura",
+            "exemplares_disponiveis": 1,
+            "exemplares": [],
+        }
+    ).to(frontend.AdminCatalogDisplayEntry)
+    card = frontend.admin_title_card(title)
+    hidden = next(
+        item
+        for item in _components(card)
+        if type(item).__name__ == "Input" and item.type._var_value == "hidden"
+    )
+
+    assert hidden.name._var_value == "titulo_id"
+    assert app.style[".campo"]["border"] == "1px solid var(--line)"
+    assert ".campo input" not in app.style
 
 
 def test_category_checkboxes_share_44px_row():
@@ -250,50 +291,43 @@ def test_category_checkboxes_share_44px_row():
     category = rx.Var.create({"id": 3, "nome": "Ciências"})
     row = catalog_category_option(category)
     assert row.class_name == "category-checkbox-row"
+    assert type(row.children[0]).__name__ == "CheckboxInput"
+    assert row.children[0].type._var_value == "checkbox"
     assert app.style[".category-checkbox-row"]["display"] == "inline-flex"
     assert app.style[".category-checkbox-row"]["align_items"] == "center"
     assert app.style[".category-checkbox-row"]["min_height"] == "2.75rem"
 
 
 def test_text_controls_have_explicit_theme_aware_colors_and_focus():
-    controls_style = app.style[
-        "input:not([type='checkbox']):not([type='radio']):not(.rt-TextFieldInput), textarea, select"
-    ]
+    controls_style = app.style[".campo"]
     assert controls_style["color"] == "var(--slate-900)"
     assert controls_style["background_color"] == "var(--bg-panel)"
-    assert app.style[".signup-input"]["color"] == "var(--slate-900)"
-    assert app.style[".signup-input"]["background_color"] == "var(--bg-panel)"
+    assert app.style[".campo-area"]["color"] == "var(--slate-900)"
+    assert app.style[".campo-select"]["background_color"] == "var(--bg-panel)"
     assert any(
         type(plugin).__name__ == "RadixThemesPlugin" and plugin.theme is not None
         for plugin in config.plugins
     )
 
 
-def test_text_fields_have_single_container_border_and_visible_container_focus():
-    container = app.style[".signup-input"]
-    inner = app.style[".signup-input input, .rt-TextFieldInput"]
-    focused_container = app.style[
-        ".signup-input:focus-within, .rt-TextFieldRoot:focus-within, .rt-SelectTrigger:focus-visible, input:not([type='checkbox']):not([type='radio']):not(.rt-TextFieldInput):focus-visible, textarea:focus-visible, select:focus-visible"
+def test_native_fields_have_single_border_and_visible_focus():
+    field = app.style[".campo"]
+    focused_fields = app.style[
+        ".campo:focus-visible, .campo-area:focus-visible, .campo-select:focus-visible, .campo-check:focus-visible"
     ]
 
-    assert container["border"] == "1px solid var(--line)"
-    assert container["border_radius"] == "0.5rem"
-    assert container["min_height"] == "2.75rem"
-    assert inner["border"] == "0 !important"
-    assert inner["box_shadow"] == "none !important"
-    assert inner["outline"] == "none !important"
-    assert inner["background_color"] == "transparent !important"
-    assert focused_container["outline"] == "3px solid var(--brand-700)"
-    assert focused_container["outline_offset"] == "2px"
+    assert field["border"] == "1px solid var(--line)"
+    assert field["border_radius"] == "0.5rem"
+    assert focused_fields["outline"] == "3px solid var(--brand-700)"
+    assert focused_fields["outline_offset"] == "2px"
 
 
 def test_form_controls_keep_keyboard_focus_visible():
-    for selector in (
-        "input:not([type='checkbox']):not([type='radio']):not(.rt-TextFieldInput), textarea, select",
-        ".rt-SelectTrigger",
-    ):
+    for selector in (".campo", ".campo-select"):
         assert app.style[selector]["min_height"] == "2.75rem"
         assert app.style[selector]["border"] == "1px solid var(--line)"
+    assert app.style[".campo-area"]["min_height"] == "5.5rem"
+    assert app.style[".campo-check-row"]["min_height"] == "2.75rem"
     assert app.style[":focus-visible"] == {
         "outline": "3px solid var(--brand-700)",
         "outline_offset": "3px",
@@ -343,7 +377,9 @@ def test_forms_and_admin_panels_use_shared_visual_states():
 def test_touch_targets_and_keyboard_accessibility_at_mobile_viewport():
     for selector in (
         "button, [role='button'], [role='checkbox'], [role='switch'], [role='radio']",
-        "input:not([type='checkbox']):not([type='radio']):not(.rt-TextFieldInput), textarea, select",
+        ".campo",
+        ".campo-select",
+        ".campo-check-row",
         ".site-primary-nav a",
         ".site-menu-toggle",
         ".profile-menu-trigger",

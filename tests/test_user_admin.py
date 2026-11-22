@@ -196,7 +196,7 @@ def test_librarian_management_page_has_labeled_fields_and_responsive_styles():
     fields = [
         component
         for component in form.children
-        if component.alias == "RadixThemesTextField.Root"
+        if type(component).__name__ == "Input"
     ]
     assert [field.name._var_value for field in fields] == [
         "nome",

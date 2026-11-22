@@ -2888,13 +2888,13 @@ def public_catalog() -> rx.Component:
                             html_for="catalog-search",
                             class_name="signup-label",
                         ),
-                        rx.input(
+                        rx.el.input(
                             id="catalog-search",
                             type="search",
                             value=State.public_catalog_search,
                             on_change=State.set_public_catalog_search,
                             aria_label="Buscar por título ou autoria",
-                            class_name="signup-input",
+                            class_name="campo",
                         ),
                         class_name="catalog-filter",
                     ),
@@ -2913,7 +2913,7 @@ def public_catalog() -> rx.Component:
                             id="catalog-category",
                             value=State.public_catalog_category_id,
                             on_change=State.set_public_catalog_category,
-                            class_name="signup-input",
+                            class_name="campo-select",
                         ),
                         class_name="catalog-filter",
                     ),
@@ -2929,14 +2929,19 @@ def public_catalog() -> rx.Component:
                             id="catalog-sort",
                             value=State.public_catalog_sort,
                             on_change=State.set_public_catalog_sort,
-                            class_name="signup-input",
+                            class_name="campo-select",
                         ),
                         class_name="catalog-filter",
                     ),
-                    rx.checkbox(
-                        text="Somente disponíveis",
-                        checked=State.public_catalog_only_available,
-                        on_change=State.set_public_catalog_only_available,
+                    rx.el.label(
+                        rx.el.input(
+                            type="checkbox",
+                            checked=State.public_catalog_only_available,
+                            on_change=State.set_public_catalog_only_available,
+                            class_name="campo-check",
+                        ),
+                        "Somente disponíveis",
+                        class_name="campo-check-row",
                     ),
                     class_name="catalog-controls",
                 ),
@@ -3593,39 +3598,39 @@ def student_signup() -> rx.Component:
                         html_for="signup-nome",
                         class_name="signup-label",
                     ),
-                    rx.input(
+                    rx.el.input(
                         id="signup-nome",
                         name="nome",
                         type="text",
                         required=True,
                         aria_label="Nome",
-                        class_name="signup-input",
+                        class_name="campo",
                     ),
                     rx.el.label(
                         "E-mail",
                         html_for="signup-email",
                         class_name="signup-label",
                     ),
-                    rx.input(
+                    rx.el.input(
                         id="signup-email",
                         name="email",
                         type="email",
                         required=True,
                         aria_label="E-mail",
-                        class_name="signup-input",
+                        class_name="campo",
                     ),
                     rx.el.label(
                         "Senha",
                         html_for="signup-senha",
                         class_name="signup-label",
                     ),
-                    rx.input(
+                    rx.el.input(
                         id="signup-senha",
                         name="senha",
                         type="password",
                         required=True,
                         aria_label="Senha",
-                        class_name="signup-input",
+                        class_name="campo",
                     ),
                     rx.button(
                         "Criar conta",
@@ -3680,26 +3685,26 @@ def login_page() -> rx.Component:
                         html_for="login-email",
                         class_name="signup-label",
                     ),
-                    rx.input(
+                    rx.el.input(
                         id="login-email",
                         name="email",
                         type="email",
                         required=True,
                         aria_label="E-mail",
-                        class_name="signup-input",
+                        class_name="campo",
                     ),
                     rx.el.label(
                         "Senha",
                         html_for="login-senha",
                         class_name="signup-label",
                     ),
-                    rx.input(
+                    rx.el.input(
                         id="login-senha",
                         name="senha",
                         type="password",
                         required=True,
                         aria_label="Senha",
-                        class_name="signup-input",
+                        class_name="campo",
                     ),
                     rx.button(
                         "Entrar",
@@ -3836,10 +3841,12 @@ def accessibility_page() -> rx.Component:
 
 def catalog_category_option(category: rx.Var[dict[str, Any]]) -> rx.Component:
     return rx.el.label(
-        rx.checkbox(
+        rx.el.input(
+            type="checkbox",
             checked=State.selected_category_ids.contains(category["id"]),
             disabled=State.catalog_title_created,
             on_change=State.toggle_catalog_category(category["id"]),
+            class_name="campo-check",
         ),
         category["nome"],
         class_name="category-checkbox-row",
@@ -3897,93 +3904,93 @@ def admin_title_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
         rx.cond(
             State.admin_catalog_edit_title_id == title["id"],
             rx.form(
-            rx.input(type="hidden", name="titulo_id", value=title["id"]),
+            rx.el.input(type="hidden", name="titulo_id", value=title["id"]),
             rx.el.label(
                 "Título",
-                rx.input(
+                rx.el.input(
                     name="titulo",
                     type="text",
                     required=True,
                     default_value=title["titulo"],
                     aria_label="Título",
-                    class_name="signup-input",
+                    class_name="campo",
                 ),
                 class_name="signup-label",
             ),
             rx.el.label(
                 "Autores",
-                rx.input(
+                rx.el.input(
                     name="autores",
                     type="text",
                     required=True,
                     default_value=title["autores"],
                     aria_label="Autores",
-                    class_name="signup-input",
+                    class_name="campo",
                 ),
                 class_name="signup-label",
             ),
             rx.el.label(
                 "ISBN (opcional)",
-                rx.input(
+                rx.el.input(
                     name="isbn",
                     type="text",
                     default_value=title["isbn"],
                     aria_label="ISBN (opcional)",
-                    class_name="signup-input",
+                    class_name="campo",
                 ),
                 class_name="signup-label",
             ),
             rx.el.label(
                 "Editora (opcional)",
-                rx.input(
+                rx.el.input(
                     name="editora",
                     type="text",
                     default_value=title["editora"],
                     aria_label="Editora (opcional)",
-                    class_name="signup-input",
+                    class_name="campo",
                 ),
                 class_name="signup-label",
             ),
             rx.el.label(
                 "Edição (opcional)",
-                rx.input(
+                rx.el.input(
                     name="edicao",
                     type="text",
                     default_value=title["edicao"],
                     aria_label="Edição (opcional)",
-                    class_name="signup-input",
+                    class_name="campo",
                 ),
                 class_name="signup-label",
             ),
             rx.el.label(
                 "Ano de publicação (opcional)",
-                rx.input(
+                rx.el.input(
                     name="ano_publicacao",
                     type="number",
                     default_value=title["ano_publicacao"],
                     aria_label="Ano de publicação (opcional)",
-                    class_name="signup-input",
+                    class_name="campo",
                 ),
                 class_name="signup-label",
             ),
             rx.el.label(
                 "Descrição (opcional)",
-                rx.text_area(
+                rx.el.textarea(
                     name="descricao",
                     default_value=title["descricao"],
                     aria_label="Descrição (opcional)",
-                    class_name="signup-input",
+                    class_name="campo-area",
                 ),
                 class_name="signup-label",
             ),
             rx.el.label(
                 "Link da imagem da capa (HTTPS, opcional)",
-                rx.input(
+                rx.el.input(
                     name="capa_url",
                     type="url",
                     default_value=title["capa_url"],
                     aria_label="Link da imagem da capa (HTTPS, opcional)",
-                    class_name="signup-input",
+                    class_name="campo",
                 ),
                 class_name="signup-label",
             ),
@@ -4098,14 +4105,14 @@ def catalog_admin() -> rx.Component:
                     "são carregadas do catálogo."
                 ),
                 rx.el.div(
-                    rx.input(
+                    rx.el.input(
                         id="admin-acervo-busca",
                         type="search",
                         value=State.admin_catalog_search,
                         on_change=State.set_admin_catalog_search,
                         placeholder="🔎 Buscar por título, autoria ou ISBN",
                         aria_label="Buscar por título, autoria ou ISBN",
-                        class_name="signup-input",
+                        class_name="campo",
                     ),
                     rx.button(
                         rx.el.span("➕", aria_hidden="true"),
@@ -4213,97 +4220,97 @@ def catalog_admin() -> rx.Component:
                             html_for="catalog-titulo",
                             class_name="signup-label",
                         ),
-                        rx.input(
+                        rx.el.input(
                             id="catalog-titulo",
                             name="titulo",
                             type="text",
                             required=True,
                             aria_label="Título",
-                            class_name="signup-input",
+                            class_name="campo",
                         ),
                         rx.el.label(
                             "Autores",
                             html_for="catalog-autores",
                             class_name="signup-label",
                         ),
-                        rx.input(
+                        rx.el.input(
                             id="catalog-autores",
                             name="autores",
                             type="text",
                             required=True,
                             aria_label="Autores",
-                            class_name="signup-input",
+                            class_name="campo",
                         ),
                         rx.el.label(
                             "ISBN (opcional)",
                             html_for="catalog-isbn",
                             class_name="signup-label",
                         ),
-                        rx.input(
+                        rx.el.input(
                             id="catalog-isbn",
                             name="isbn",
                             type="text",
                             aria_label="ISBN (opcional)",
-                            class_name="signup-input",
+                            class_name="campo",
                         ),
                         rx.el.label(
                             "Editora (opcional)",
                             html_for="catalog-editora",
                             class_name="signup-label",
                         ),
-                        rx.input(
+                        rx.el.input(
                             id="catalog-editora",
                             name="editora",
                             type="text",
                             aria_label="Editora (opcional)",
-                            class_name="signup-input",
+                            class_name="campo",
                         ),
                         rx.el.label(
                             "Edição (opcional)",
                             html_for="catalog-edicao",
                             class_name="signup-label",
                         ),
-                        rx.input(
+                        rx.el.input(
                             id="catalog-edicao",
                             name="edicao",
                             type="text",
                             aria_label="Edição (opcional)",
-                            class_name="signup-input",
+                            class_name="campo",
                         ),
                         rx.el.label(
                             "Ano de publicação (opcional)",
                             html_for="catalog-ano-publicacao",
                             class_name="signup-label",
                         ),
-                        rx.input(
+                        rx.el.input(
                             id="catalog-ano-publicacao",
                             name="ano_publicacao",
                             type="number",
                             aria_label="Ano de publicação (opcional)",
-                            class_name="signup-input",
+                            class_name="campo",
                         ),
                         rx.el.label(
                             "Descrição (opcional)",
                             html_for="catalog-descricao",
                             class_name="signup-label",
                         ),
-                        rx.text_area(
+                        rx.el.textarea(
                             id="catalog-descricao",
                             name="descricao",
                             aria_label="Descrição (opcional)",
-                            class_name="signup-input",
+                            class_name="campo-area",
                         ),
                         rx.el.label(
                             "Link da imagem da capa (HTTPS, opcional)",
                             html_for="catalog-capa-url",
                             class_name="signup-label",
                         ),
-                        rx.input(
+                        rx.el.input(
                             id="catalog-capa-url",
                             name="capa_url",
                             type="url",
                             aria_label="Link da imagem da capa (HTTPS, opcional)",
-                            class_name="signup-input",
+                            class_name="campo",
                         ),
                         rx.heading("Categorias existentes", size="4"),
                         rx.cond(
@@ -4491,39 +4498,39 @@ def librarian_management() -> rx.Component:
                         html_for="bibliotecario-nome",
                         class_name="signup-label",
                     ),
-                    rx.input(
+                    rx.el.input(
                         id="bibliotecario-nome",
                         name="nome",
                         type="text",
                         required=True,
                         aria_label="Nome do bibliotecário",
-                        class_name="signup-input",
+                        class_name="campo",
                     ),
                     rx.el.label(
                         "E-mail",
                         html_for="bibliotecario-email",
                         class_name="signup-label",
                     ),
-                    rx.input(
+                    rx.el.input(
                         id="bibliotecario-email",
                         name="email",
                         type="email",
                         required=True,
                         aria_label="E-mail do bibliotecário",
-                        class_name="signup-input",
+                        class_name="campo",
                     ),
                     rx.el.label(
                         "Senha inicial",
                         html_for="bibliotecario-senha",
                         class_name="signup-label",
                     ),
-                    rx.input(
+                    rx.el.input(
                         id="bibliotecario-senha",
                         name="senha",
                         type="password",
                         required=True,
                         aria_label="Senha inicial do bibliotecário",
-                        class_name="signup-input",
+                        class_name="campo",
                     ),
                     rx.button(
                         "Cadastrar bibliotecário",
@@ -4542,13 +4549,13 @@ def librarian_management() -> rx.Component:
                     html_for="busca-contas-bibliotecarias",
                     class_name="signup-label",
                 ),
-                rx.input(
+                rx.el.input(
                     id="busca-contas-bibliotecarias",
                     type="search",
                     value=State.librarian_management_search,
                     on_change=State.update_librarian_management_search,
                     aria_label="Buscar conta por nome ou e-mail",
-                    class_name="signup-input",
+                    class_name="campo",
                 ),
                 rx.cond(
                     State.librarian_management_pending,
@@ -4636,14 +4643,14 @@ def staff_reservation_page() -> rx.Component:
                     html_for="reserva-estudante-email",
                     class_name="signup-label",
                 ),
-                rx.input(
+                rx.el.input(
                     id="reserva-estudante-email",
                     type="email",
                     value=State.staff_reservation_email,
                     on_change=State.update_staff_reservation_email,
                     required=True,
                     aria_label="E-mail completo do estudante",
-                    class_name="signup-input",
+                    class_name="campo",
                     disabled=State.staff_reservation_pending
                     | State.staff_reservation_needs_manual_check,
                 ),
@@ -4759,14 +4766,14 @@ def staff_reservation_form() -> rx.Component:
             html_for="reserva-estudante-email",
             class_name="signup-label",
         ),
-        rx.input(
+        rx.el.input(
             id="reserva-estudante-email",
             type="email",
             value=State.staff_reservation_email,
             on_change=State.update_staff_reservation_email,
             required=True,
             aria_label="E-mail completo do estudante",
-            class_name="signup-input",
+            class_name="campo",
             disabled=State.staff_reservation_pending
             | State.staff_reservation_needs_manual_check,
         ),
@@ -6320,52 +6327,53 @@ app = rx.App(
             "margin_top": "0.5rem",
             "color": "var(--slate-900)",
         },
-        ".signup-input": {
+        ".campo": {
             "width": "100%",
             "min_height": "2.75rem",
+            "height": "2.75rem",
             "padding": "0.5rem 0.75rem",
             "border": "1px solid var(--line)",
             "border_radius": "0.5rem",
             "color": "var(--slate-900)",
             "background_color": "var(--bg-panel)",
+            "caret_color": "var(--slate-900)",
             "box_shadow": "none",
-            "transition": "border-color 120ms ease, box-shadow 120ms ease",
-        },
-        ".signup-input input, .rt-TextFieldInput": {
-            "color": "var(--slate-900)",
-            "border": "0 !important",
-            "border_radius": "0 !important",
-            "box_shadow": "none !important",
-            "outline": "none !important",
-            "background_color": "transparent !important",
-            "min_height": "2.75rem",
-            "height": "100%",
             "line_height": "normal",
-            "padding": "0 0.75rem",
+            "transition": "border-color 120ms ease, background-color 120ms ease",
         },
-        "input:not([type='checkbox']):not([type='radio']):not(.rt-TextFieldInput), textarea, select": {
+        ".campo-area": {
+            "width": "100%",
+            "min_height": "5.5rem",
+            "height": "auto",
+            "padding": "0.75rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.5rem",
+            "color": "var(--slate-900)",
+            "background_color": "var(--bg-panel)",
+            "caret_color": "var(--slate-900)",
+            "line_height": "1.5",
+            "resize": "vertical",
+        },
+        ".campo-select": {
+            "width": "100%",
             "min_height": "2.75rem",
             "height": "2.75rem",
-            "line_height": "normal",
             "padding": "0 0.75rem",
             "color": "var(--slate-900)",
             "border": "1px solid var(--line)",
             "border_radius": "0.5rem",
             "background_color": "var(--bg-panel)",
             "caret_color": "var(--slate-900)",
+            "line_height": "normal",
         },
-        "textarea": {
-            "height": "auto",
-            "min_height": "5.5rem",
-            "padding": "0.75rem",
-            "line_height": "1.5",
+        ".campo-check": {
+            "width": "1.25rem",
+            "height": "1.25rem",
+            "min_height": "1.25rem",
+            "margin": "0",
+            "accent_color": "var(--brand-700)",
         },
-        ".admin-title-edit-form input:not([type='hidden']):not([type='checkbox']), .admin-title-edit-form textarea, .admin-title-edit-form select": {
-            "border": "0",
-            "background_color": "transparent",
-            "box_shadow": "none",
-        },
-        ".signup-input input:-webkit-autofill, .signup-input input:autofill, input:-webkit-autofill, input:autofill": {
+        "input.campo:-webkit-autofill, input.campo:autofill": {
             "-webkit_text_fill_color": "var(--slate-900)",
             "caret_color": "var(--slate-900)",
             "box_shadow": "inset 0 0 0 1000px var(--bg-panel)",
@@ -6377,22 +6385,18 @@ app = rx.App(
             "min_height": "2.75rem",
             "gap": "0.5rem",
         },
-        ".rt-SelectTrigger": {
+        ".campo-check-row": {
+            "display": "inline-flex",
+            "align_items": "center",
             "min_height": "2.75rem",
-            "border": "1px solid var(--line)",
-            "border_radius": "0.5rem",
-            "color": "var(--slate-900)",
-            "background_color": "var(--bg-panel)",
-            "box_shadow": "none",
+            "gap": "0.5rem",
+            "cursor": "pointer",
         },
-        ".signup-input:focus-within, .rt-TextFieldRoot:focus-within, .rt-SelectTrigger:focus-visible, input:not([type='checkbox']):not([type='radio']):not(.rt-TextFieldInput):focus-visible, textarea:focus-visible, select:focus-visible": {
+        ".campo:focus-visible, .campo-area:focus-visible, .campo-select:focus-visible, .campo-check:focus-visible": {
             "outline": "3px solid var(--brand-700)",
             "outline_offset": "2px",
         },
-        ".signup-input input:focus-visible, .rt-TextFieldInput:focus-visible": {
-            "outline": "none !important",
-        },
-        ".signup-input input::placeholder, .rt-TextFieldInput::placeholder, input:not([type='checkbox']):not([type='radio']):not(.rt-TextFieldInput)::placeholder, textarea::placeholder": {
+        ".campo::placeholder, .campo-area::placeholder": {
             "color": "var(--slate-700)",
             "opacity": "1",
         },

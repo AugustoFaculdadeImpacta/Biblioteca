@@ -41,7 +41,7 @@ def test_catalog_form_has_only_defined_fields_and_category_selection():
     fields = [
         component
         for component in form.children
-        if component.alias == "RadixThemesTextField.Root"
+        if type(component).__name__ in {"Input", "ValueNumberInput"}
     ]
 
     assert "admin/acervo" in frontend.app._unevaluated_pages
@@ -71,13 +71,14 @@ def test_catalog_form_has_only_defined_fields_and_category_selection():
         "catalog-capa-url",
     ]
     assert any(
-        component.alias == "RadixThemesCheckbox"
+        type(component).__name__ == "CheckboxInput"
+        and component.type._var_value == "checkbox"
         for component in _components(form)
     )
     description = next(
         component
         for component in form.children
-        if component.alias == "RadixThemesTextArea"
+        if type(component).__name__ == "Textarea"
     )
     assert description.name._var_value == "descricao"
     cover = next(field for field in fields if field.name._var_value == "capa_url")
@@ -785,6 +786,7 @@ def test_public_catalog_routes_have_labeled_controls_and_return_links():
         component
         for component in listing
         if type(component).__name__ == "Label"
+        and component.html_for is not None
     ]
     assert [label.html_for._var_value for label in labels] == [
         "catalog-search",
