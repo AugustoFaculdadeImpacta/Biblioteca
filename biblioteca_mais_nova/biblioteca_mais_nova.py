@@ -2131,6 +2131,7 @@ _APPEARANCE_SCRIPT = r"""
       if (action === "theme") {
         const dark = preferences.theme === "dark" ||
           (preferences.theme === "system" && colorScheme.matches);
+        setText(button, dark ? "☀️ Modo claro" : "🌙 Modo escuro");
         button.setAttribute("aria-checked", String(dark));
       }
     });
@@ -2251,7 +2252,7 @@ def profile_appearance_controls() -> rx.Component:
             class_name="profile-menu-item",
         ),
         rx.el.button(
-            "Modo escuro",
+            "🌙 Modo escuro",
             type="button",
             role="switch",
             aria_checked=False,

@@ -965,6 +965,17 @@ def test_dark_mode_toggles_scoped_theme_tokens():
     assert "background_color" not in style.get(":root", {})
 
 
+def test_theme_switch_reports_effective_destination():
+    menu = repr(frontend.profile_menu())
+    script = frontend._APPEARANCE_SCRIPT
+
+    assert "Modo escuro" in menu
+    assert 'dark ? "☀️ Modo claro" : "🌙 Modo escuro"' in script
+    assert 'button.setAttribute("aria-checked", String(dark))' in script
+    assert "preferences.theme === \"dark\"" in script
+    assert "preferences.theme === \"system\" && colorScheme.matches" in script
+
+
 def test_dark_mode_follows_system_and_persists_appearance():
     script = frontend._APPEARANCE_SCRIPT
 
