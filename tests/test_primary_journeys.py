@@ -228,7 +228,8 @@ def test_home_sections_use_catalog_data_and_explicit_empty_error_states(
     homepage = repr(frontend.index())
     assert "Livros em destaque" in homepage
     assert "Sobre a biblioteca" in homepage
-    assert homepage.count("Ver mais") == 1
+    assert "Mostrar mais" in homepage
+    assert homepage.count("section-more-link") == 1
     assert "Carregando o acervo" in homepage
     assert "Nenhum" in homepage
     assert "Livros que mais saem" not in homepage

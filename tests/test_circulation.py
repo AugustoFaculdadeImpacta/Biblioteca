@@ -289,8 +289,8 @@ def test_circulation_page_has_accessible_actions_and_focus_style():
 
     assert "Reservas e circula" in page
     assert "Registrar retirada" in page
-    assert r"Oferecer ao pr\\u00f3ximo da fila" in page
-    assert r"Registrar devolu\\u00e7\\u00e3o" in page
+    assert "Oferecer reserva" in page
+    assert "Devolver" in page
     assert "Atrasados" in page
     assert "/admin/circulacao" not in header
     assert frontend.app.style[":focus-visible"]["outline"].startswith("3px solid ")
@@ -307,9 +307,9 @@ def test_staff_reservations_tabs_reuse_current_operations():
     assert "Solicitações pendentes" in page
     assert "Devoluções previstas hoje" in page
     assert "Registrar retirada" in page
-    assert "Oferecer ao próximo da fila" in page
+    assert "Oferecer reserva" in page
     assert "Reservar para estudante" in page
-    assert "Registrar devolução" in page
+    assert "Devolver" in page
     assert frontend.app.style[".circulation-tab"]["min_height"] == "44px"
     assert frontend.app.style["@media screen and (max-width: 40rem)"][
         ".circulation-tab"

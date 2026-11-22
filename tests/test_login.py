@@ -49,15 +49,10 @@ def test_login_page_has_only_labeled_email_and_password_fields():
     ]
     assert not any(field.name._var_value == "perfil" for field in fields)
     assert any(
-        getattr(
-            getattr(component.children[0].children[0], "contents", None),
-            "_var_value",
-            None,
-        )
-        == "Não tem conta? Cadastre-se"
+        component.custom_attrs.get("aria-label") == "Cadastrar-se"
+        and "/cadastro" in repr(component)
         for component in components
         if component.alias == "RadixThemesLink"
-        and "/cadastro" in repr(component)
     )
     assert frontend.app.style[":focus-visible"] == {
         "outline": "3px solid var(--brand-700)",

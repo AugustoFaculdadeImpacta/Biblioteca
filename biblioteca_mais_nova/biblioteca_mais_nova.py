@@ -8,6 +8,11 @@ from typing import Any, Awaitable, Callable
 import reflex as rx
 
 from biblioteca_mais_nova.covers import gerar_capa_svg
+from biblioteca_mais_nova.icons import (
+    atributos_acao,
+    conteudo_acao,
+    conteudo_selo,
+)
 
 from biblioteca_mais_nova.signup import (
     SignupValidationError,
@@ -156,6 +161,7 @@ class State(rx.State):
     librarian_management_has_error: bool = False
     librarian_management_success: bool = False
     librarian_management_search: str = ""
+    librarian_management_confirm_id: int | None = None
     managed_librarians: list[dict[str, Any]] = []
     staff_reservation_pending: bool = False
     staff_reservation_message: str = ""
@@ -672,6 +678,7 @@ class State(rx.State):
         self.librarian_management_message = ""
         self.librarian_management_has_error = False
         self.librarian_management_success = False
+        self.librarian_management_confirm_id = None
         self.managed_librarians = []
         self.staff_reservation_pending = False
         self.staff_reservation_message = ""
@@ -1064,6 +1071,16 @@ class State(rx.State):
             self.librarian_management_pending = False
 
     @rx.event
+    def request_librarian_deactivation(self, librarian_id: int):
+        if not self._is_admin():
+            return self._redirect_non_admin()
+        self.librarian_management_confirm_id = librarian_id
+
+    @rx.event
+    def cancel_librarian_deactivation(self):
+        self.librarian_management_confirm_id = None
+
+    @rx.event
     async def submit_librarian(self, form_data: dict[str, Any]):
         if not self._is_admin():
             return self._redirect_non_admin()
@@ -1145,6 +1162,7 @@ class State(rx.State):
             librarian if item["id"] == librarian_id else item
             for item in self.managed_librarians
         ]
+        self.librarian_management_confirm_id = None
         self.librarian_management_message = (
             "Bibliotecário reativado."
             if active
@@ -2091,16 +2109,16 @@ class State(rx.State):
 def site_primary_nav() -> rx.Component:
     return rx.el.nav(
         rx.link(
-            rx.el.span("🔎", aria_hidden="true"),
-            rx.text(" Catálogo"),
+            conteudo_acao("catalogo"),
             href="/catalogo",
+            **atributos_acao("catalogo"),
         ),
         rx.cond(
             State.active_navigation_role == "Estudante",
             rx.link(
-                rx.el.span("🔖", aria_hidden="true"),
-                rx.text(" Reservas"),
+                conteudo_acao("minhas_reservas"),
                 href="/reservas",
+                **atributos_acao("minhas_reservas"),
             ),
             rx.fragment(),
         ),
@@ -2108,22 +2126,22 @@ def site_primary_nav() -> rx.Component:
             State.active_navigation_role == "Bibliotecária",
             rx.fragment(
                 rx.link(
-                    rx.el.span("🗂️", aria_hidden="true"),
-                    rx.text(" Acervo"),
+                    conteudo_acao("acervo"),
                     href="/admin/acervo",
+                    **atributos_acao("acervo"),
                 ),
                 rx.link(
-                    rx.el.span("🔖", aria_hidden="true"),
-                    rx.text(" Reservas"),
+                    conteudo_acao("pedidos_reserva"),
                     href="/admin/reservas",
+                    **atributos_acao("pedidos_reserva"),
                 ),
             ),
             rx.cond(
                 State.active_navigation_role == "Admin",
                     rx.link(
-                        rx.el.span("👥", aria_hidden="true"),
-                        rx.text(" Contas"),
+                        conteudo_acao("contas"),
                         href="/admin/bibliotecarios",
+                        **atributos_acao("contas"),
                     ),
                 rx.fragment(),
             ),
@@ -2155,10 +2173,11 @@ def admin_view_status() -> rx.Component:
             rx.cond(
                 State.admin_view_mode != "",
                 rx.button(
-                    "Voltar à visão de admin",
+                    conteudo_acao("restaurar_visao"),
                     type="button",
                     on_click=State.reset_admin_view_mode,
                     class_name="admin-view-reset",
+                    **atributos_acao("restaurar_visao"),
                 ),
                 rx.fragment(),
             ),
@@ -2247,20 +2266,28 @@ _APPEARANCE_SCRIPT = r"""
           `${preferences.fontScale}%`);
       }
       if (action === "high-contrast") {
-        setText(button, preferences.highContrast
-          ? "Alto contraste: ativo" : "Ativar alto contraste");
+        const label = preferences.highContrast
+          ? "Alto contraste ativo" : "Ativar alto contraste";
+        setText(button.querySelector("[data-action-label]"), label);
+        button.setAttribute("aria-label", label);
+        button.setAttribute("title", label);
         button.setAttribute("aria-pressed", String(preferences.highContrast));
       }
       if (action === "reduce-motion") {
-        setText(button, preferences.reduceMotion
-          ? "Movimento reduzido: ativo" : "Reduzir movimento");
+        const label = preferences.reduceMotion
+          ? "Movimento reduzido" : "Reduzir movimento";
+        setText(button.querySelector("[data-action-label]"), label);
+        button.setAttribute("aria-label", label);
+        button.setAttribute("title", label);
         button.setAttribute("aria-pressed", String(preferences.reduceMotion));
       }
       if (action === "theme") {
         const dark = preferences.theme === "dark" ||
           (preferences.theme === "system" && colorScheme.matches);
-        setText(button.querySelector("[data-appearance-theme-label]"),
-          dark ? "Modo claro" : "Modo escuro");
+        const label = dark ? "Modo claro" : "Modo escuro";
+        setText(button.querySelector("[data-appearance-theme-label]"), label);
+        button.setAttribute("aria-label", label);
+        button.setAttribute("title", label);
         const emoji = button.querySelector("[data-appearance-theme-emoji]");
         setText(emoji, dark ? "☀️" : "🌙");
         button.setAttribute("aria-checked", String(dark));
@@ -2360,52 +2387,59 @@ def profile_appearance_controls() -> rx.Component:
         ),
         rx.el.div(
             rx.button(
-                "A−",
+                conteudo_acao("diminuir_fonte"),
                 type="button",
-                aria_label="Diminuir fonte",
                 data_appearance_action="font-decrease",
                 class_name="profile-menu-item",
+                **atributos_acao("diminuir_fonte"),
             ),
             rx.button(
-                rx.el.span("100%", data_appearance_font_value="true"),
+                conteudo_acao(
+                    "fonte_padrao",
+                    complemento=rx.el.span(
+                        "100%",
+                        data_appearance_font_value="true",
+                        class_name="appearance-font-value",
+                    ),
+                ),
                 type="button",
-                aria_label="Tamanho atual da fonte",
                 data_appearance_action="font-reset",
                 class_name="profile-menu-item",
+                **atributos_acao("fonte_padrao"),
             ),
             rx.button(
-                "A+",
+                conteudo_acao("aumentar_fonte"),
                 type="button",
-                aria_label="Aumentar fonte",
                 data_appearance_action="font-increase",
                 class_name="profile-menu-item",
+                **atributos_acao("aumentar_fonte"),
             ),
             class_name="profile-menu-controls",
         ),
         rx.button(
-            rx.el.span("🌗", aria_hidden="true"),
-            rx.text(" Ativar alto contraste"),
+            conteudo_acao("alto_contraste"),
             type="button",
             aria_pressed=False,
             data_appearance_action="high-contrast",
             class_name="profile-menu-item",
+            **atributos_acao("alto_contraste"),
         ),
         rx.button(
-            rx.el.span("🎞️", aria_hidden="true"),
-            rx.text(" Reduzir movimento"),
+            conteudo_acao("reduzir_movimento"),
             type="button",
             aria_pressed=False,
             data_appearance_action="reduce-motion",
             class_name="profile-menu-item",
+            **atributos_acao("reduzir_movimento"),
         ),
         rx.el.button(
-            rx.el.span("🌙", aria_hidden="true", data_appearance_theme_emoji="true"),
-            rx.text("Modo escuro", data_appearance_theme_label="true"),
+            conteudo_acao("tema"),
             type="button",
             role="switch",
             aria_checked=False,
             data_appearance_action="theme",
             class_name="profile-menu-item",
+            **atributos_acao("tema"),
         ),
         class_name="profile-appearance-controls",
     )
@@ -2416,15 +2450,14 @@ def profile_menu() -> rx.Component:
         rx.el.summary(
             rx.cond(
                 State.is_authenticated,
-                rx.fragment(
-                    rx.el.span("👤", aria_hidden="true"),
-                    rx.text(" "),
-                    State.greeting_name,
-                ),
-                rx.fragment(
-                    rx.el.span("🔑", aria_hidden="true"),
-                    rx.text(" Entrar"),
-                ),
+                conteudo_acao("perfil", State.greeting_name),
+                conteudo_acao("entrar"),
+            ),
+            title=rx.cond(
+                State.is_authenticated, State.greeting_name, "Entrar"
+            ),
+            aria_label=rx.cond(
+                State.is_authenticated, State.greeting_name, "Entrar"
             ),
             class_name="profile-menu-trigger",
         ),
@@ -2452,22 +2485,36 @@ def profile_menu() -> rx.Component:
                                 class_name="profile-menu-identity",
                             ),
                             rx.el.button(
-                                rx.cond(
-                                    State.admin_view_mode == "",
-                                    "✓ Administrador",
-                                    "Administrador",
+                                conteudo_acao(
+                                    "administrador",
+                                    rx.cond(
+                                        State.admin_view_mode == "",
+                                        "✓ Administrador",
+                                        "Administrador",
+                                    ),
                                 ),
                                 type="button",
                                 role="radio",
                                 aria_checked=State.admin_view_mode == "",
                                 on_click=State.reset_admin_view_mode,
                                 class_name="profile-menu-item",
+                                **atributos_acao(
+                                    "administrador",
+                                    rx.cond(
+                                        State.admin_view_mode == "",
+                                        "✓ Administrador",
+                                        "Administrador",
+                                    ),
+                                ),
                             ),
                             rx.el.button(
-                                rx.cond(
-                                    State.admin_view_mode == "bibliotecaria",
-                                    "✓ Bibliotecário",
-                                    "Bibliotecário",
+                                conteudo_acao(
+                                    "bibliotecario",
+                                    rx.cond(
+                                        State.admin_view_mode == "bibliotecaria",
+                                        "✓ Bibliotecário",
+                                        "Bibliotecário",
+                                    ),
                                 ),
                                 type="button",
                                 role="radio",
@@ -2478,12 +2525,23 @@ def profile_menu() -> rx.Component:
                                     "bibliotecaria"
                                 ),
                                 class_name="profile-menu-item",
+                                **atributos_acao(
+                                    "bibliotecario",
+                                    rx.cond(
+                                        State.admin_view_mode == "bibliotecaria",
+                                        "✓ Bibliotecário",
+                                        "Bibliotecário",
+                                    ),
+                                ),
                             ),
                             rx.el.button(
-                                rx.cond(
-                                    State.admin_view_mode == "estudante",
-                                    "✓ Estudante",
-                                    "Estudante",
+                                conteudo_acao(
+                                    "estudante",
+                                    rx.cond(
+                                        State.admin_view_mode == "estudante",
+                                        "✓ Estudante",
+                                        "Estudante",
+                                    ),
                                 ),
                                 type="button",
                                 role="radio",
@@ -2494,30 +2552,38 @@ def profile_menu() -> rx.Component:
                                     "estudante"
                                 ),
                                 class_name="profile-menu-item",
+                                **atributos_acao(
+                                    "estudante",
+                                    rx.cond(
+                                        State.admin_view_mode == "estudante",
+                                        "✓ Estudante",
+                                        "Estudante",
+                                    ),
+                                ),
                             ),
                         ),
                         rx.fragment(),
                     ),
                     rx.button(
-                        rx.el.span("🚪", aria_hidden="true"),
-                        rx.text(" Sair"),
+                        conteudo_acao("sair"),
                         type="button",
                         on_click=State.logout,
                         class_name="profile-menu-item",
+                        **atributos_acao("sair"),
                     ),
                 ),
                 rx.fragment(
                     rx.link(
-                        rx.el.span("🔑", aria_hidden="true"),
-                        rx.text(" Entrar"),
+                        conteudo_acao("entrar"),
                         href="/login",
                         class_name="profile-menu-item",
+                        **atributos_acao("entrar"),
                     ),
                     rx.link(
-                        rx.el.span("📝", aria_hidden="true"),
-                        rx.text(" Cadastrar-se"),
+                        conteudo_acao("cadastrar"),
                         href="/cadastro",
                         class_name="profile-menu-item",
+                        **atributos_acao("cadastrar"),
                     ),
                 ),
             ),
@@ -2530,10 +2596,9 @@ def profile_menu() -> rx.Component:
 def accessibility_menu() -> rx.Component:
     return rx.el.details(
         rx.el.summary(
-            rx.el.span("♿", aria_hidden="true"),
-            rx.text(" Acessibilidade"),
-            aria_label="Abrir menu Acessibilidade",
+            conteudo_acao("acessibilidade"),
             class_name="accessibility-menu-trigger",
+            **atributos_acao("acessibilidade"),
         ),
         rx.el.div(
             profile_appearance_controls(),
@@ -2545,10 +2610,15 @@ def accessibility_menu() -> rx.Component:
 
 def site_header() -> rx.Component:
     brand = rx.link(
-        rx.el.span("📚", aria_hidden="true"),
-        rx.text(" Biblioteca escolar"),
+        conteudo_acao("marca"),
         href="/",
         class_name="brand-link",
+        **atributos_acao("marca"),
+    )
+    menu_label = rx.cond(
+        State.mobile_navigation_open,
+        "Fechar menu",
+        "Abrir menu",
     )
     mobile_profile_actions = rx.el.div(
         admin_view_status(),
@@ -2559,23 +2629,13 @@ def site_header() -> rx.Component:
     return rx.el.header(
         brand,
         rx.button(
-            rx.el.span(
-                rx.el.span(class_name="menu-hamburger-line"),
-                rx.el.span(class_name="menu-hamburger-line"),
-                rx.el.span(class_name="menu-hamburger-line"),
-                aria_hidden="true",
-                class_name="menu-hamburger-icon",
-            ),
+            conteudo_acao("menu_navegacao", menu_label),
             type="button",
-            aria_label=rx.cond(
-                State.mobile_navigation_open,
-                "Fechar menu",
-                "Abrir menu",
-            ),
             aria_expanded=State.mobile_navigation_open,
             aria_controls="navegacao-movel",
             on_click=State.toggle_mobile_navigation,
             class_name="site-menu-toggle",
+            **atributos_acao("menu_navegacao", menu_label),
         ),
         rx.el.div(
             site_primary_nav(),
@@ -2613,7 +2673,11 @@ def site_footer() -> rx.Component:
             class_name="footer-about",
         ),
         rx.el.nav(
-            rx.link("Catálogo", href="/catalogo"),
+            rx.link(
+                conteudo_acao("catalogo"),
+                href="/catalogo",
+                **atributos_acao("catalogo"),
+            ),
             aria_label="Links úteis",
             class_name="footer-links",
         ),
@@ -2802,13 +2866,11 @@ def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
             rx.cond(
                 available_count > 0,
                 rx.el.span(
-                    rx.el.span("🟢", aria_hidden="true"),
-                    rx.text(" Disponível"),
+                    conteudo_selo("disponivel"),
                     class_name="status-pill status-pill-success",
                 ),
                 rx.el.span(
-                    rx.el.span("🔴", aria_hidden="true"),
-                    rx.text(" Indisponível"),
+                    conteudo_selo("indisponivel"),
                     class_name="status-pill status-pill-muted",
                 ),
             ),
@@ -2819,14 +2881,19 @@ def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
             ),
             class_name="catalog-card-meta-row",
         ),
-        rx.link("Ver detalhes", href=title["href"], class_name="catalog-card-link"),
+        rx.link(
+            conteudo_acao("detalhes"),
+            href=title["href"],
+            class_name="catalog-card-link",
+            **atributos_acao("detalhes"),
+        ),
         rx.cond(
             State.is_librarian,
             rx.link(
-                rx.el.span("✏️", aria_hidden="true"),
-                rx.text(" Editar este título"),
+                conteudo_acao("editar"),
                 href="/admin/acervo?titulo=" + title["id"].to(str),
                 class_name="catalog-card-link",
+                **atributos_acao("editar"),
             ),
             rx.fragment(),
         ),
@@ -2840,8 +2907,14 @@ def student_loan_card(loan: rx.Var[dict[str, Any]]) -> rx.Component:
             rx.el.h3(loan["titulo"], class_name="catalog-card-heading"),
             rx.cond(
                 loan["em_atraso"],
-                rx.el.span("Atrasado", class_name="status-pill status-pill-warning"),
-                rx.el.span("Em andamento", class_name="status-pill status-pill-success"),
+                rx.el.span(
+                    conteudo_selo("atraso"),
+                    class_name="status-pill status-pill-warning",
+                ),
+                rx.el.span(
+                    conteudo_selo("emprestado"),
+                    class_name="status-pill status-pill-success",
+                ),
             ),
             class_name="card-header-row",
         ),
@@ -2872,7 +2945,11 @@ def student_request_card(request: rx.Var[dict[str, Any]]) -> rx.Component:
     return rx.el.article(
         rx.el.div(
             rx.el.h3(
-                rx.link(request["titulo"], href=request["href"]),
+                rx.link(
+                    conteudo_acao("detalhes"),
+                    href=request["href"],
+                    **atributos_acao("detalhes"),
+                ),
                 class_name="catalog-card-heading",
             ),
             rx.el.span(request["estado"], class_name="status-pill status-pill-muted"),
@@ -2888,7 +2965,11 @@ def student_reservation_card(reservation: rx.Var[dict[str, Any]]) -> rx.Componen
     return rx.el.article(
         rx.el.div(
             rx.el.h3(
-                rx.link(reservation["titulo"], href=reservation["href"]),
+                rx.link(
+                    conteudo_acao("detalhes"),
+                    href=reservation["href"],
+                    **atributos_acao("detalhes"),
+                ),
                 class_name="catalog-card-heading",
             ),
             rx.el.span(reservation["estado"], class_name="status-pill status-pill-muted"),
@@ -2903,9 +2984,10 @@ def student_reservation_card(reservation: rx.Var[dict[str, Any]]) -> rx.Componen
 def public_catalog() -> rx.Component:
     return rx.box(
         rx.link(
-            "Pular para o conteúdo",
+            conteudo_acao("pular_conteudo"),
             href="#conteudo-catalogo",
             class_name="skip-link",
+            **atributos_acao("pular_conteudo"),
         ),
         site_header(),
         rx.el.main(
@@ -3031,9 +3113,10 @@ def public_catalog() -> rx.Component:
 def public_catalog_detail() -> rx.Component:
     return rx.box(
         rx.link(
-            "Pular para o conteúdo",
+            conteudo_acao("pular_conteudo"),
             href="#conteudo-detalhe",
             class_name="skip-link",
+            **atributos_acao("pular_conteudo"),
         ),
         site_header(),
         rx.el.main(
@@ -3171,14 +3254,14 @@ def public_catalog_detail() -> rx.Component:
                             ),
                         ),
                         rx.button(
-                            rx.el.span("📘", aria_hidden="true"),
-                            rx.text(" Reservar"),
+                            conteudo_acao("reservar"),
                             type="button",
                             disabled=State.student_request_pending,
                             on_click=State.request_catalog_title(
                                 State.public_catalog_detail["id"]
                             ),
                             class_name="focus-demo-button",
+                            **atributos_acao("reservar"),
                         ),
                         align="start",
                         width="100%",
@@ -3187,19 +3270,20 @@ def public_catalog_detail() -> rx.Component:
                         State.is_authenticated,
                         rx.fragment(),
                         rx.link(
-                            "Entrar para reservar",
+                            conteudo_acao("entrar"),
                             href="/login",
                             class_name="primary-cta",
+                            **atributos_acao("entrar"),
                         ),
                     ),
                 ),
                 rx.cond(
                     State.is_librarian,
                     rx.link(
-                        rx.el.span("✏️", aria_hidden="true"),
-                        rx.text(" Editar este título"),
+                        conteudo_acao("editar"),
                         href="/admin/acervo?titulo=" + State.public_catalog_detail["id"].to(str),
                         class_name="primary-cta",
+                        **atributos_acao("editar"),
                     ),
                     rx.fragment(),
                 ),
@@ -3217,8 +3301,7 @@ def student_reservations() -> rx.Component:
     awaiting_approval_section = rx.el.section(
         rx.el.div(
             rx.heading(
-                rx.el.span("⏳", aria_hidden="true"),
-                rx.text(" Aguardando aprovação"),
+                conteudo_selo("aguardando", "Aguardando aprovação"),
                 size="5",
             ),
             rx.el.span(
@@ -3247,8 +3330,7 @@ def student_reservations() -> rx.Component:
     approved_section = rx.el.section(
         rx.el.div(
             rx.heading(
-                rx.el.span("✅", aria_hidden="true"),
-                rx.text(" Aprovadas"),
+                conteudo_selo("aprovada", "Aprovadas"),
                 size="5",
             ),
             rx.el.span(
@@ -3277,8 +3359,7 @@ def student_reservations() -> rx.Component:
     borrowed_section = rx.el.section(
         rx.el.div(
             rx.heading(
-                rx.el.span("📖", aria_hidden="true"),
-                rx.text(" Emprestados"),
+                conteudo_selo("emprestado", "Emprestados"),
                 size="5",
             ),
             rx.el.span(
@@ -3304,8 +3385,7 @@ def student_reservations() -> rx.Component:
     overdue_section = rx.el.section(
         rx.el.div(
             rx.heading(
-                rx.el.span("⚠️", aria_hidden="true"),
-                rx.text(" Em atraso"),
+                conteudo_selo("atraso"),
                 size="5",
             ),
             rx.el.span(
@@ -3330,9 +3410,10 @@ def student_reservations() -> rx.Component:
     )
     return rx.box(
         rx.link(
-            "Pular para o conteúdo",
+            conteudo_acao("pular_conteudo"),
             href="#conteudo-reservas",
             class_name="skip-link",
+            **atributos_acao("pular_conteudo"),
         ),
         site_header(),
         rx.el.main(
@@ -3372,7 +3453,11 @@ def student_reservations() -> rx.Component:
                         rx.el.p(State.student_library_message),
                         rx.cond(
                             State.student_library_requires_login,
-                            rx.link("Entrar novamente", href="/login"),
+                            rx.link(
+                                conteudo_acao("entrar"),
+                                href="/login",
+                                **atributos_acao("entrar"),
+                            ),
                             rx.fragment(),
                         ),
                         role="alert",
@@ -3413,9 +3498,10 @@ def student_library() -> rx.Component:
 def student_library_redirect() -> rx.Component:
     return rx.box(
         rx.link(
-            "Pular para o conteúdo",
+            conteudo_acao("pular_conteudo"),
             href="#conteudo-redirecionamento-reservas",
             class_name="skip-link",
+            **atributos_acao("pular_conteudo"),
         ),
         site_header(),
         rx.el.main(
@@ -3435,9 +3521,10 @@ def student_library_redirect() -> rx.Component:
 def index() -> rx.Component:
     return rx.box(
         rx.link(
-            "Pular para o conteúdo",
+            conteudo_acao("pular_conteudo"),
             href="#conteudo-home",
             class_name="skip-link",
+            **atributos_acao("pular_conteudo"),
         ),
         site_header(),
         rx.el.main(
@@ -3535,9 +3622,10 @@ def index() -> rx.Component:
                         spacing="1",
                     ),
                     rx.link(
-                        "Ver mais",
+                        conteudo_acao("mostrar_mais"),
                         href="/catalogo",
                         class_name="section-more-link",
+                        **atributos_acao("mostrar_mais"),
                     ),
                     class_name="home-section-heading",
                 ),
@@ -3603,7 +3691,12 @@ def index() -> rx.Component:
 
 def student_signup() -> rx.Component:
     return rx.box(
-        rx.link("Pular para o conteúdo", href="#conteudo-cadastro", class_name="skip-link"),
+        rx.link(
+            conteudo_acao("pular_conteudo"),
+            href="#conteudo-cadastro",
+            class_name="skip-link",
+            **atributos_acao("pular_conteudo"),
+        ),
         site_header(),
         rx.el.main(
             rx.el.section(
@@ -3666,9 +3759,10 @@ def student_signup() -> rx.Component:
                         class_name="campo",
                     ),
                     rx.button(
-                        "Criar conta",
+                        conteudo_acao("cadastrar"),
                         type="submit",
                         class_name="focus-demo-button",
+                        **atributos_acao("cadastrar"),
                     ),
                     id="form-cadastro-estudante",
                     on_submit=State.submit_signup,
@@ -3679,7 +3773,11 @@ def student_signup() -> rx.Component:
                     "O perfil de estudante é atribuído pelo sistema.",
                     class_name="signup-note",
                 ),
-                rx.link("Já tem conta? Entrar", href="/login"),
+                rx.link(
+                    conteudo_acao("entrar"),
+                    href="/login",
+                    **atributos_acao("entrar"),
+                ),
                 id="conteudo-cadastro",
                 class_name="content-section signup-section",
             ),
@@ -3692,7 +3790,12 @@ def student_signup() -> rx.Component:
 
 def login_page() -> rx.Component:
     return rx.box(
-        rx.link("Pular para o conteúdo", href="#conteudo-login", class_name="skip-link"),
+        rx.link(
+            conteudo_acao("pular_conteudo"),
+            href="#conteudo-login",
+            class_name="skip-link",
+            **atributos_acao("pular_conteudo"),
+        ),
         site_header(),
         rx.el.main(
             rx.el.section(
@@ -3740,17 +3843,26 @@ def login_page() -> rx.Component:
                         class_name="campo",
                     ),
                     rx.button(
-                        "Entrar",
+                        conteudo_acao("entrar"),
                         type="submit",
                         class_name="focus-demo-button",
+                        **atributos_acao("entrar"),
                     ),
                     id="form-login",
                     on_submit=State.submit_login,
                     reset_on_submit=False,
                     class_name="signup-form",
                 ),
-                rx.link("Ver catálogo sem entrar", href="/catalogo"),
-                rx.link("Não tem conta? Cadastre-se", href="/cadastro"),
+                rx.link(
+                    conteudo_acao("catalogo", "Ver catálogo"),
+                    href="/catalogo",
+                    **atributos_acao("catalogo", "Ver catálogo"),
+                ),
+                rx.link(
+                    conteudo_acao("cadastrar"),
+                    href="/cadastro",
+                    **atributos_acao("cadastrar"),
+                ),
                 id="conteudo-login",
                 class_name="content-section signup-section",
             ),
@@ -3764,9 +3876,10 @@ def login_page() -> rx.Component:
 def profile_page() -> rx.Component:
     return rx.box(
         rx.link(
-            "Pular para o conteúdo",
+            conteudo_acao("pular_conteudo"),
             href="#conteudo-perfil",
             class_name="skip-link",
+            **atributos_acao("pular_conteudo"),
         ),
         site_header(),
         rx.el.main(
@@ -3806,39 +3919,51 @@ def accessibility_controls() -> rx.Component:
         ),
         rx.el.div(
             rx.button(
-                "Diminuir fonte",
+                conteudo_acao("diminuir_fonte"),
                 type="button",
                 data_appearance_action="font-decrease",
                 class_name="a11y-control-button",
+                **atributos_acao("diminuir_fonte"),
             ),
             rx.button(
-                "Tamanho padrão",
+                conteudo_acao(
+                    "fonte_padrao",
+                    complemento=rx.el.span(
+                        "100%",
+                        data_appearance_font_value="true",
+                        class_name="appearance-font-value",
+                    ),
+                ),
                 type="button",
                 data_appearance_action="font-reset",
                 class_name="a11y-control-button",
+                **atributos_acao("fonte_padrao"),
             ),
             rx.button(
-                "Aumentar fonte",
+                conteudo_acao("aumentar_fonte"),
                 type="button",
                 data_appearance_action="font-increase",
                 class_name="a11y-control-button",
+                **atributos_acao("aumentar_fonte"),
             ),
             class_name="a11y-controls",
         ),
         rx.el.div(
             rx.button(
-                "Ativar alto contraste",
+                conteudo_acao("alto_contraste"),
                 type="button",
                 aria_pressed=False,
                 data_appearance_action="high-contrast",
                 class_name="a11y-control-button",
+                **atributos_acao("alto_contraste"),
             ),
             rx.button(
-                "Reduzir movimento",
+                conteudo_acao("reduzir_movimento"),
                 type="button",
                 aria_pressed=False,
                 data_appearance_action="reduce-motion",
                 class_name="a11y-control-button",
+                **atributos_acao("reduzir_movimento"),
             ),
             class_name="a11y-controls",
         ),
@@ -3850,9 +3975,10 @@ def accessibility_controls() -> rx.Component:
 def accessibility_page() -> rx.Component:
     return rx.box(
         rx.link(
-            "Pular para o conteúdo",
+            conteudo_acao("pular_conteudo"),
             href="#conteudo-acessibilidade",
             class_name="skip-link",
+            **atributos_acao("pular_conteudo"),
         ),
         site_header(),
         rx.el.main(
@@ -4028,11 +4154,11 @@ def admin_title_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
                 class_name="signup-label",
             ),
             rx.button(
-                rx.el.span("💾", aria_hidden="true"),
-                rx.text(" Salvar alterações"),
+                conteudo_acao("salvar", "Salvar alterações"),
                 type="submit",
                 disabled=State.admin_catalog_pending,
                 class_name="focus-demo-button",
+                **atributos_acao("salvar", "Salvar alterações"),
             ),
             on_submit=State.save_admin_title,
             reset_on_submit=False,
@@ -4042,20 +4168,21 @@ def admin_title_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
         ),
         rx.hstack(
             rx.button(
-                rx.el.span("✏️", aria_hidden="true"),
-                rx.text(" Editar"),
+                conteudo_acao("editar"),
                 type="button",
                 on_click=State.open_admin_title_edit(title["id"]),
                 disabled=State.admin_catalog_pending,
                 class_name="focus-demo-button",
+                **atributos_acao("editar"),
             ),
             rx.button(
-                "Adicionar exemplar",
+                conteudo_acao("criar_exemplar", "Adicionar exemplar"),
                 type="button",
                 on_click=State.add_copy_to_title(title["id"]),
                 disabled=State.admin_catalog_pending
                 | State.admin_catalog_needs_manual_check,
                 class_name="focus-demo-button",
+                **atributos_acao("criar_exemplar", "Adicionar exemplar"),
             ),
             rx.cond(
                 title["ativo"],
@@ -4063,42 +4190,52 @@ def admin_title_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
                     State.admin_catalog_confirm_title_id == title["id"],
                     rx.fragment(
                         rx.button(
-                            rx.text("Confirmar desativação"),
+                            conteudo_acao("confirmar_desativacao"),
                             type="button",
                             on_click=State.set_title_active(title["id"], False),
                             disabled=State.admin_catalog_pending,
                             class_name="destructive-action",
+                            **atributos_acao("confirmar_desativacao"),
                         ),
                         rx.button(
-                            "Cancelar",
+                            conteudo_acao("nao_confirmar"),
                             type="button",
                             on_click=State.cancel_title_deactivation,
                             disabled=State.admin_catalog_pending,
                             class_name="focus-demo-button",
+                            **atributos_acao("nao_confirmar"),
                         ),
                     ),
                     rx.button(
-                        rx.cond(
-                            State.admin_catalog_pending,
-                            rx.text("Processando..."),
-                            rx.fragment(
-                                rx.el.span("🚫", aria_hidden="true"),
-                                rx.text(" Desativar título"),
+                        conteudo_acao(
+                            "desativar",
+                            rx.cond(
+                                State.admin_catalog_pending,
+                                "Processando…",
+                                "Desativar",
                             ),
                         ),
                         type="button",
                         on_click=State.request_title_deactivation(title["id"]),
                         disabled=State.admin_catalog_pending,
                         class_name="destructive-action",
+                        **atributos_acao(
+                            "desativar",
+                            rx.cond(
+                                State.admin_catalog_pending,
+                                "Processando…",
+                                "Desativar",
+                            ),
+                        ),
                     ),
                 ),
                 rx.button(
-                    rx.el.span("♻️", aria_hidden="true"),
-                    rx.text(" Reativar título"),
+                    conteudo_acao("reativar"),
                     type="button",
                     on_click=State.set_title_active(title["id"], True),
                     disabled=State.admin_catalog_pending,
                     class_name="focus-demo-button",
+                    **atributos_acao("reativar"),
                 ),
             ),
             flex_wrap="wrap",
@@ -4128,7 +4265,12 @@ def admin_title_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
 
 def catalog_admin() -> rx.Component:
     return rx.box(
-        rx.link("Pular para o conteúdo", href="#conteudo-acervo", class_name="skip-link"),
+        rx.link(
+            conteudo_acao("pular_conteudo"),
+            href="#conteudo-acervo",
+            class_name="skip-link",
+            **atributos_acao("pular_conteudo"),
+        ),
         site_header(),
         rx.el.main(
             rx.el.section(
@@ -4148,19 +4290,20 @@ def catalog_admin() -> rx.Component:
                         class_name="campo",
                     ),
                     rx.button(
-                        rx.el.span("➕", aria_hidden="true"),
-                        rx.text(" Novo título"),
+                        conteudo_acao("novo_titulo"),
                         type="button",
                         on_click=State.open_admin_new_title,
                         class_name="focus-demo-button",
+                        **atributos_acao("novo_titulo"),
                     ),
                     rx.cond(
                         State.admin_catalog_new_title_open,
                         rx.button(
-                            "Fechar cadastro",
+                            conteudo_acao("fechar_cadastro"),
                             type="button",
                             on_click=State.close_admin_new_title,
                             class_name="nav-logout",
+                            **atributos_acao("fechar_cadastro"),
                         ),
                         rx.fragment(),
                     ),
@@ -4203,10 +4346,11 @@ def catalog_admin() -> rx.Component:
                         rx.cond(
                             State.catalog_categories_pending,
                             rx.button(
-                                "Retomar associações de categorias",
+                                conteudo_acao("retomar_categorias"),
                                 type="button",
                                 on_click=State.retry_catalog_categories,
                                 class_name="focus-demo-button",
+                                **atributos_acao("retomar_categorias"),
                             ),
                             rx.fragment(),
                         ),
@@ -4225,22 +4369,24 @@ def catalog_admin() -> rx.Component:
                         rx.cond(
                             ~State.catalog_categories_pending,
                             rx.button(
-                                "Criar um exemplar",
+                                conteudo_acao("criar_exemplar"),
                                 type="button",
                                 on_click=State.create_catalog_copy,
                                 class_name="focus-demo-button",
                                 disabled=State.catalog_needs_manual_check
                                 | State.catalog_categories_pending,
+                                **atributos_acao("criar_exemplar"),
                             ),
                             rx.fragment(),
                         ),
                         rx.button(
-                            "Iniciar outro título",
+                            conteudo_acao("novo_cadastro"),
                             type="button",
                             on_click=State.start_new_catalog_title,
                             class_name="focus-demo-button",
                             disabled=State.catalog_needs_manual_check
                             | State.catalog_categories_pending,
+                            **atributos_acao("novo_cadastro"),
                         ),
                         align="start",
                         width="100%",
@@ -4355,10 +4501,10 @@ def catalog_admin() -> rx.Component:
                             rx.text("Nenhuma categoria disponível."),
                         ),
                         rx.button(
-                            rx.el.span("➕", aria_hidden="true"),
-                            rx.text(" Cadastrar título"),
+                            conteudo_acao("novo_titulo"),
                             type="submit",
                             class_name="focus-demo-button",
+                            **atributos_acao("novo_titulo"),
                         ),
                         id="form-cadastro-titulo",
                         on_submit=State.submit_catalog_title,
@@ -4426,28 +4572,31 @@ def catalog_admin() -> rx.Component:
                 rx.cond(
                     State.admin_catalog_has_more,
                     rx.button(
-                        "Mostrar mais",
+                        conteudo_acao("mostrar_mais"),
                         type="button",
                         on_click=State.show_more_admin_catalog,
                         class_name="focus-demo-button",
+                        **atributos_acao("mostrar_mais"),
                     ),
                     rx.fragment(),
                 ),
                 rx.button(
-                    "Atualizar acervo",
+                    conteudo_acao("atualizar_acervo"),
                     type="button",
                     on_click=State.refresh_admin_catalog,
                     disabled=State.admin_catalog_pending,
                     class_name="nav-logout",
+                    **atributos_acao("atualizar_acervo"),
                 ),
                 rx.cond(
                     State.admin_catalog_needs_manual_check,
                     rx.button(
-                        "Conferi a lista; liberar novas operações",
+                        conteudo_acao("liberar_acervo"),
                         type="button",
                         on_click=State.acknowledge_admin_catalog_check,
                         disabled=State.admin_catalog_pending,
                         class_name="focus-demo-button",
+                        **atributos_acao("liberar_acervo"),
                     ),
                     rx.fragment(),
                 ),
@@ -4471,21 +4620,46 @@ def librarian_card(librarian: rx.Var[dict[str, Any]]) -> rx.Component:
         ),
         rx.cond(
             librarian["ativo"],
-            rx.button(
-                rx.el.span("🚫", aria_hidden="true"),
-                rx.text(" Desativar"),
-                type="button",
-                on_click=State.set_librarian_active(librarian["id"], False),
-                disabled=State.librarian_management_pending,
-                class_name="destructive-action",
+            rx.cond(
+                State.librarian_management_confirm_id == librarian["id"],
+                rx.fragment(
+                    rx.button(
+                        conteudo_acao("confirmar_desativacao"),
+                        type="button",
+                        on_click=State.set_librarian_active(
+                            librarian["id"], False
+                        ),
+                        disabled=State.librarian_management_pending,
+                        class_name="destructive-action",
+                        **atributos_acao("confirmar_desativacao"),
+                    ),
+                    rx.button(
+                        conteudo_acao("nao_confirmar"),
+                        type="button",
+                        on_click=State.cancel_librarian_deactivation,
+                        disabled=State.librarian_management_pending,
+                        class_name="focus-demo-button",
+                        **atributos_acao("nao_confirmar"),
+                    ),
+                ),
+                rx.button(
+                    conteudo_acao("desativar"),
+                    type="button",
+                    on_click=State.request_librarian_deactivation(
+                        librarian["id"]
+                    ),
+                    disabled=State.librarian_management_pending,
+                    class_name="destructive-action",
+                    **atributos_acao("desativar"),
+                ),
             ),
             rx.button(
-                rx.el.span("♻️", aria_hidden="true"),
-                rx.text(" Reativar"),
+                conteudo_acao("reativar"),
                 type="button",
                 on_click=State.set_librarian_active(librarian["id"], True),
                 disabled=State.librarian_management_pending,
                 class_name="focus-demo-button",
+                **atributos_acao("reativar"),
             ),
         ),
         class_name="librarian-card",
@@ -4495,9 +4669,10 @@ def librarian_card(librarian: rx.Var[dict[str, Any]]) -> rx.Component:
 def librarian_management() -> rx.Component:
     return rx.box(
         rx.link(
-            "Pular para o conteúdo",
+            conteudo_acao("pular_conteudo"),
             href="#conteudo-bibliotecarios",
             class_name="skip-link",
+            **atributos_acao("pular_conteudo"),
         ),
         site_header(),
         rx.el.main(
@@ -4566,10 +4741,11 @@ def librarian_management() -> rx.Component:
                         class_name="campo",
                     ),
                     rx.button(
-                        "Cadastrar bibliotecário",
+                        conteudo_acao("cadastrar_bibliotecario"),
                         type="submit",
                         disabled=State.librarian_management_pending,
                         class_name="focus-demo-button",
+                        **atributos_acao("cadastrar_bibliotecario"),
                     ),
                     id="form-cadastro-bibliotecario",
                     on_submit=State.submit_librarian,
@@ -4622,11 +4798,12 @@ def librarian_management() -> rx.Component:
                     ),
                 ),
                 rx.button(
-                    "Atualizar lista",
+                    conteudo_acao("atualizar_lista"),
                     type="button",
                     on_click=State.load_librarians,
                     disabled=State.librarian_management_pending,
                     class_name="nav-logout",
+                    **atributos_acao("atualizar_lista"),
                 ),
                 id="conteudo-bibliotecarios",
                 class_name="content-section librarian-management-section",
@@ -4641,9 +4818,10 @@ def librarian_management() -> rx.Component:
 def staff_reservation_page() -> rx.Component:
     return rx.box(
         rx.link(
-            "Pular para o conteúdo",
+            conteudo_acao("pular_conteudo"),
             href="#conteudo-reservas",
             class_name="skip-link",
+            **atributos_acao("pular_conteudo"),
         ),
         site_header(),
         rx.el.main(
@@ -4688,12 +4866,13 @@ def staff_reservation_page() -> rx.Component:
                     | State.staff_reservation_needs_manual_check,
                 ),
                 rx.button(
-                    "Buscar estudante",
+                    conteudo_acao("buscar_estudante"),
                     type="button",
                     on_click=State.search_staff_reservation_student,
                     disabled=State.staff_reservation_pending
                     | State.staff_reservation_needs_manual_check,
                     class_name="focus-demo-button",
+                    **atributos_acao("buscar_estudante"),
                 ),
                 rx.cond(
                     State.has_staff_reservation_student,
@@ -4735,13 +4914,14 @@ def staff_reservation_page() -> rx.Component:
                     id="reserva-titulo-id",
                 ),
                 rx.button(
-                    "Registrar reserva na fila",
+                    conteudo_acao("registrar_reserva"),
                     type="button",
                     on_click=State.submit_staff_reservation,
                     disabled=State.staff_reservation_pending
                     | State.staff_reservation_needs_manual_check
                     | ~State.has_staff_reservation_student,
                     class_name="focus-demo-button",
+                    **atributos_acao("registrar_reserva"),
                 ),
                 rx.cond(
                     State.staff_reservation_pending,
@@ -4751,11 +4931,12 @@ def staff_reservation_page() -> rx.Component:
                 rx.cond(
                     State.staff_reservation_needs_manual_check,
                     rx.button(
-                        "Já conferi a fila no Xano; permitir nova tentativa",
+                        conteudo_acao("liberar_fila"),
                         type="button",
                         on_click=State.acknowledge_staff_reservation_check,
                         disabled=State.staff_reservation_pending,
                         class_name="nav-logout",
+                        **atributos_acao("liberar_fila"),
                     ),
                     rx.fragment(),
                 ),
@@ -4811,12 +4992,13 @@ def staff_reservation_form() -> rx.Component:
             | State.staff_reservation_needs_manual_check,
         ),
         rx.button(
-            "Buscar estudante",
+            conteudo_acao("buscar_estudante"),
             type="button",
             on_click=State.search_staff_reservation_student,
             disabled=State.staff_reservation_pending
             | State.staff_reservation_needs_manual_check,
             class_name="focus-demo-button",
+            **atributos_acao("buscar_estudante"),
         ),
         rx.cond(
             State.has_staff_reservation_student,
@@ -4858,13 +5040,14 @@ def staff_reservation_form() -> rx.Component:
             id="reserva-titulo-id",
         ),
         rx.button(
-            "Registrar reserva na fila",
+            conteudo_acao("registrar_reserva"),
             type="button",
             on_click=State.submit_staff_reservation,
             disabled=State.staff_reservation_pending
             | State.staff_reservation_needs_manual_check
             | ~State.has_staff_reservation_student,
             class_name="focus-demo-button",
+            **atributos_acao("registrar_reserva"),
         ),
         rx.cond(
             State.staff_reservation_pending,
@@ -4874,11 +5057,12 @@ def staff_reservation_form() -> rx.Component:
         rx.cond(
             State.staff_reservation_needs_manual_check,
             rx.button(
-                "Já conferi a fila no Xano; permitir nova tentativa",
+                conteudo_acao("liberar_fila"),
                 type="button",
                 on_click=State.acknowledge_staff_reservation_check,
                 disabled=State.staff_reservation_pending,
                 class_name="nav-logout",
+                **atributos_acao("liberar_fila"),
             ),
             rx.fragment(),
         ),
@@ -4893,20 +5077,22 @@ def circulation_request_card(request: LoanRequest) -> rx.Component:
         rx.text(f"Título #{request['titulo_id']}"),
         rx.text("Status: pendente"),
         rx.button(
-            "Registrar retirada",
+            conteudo_acao("retirada"),
             type="button",
             on_click=State.circulation_pickup_request(request["id"]),
             disabled=State.circulation_pending
             | State.circulation_needs_manual_check,
             class_name="focus-demo-button",
+            **atributos_acao("retirada"),
         ),
         rx.button(
-            "Recusar solicitação",
+            conteudo_acao("recusar"),
             type="button",
             on_click=State.circulation_refuse_request(request["id"]),
             disabled=State.circulation_pending
             | State.circulation_needs_manual_check,
             class_name="destructive-action",
+            **atributos_acao("recusar"),
         ),
         class_name="librarian-card",
     )
@@ -4933,7 +5119,7 @@ def circulation_reservation_card(
             reservation["estado"] == "aguardando",
             rx.fragment(
                 rx.button(
-                    "Oferecer ao próximo da fila",
+                    conteudo_acao("oferecer_reserva"),
                     type="button",
                     on_click=State.circulation_offer_reservation(
                         reservation["titulo_id"]
@@ -4941,9 +5127,10 @@ def circulation_reservation_card(
                     disabled=State.circulation_pending
                     | State.circulation_needs_manual_check,
                     class_name="focus-demo-button",
+                    **atributos_acao("oferecer_reserva"),
                 ),
                 rx.button(
-                    "Recusar reserva",
+                    conteudo_acao("recusar"),
                     type="button",
                     on_click=State.circulation_refuse_reservation(
                         reservation["id"]
@@ -4951,12 +5138,13 @@ def circulation_reservation_card(
                     disabled=State.circulation_pending
                     | State.circulation_needs_manual_check,
                     class_name="destructive-action",
+                    **atributos_acao("recusar"),
                 ),
             ),
             rx.cond(
                 reservation["estado"] == "ofertada",
                 rx.button(
-                    "Registrar retirada da reserva",
+                    conteudo_acao("retirada", "Retirar reserva"),
                     type="button",
                     on_click=State.circulation_pickup_reservation(
                         reservation["id"]
@@ -4964,6 +5152,7 @@ def circulation_reservation_card(
                     disabled=State.circulation_pending
                     | State.circulation_needs_manual_check,
                     class_name="focus-demo-button",
+                    **atributos_acao("retirada", "Retirar reserva"),
                 ),
                 rx.fragment(),
             ),
@@ -4980,21 +5169,23 @@ def circulation_loan_card(loan: dict[str, Any]) -> rx.Component:
         rx.text(f"Devolução prevista: {loan['vence_em']}"),
         rx.cond(
             loan["atrasado"],
-            rx.text(
-                rx.el.span("⚠️", aria_hidden="true"),
-                rx.text(" Em atraso"),
+            rx.el.p(
+                conteudo_selo("atraso"),
                 role="status",
             ),
-            rx.text("Em dia", role="status"),
+            rx.el.p(
+                conteudo_selo("emprestado", "Em dia"),
+                role="status",
+            ),
         ),
         rx.button(
-            rx.el.span("↩️", aria_hidden="true"),
-            rx.text(" Registrar devolução"),
+            conteudo_acao("devolver"),
             type="button",
             on_click=State.circulation_return_loan(loan["id"]),
             disabled=State.circulation_pending
             | State.circulation_needs_manual_check,
             class_name="focus-demo-button",
+            **atributos_acao("devolver"),
         ),
         class_name="librarian-card",
     )
@@ -5003,9 +5194,10 @@ def circulation_loan_card(loan: dict[str, Any]) -> rx.Component:
 def circulation_page() -> rx.Component:
     return rx.box(
         rx.link(
-            "Pular para o conteúdo",
+            conteudo_acao("pular_conteudo"),
             href="#conteudo-circulacao",
             class_name="skip-link",
+            **atributos_acao("pular_conteudo"),
         ),
         site_header(),
         rx.el.main(
@@ -5086,11 +5278,12 @@ def circulation_page() -> rx.Component:
                     rx.fragment(),
                 ),
                 rx.button(
-                    "Atualizar reservas e circulação",
+                    conteudo_acao("atualizar_circulacao"),
                     type="button",
                     on_click=State.load_staff_reservations_dashboard,
                     disabled=State.circulation_pending,
                     class_name="nav-logout",
+                    **atributos_acao("atualizar_circulacao"),
                 ),
                 rx.cond(
                     State.circulation_pending,
@@ -5099,7 +5292,7 @@ def circulation_page() -> rx.Component:
                 ),
                 rx.el.div(
                     rx.button(
-                        "Pedidos",
+                        conteudo_acao("pedidos_reserva", "Pedidos"),
                         id="aba-pedidos",
                         type="button",
                         role="tab",
@@ -5107,9 +5300,10 @@ def circulation_page() -> rx.Component:
                         aria_controls="painel-pedidos",
                         on_click=State.select_circulation_tab("pedidos"),
                         class_name="circulation-tab",
+                        **atributos_acao("pedidos_reserva", "Pedidos"),
                     ),
                     rx.button(
-                        "Empréstimos e devoluções",
+                        conteudo_acao("emprestimos", "Empréstimos"),
                         id="aba-emprestimos",
                         type="button",
                         role="tab",
@@ -5119,6 +5313,7 @@ def circulation_page() -> rx.Component:
                         aria_controls="painel-emprestimos",
                         on_click=State.select_circulation_tab("emprestimos"),
                         class_name="circulation-tab",
+                        **atributos_acao("emprestimos", "Empréstimos"),
                     ),
                     role="tablist",
                     aria_label="Seções de reservas e circulação",
@@ -5283,6 +5478,9 @@ dark_theme_tokens = {
     "--button-subtle-text": "#f3f4f6",
     "--button-subtle-hover-bg": "#364152",
     "--button-subtle-border": "#8292a8",
+    "--action-confirm-bg": "#a3e6bf",
+    "--action-confirm-text": "#143526",
+    "--action-confirm-hover-bg": "#79d49e",
 }
 
 
@@ -5346,6 +5544,9 @@ app = rx.App(
             "--button-subtle-text": "#1f2c38",
             "--button-subtle-hover-bg": "#dfeef2",
             "--button-subtle-border": "#d8d2c7",
+            "--action-confirm-bg": "#245c45",
+            "--action-confirm-text": "#ffffff",
+            "--action-confirm-hover-bg": "#194634",
         },
         ".a11y-shell.a11y-dark": dark_theme_tokens,
         "@media (prefers-color-scheme: dark)": {
@@ -6568,6 +6769,54 @@ app = rx.App(
         ".focus-demo-button:disabled, .nav-logout:disabled, .destructive-action:disabled, .warning-action:disabled, .subtle-action:disabled": {
             "border_style": "dashed",
             "cursor": "not-allowed",
+        },
+        ".emoji-acao, .emoji-selo": {
+            "display": "inline-block",
+            "font_size": "1.25em",
+            "line_height": "1",
+            "margin_right": "0.35em",
+        },
+        "[data-action-type]": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "justify_content": "center",
+            "gap": "0.25rem",
+        },
+        "[data-action-type='confirmar']": {
+            "border_color": "var(--action-confirm-bg)",
+            "background_color": "var(--action-confirm-bg)",
+            "color": "var(--action-confirm-text)",
+        },
+        "[data-action-type='confirmar']:hover": {
+            "background_color": "var(--action-confirm-hover-bg)",
+            "color": "var(--action-confirm-text)",
+        },
+        "[data-action-type='perigo']": {
+            "border_color": "var(--button-danger-border)",
+            "background_color": "var(--button-danger-bg)",
+            "color": "var(--button-danger-text)",
+        },
+        "[data-action-type='perigo']:hover": {
+            "background_color": "var(--button-danger-hover-bg)",
+            "color": "var(--button-danger-text)",
+        },
+        "[data-action-type='navegar']": {
+            "border_color": "var(--button-primary-border)",
+            "background_color": "var(--button-primary-bg)",
+            "color": "var(--button-primary-text)",
+        },
+        "[data-action-type='navegar']:hover": {
+            "background_color": "var(--button-primary-hover-bg)",
+            "color": "var(--button-primary-text)",
+        },
+        "[data-action-type='atencao']": {
+            "border_color": "var(--button-warning-border)",
+            "background_color": "var(--button-warning-bg)",
+            "color": "var(--button-warning-text)",
+        },
+        "[data-action-type='atencao']:hover": {
+            "background_color": "var(--button-warning-hover-bg)",
+            "color": "var(--button-warning-text)",
         },
         "a": {
             "color": "var(--brand-700)",

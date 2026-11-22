@@ -407,7 +407,7 @@ def test_student_library_401_clears_session_and_offers_login(monkeypatch):
         json.loads(repr(frontend.student_library())),
         ensure_ascii=False,
     )
-    assert "Entrar novamente" in page
+    assert "Entrar" in page
     assert "/login" in page
     assert "role" in page and "alert" in page
 

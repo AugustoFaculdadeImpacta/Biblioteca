@@ -358,5 +358,5 @@ def test_reservation_page_exposes_accessible_controls_and_visible_focus():
     assert "site-primary-nav" in header
     assert "E-mail completo do estudante" in page
     assert r"T\\u00edtulo ativo" in page
-    assert "Registrar reserva na fila" in page
+    assert "Registrar reserva" in page
     assert frontend.app.style[":focus-visible"]["outline"].startswith("3px solid ")

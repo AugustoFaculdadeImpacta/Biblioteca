@@ -234,7 +234,7 @@ def test_home_keeps_featured_and_about_without_hero_shortcuts():
 
     assert "Sobre a biblioteca" in homepage
     assert "Livros em destaque" in homepage
-    assert "Ver mais" in homepage
+    assert "Mostrar mais" in homepage
     assert "hero-stat-grid" in homepage
     assert "hero-quick-links" not in homepage
     assert "/reservas" not in repr(hero)
@@ -265,7 +265,7 @@ def test_login_page_contains_only_login_form():
     assert "form-cadastro-estudante" not in page
     assert "signup-nome" not in input_ids
     assert "signup-email" not in input_ids
-    assert "Ver catálogo sem entrar" in page
+    assert "Ver catálogo" in page
 
 
 def test_signup_page_contains_only_signup_form():
@@ -282,7 +282,7 @@ def test_signup_page_contains_only_signup_form():
     assert "form-login" not in page
     assert "login-email" not in input_ids
     assert "login-senha" not in input_ids
-    assert "Já tem conta? Entrar" in page
+    assert "Entrar" in page
 
 
 def test_navigation_changes_by_profile_and_logout_clears_session():
@@ -419,7 +419,7 @@ def test_student_navigation_has_accessible_labels_focus_and_mobile_layout():
     assert "Início" not in header
     assert "Catálogo" in header
     assert "greeting_name_rx_state_" in header
-    assert "Reservas" in header
+    assert "Minhas reservas" in header
     assert "/reservas" in header
     assert "Sair" in header
 
@@ -531,9 +531,9 @@ def test_page_bodies_do_not_duplicate_global_navigation():
     assert "Acompanhar em Minha biblioteca" not in detail
     assert "Voltar ao catálogo" not in student_library
     assert "Ver catálogo" not in home
-    assert "Ver catálogo sem entrar" in login
-    assert "Não tem conta? Cadastre-se" in login
-    assert "Já tem conta? Entrar" in signup
+    assert "Ver catálogo" in login
+    assert "Cadastrar-se" in login
+    assert "Entrar" in signup
 
 
 def test_profile_menu_for_visitor_has_login_and_signup():
@@ -551,7 +551,7 @@ def test_profile_menu_for_visitor_has_login_and_signup():
     assert "Entrar" in _readable(summary)
     assert "Entrar" in menu
     assert "Cadastrar-se" in menu
-    assert "Ativar alto contraste" not in menu
+    assert "Alto contraste" not in menu
 
 
 def test_visitor_accessibility_menu_exposes_shared_appearance_controls():
@@ -562,7 +562,7 @@ def test_visitor_accessibility_menu_exposes_shared_appearance_controls():
     assert "data-appearance-action" in menu
     assert "Diminuir fonte" in menu
     assert "Aumentar fonte" in menu
-    assert "Ativar alto contraste" in menu
+    assert "Alto contraste" in menu
     assert "Reduzir movimento" in menu
     assert "Modo escuro" in menu
     assert "Acessibilidade" in menu
@@ -572,10 +572,10 @@ def test_profile_menu_never_contains_accessibility_controls():
     profile = _readable(frontend.profile_menu())
     accessibility = _readable(frontend.accessibility_menu())
 
-    assert "Ativar alto contraste" not in profile
+    assert "Alto contraste" not in profile
     assert "Reduzir movimento" not in profile
     assert "Acessibilidade" not in profile
-    assert "Ativar alto contraste" in accessibility
+    assert "Alto contraste" in accessibility
     assert "Reduzir movimento" in accessibility
 
 
@@ -650,10 +650,10 @@ def test_profile_disclosure_for_visitor_and_authenticated_users():
     assert "session_role_label_rx_state_" in menu
     assert "Diminuir fonte" in accessibility
     assert "Aumentar fonte" in accessibility
-    assert "Ativar alto contraste" in accessibility
+    assert "Alto contraste" in accessibility
     assert "Reduzir movimento" in accessibility
     assert "Sair" in menu
-    assert "Ativar alto contraste" not in menu
+    assert "Alto contraste" not in menu
     assert "Meu perfil" not in menu
     assert "href:\"/acessibilidade\"" not in menu
 
@@ -733,7 +733,7 @@ def test_accessibility_page_reuses_existing_controls():
     assert "Diminuir fonte" in page
     assert "Tamanho padrão" in page
     assert "Aumentar fonte" in page
-    assert "Ativar alto contraste" in page
+    assert "Alto contraste" in page
     assert "Reduzir movimento" in page
     assert "data-appearance-action" in page
     assert "aria-pressed" in page
@@ -761,7 +761,7 @@ def test_header_navigation_by_profile_and_view():
         label in nav
         for label in (
             "Catálogo",
-            "Reservas",
+            "Minhas reservas",
             "Acervo",
             "Contas",
         )
@@ -845,7 +845,7 @@ def test_destructive_operations_are_visually_distinct():
                     }
                 ).to(AdminCatalogDisplayEntry)
             ),
-            "Desativar título",
+            "Desativar",
         ),
         (
             frontend.librarian_card(
@@ -871,7 +871,7 @@ def test_destructive_operations_are_visually_distinct():
                     }
                 ).to(LoanRequest)
             ),
-            "Recusar solicitação",
+            "Recusar",
         ),
         (
             frontend.circulation_reservation_card(
@@ -891,7 +891,7 @@ def test_destructive_operations_are_visually_distinct():
                     }
                 ).to(AdminReservation)
             ),
-            "Recusar reserva",
+            "Recusar",
         ),
     )
     style = frontend.app.style
@@ -1025,29 +1025,18 @@ def test_decorative_emojis_are_aria_hidden():
         frontend.accessibility_menu(),
         frontend.index(),
     )
-    readable = "\n".join(_readable(component) for component in components)
-    for emoji in (
-        "📚",
-        "🔎",
-        "🔖",
-        "🗂️",
-        "👥",
-        "👤",
-        "♿",
-        "🔑",
-        "📝",
-        "🔠",
-        "🌗",
-        "🎞️",
-        "🚪",
-        "⭐",
-        "ℹ️",
-    ):
-        assert emoji in readable
-
-    for component in components:
-        serialized = repr(component)
-        assert "aria-hidden" in serialized
+    action_icons = [
+        item
+        for component in components
+        for item in _components(component)
+        if type(item.class_name) is str
+        and item.class_name == "emoji-acao"
+    ]
+    assert action_icons
+    assert all(
+        item.custom_attrs.get("aria-hidden") == "true"
+        for item in action_icons
+    )
 
 
 def test_theme_switch_reports_effective_destination():
