@@ -801,3 +801,18 @@ O backlog em `openspec/changes/validacao-remota-xano/tasks.md` agora mantém abe
 - Após o commit `e254525`, `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`: 256 passaram.
 - Após o commit `e16ec8e`, `.\.venv\Scripts\python.exe -m reflex compile --dry`: aprovado; a suíte foi repetida isoladamente após uma corrida de coleta observada ao executá-la em paralelo com o compile, com 256 testes aprovados.
 - As validações globais também encontraram pendências preexistentes fora desta Change: `openspec.cmd validate --archived --strict` marcou somente `2026-11-17-devolvido-em-nulavel` (20 tarefas ainda abertas; a Change desta execução passou); `openspec.cmd validate --changes --strict` apontou `refino-visual-biblioteca` por cenários omitidos no delta e uma informação de requisito já existente em `execucao-reflex-windows`. Essas Changes não foram alteradas.
+
+## Continuação — Change ajustes-interface-acervo-v4
+
+### Evidências
+
+| Item | Commit | Testes novos/alterados | Status |
+|---|---|---|---|
+| 1.1 — Campos HTML nativos e IDs ocultos | `90aa22114381e792e68cd413c7a176bf37bde3aa` | `test_form_routes_use_native_fields_and_hidden_ids_are_invisible`, `test_native_fields_have_single_border_and_visible_focus`, `test_catalog_form_has_only_defined_fields_and_category_selection`, `test_login_page_has_only_labeled_email_and_password_fields`, `test_signup_route_has_labeled_fields_in_keyboard_order_and_visible_focus`, `test_librarian_management_page_has_labeled_fields_and_responsive_styles`; suíte completa: 277 passaram | Feito, aguarda conferência do usuário |
+| 1.2 — Contraste de botões e capas | `f093328fe8500907e2647ee471c54e9774799c95` (implementação), `1319d1e74843275f505b6fd5ccdffd97f26de19d` (teste de regressão) | `test_button_variants_meet_wcag_aa_in_both_themes`, `test_seed_cover_title_bands_meet_wcag_aa`, `test_destructive_operations_are_visually_distinct`; compilação Reflex aprovada; suíte completa: 278 passaram | Feito, aguarda conferência do usuário |
+
+### Verificações locais
+
+- Após `90aa22114381e792e68cd413c7a176bf37bde3aa`, `.\.venv\Scripts\python.exe -m reflex compile --dry`: aprovado.
+- Após `90aa22114381e792e68cd413c7a176bf37bde3aa`, `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation`: 277 passaram.
+- A aplicação usa controles HTML nativos nos formulários; nenhum acesso ao Xano foi realizado nesta tarefa.
