@@ -119,6 +119,13 @@ def test_dark_and_high_contrast_tokens_meet_wcag_aa():
     assert _contrast_ratio("#00008b", "#ffffff") >= 7
 
 
+def test_catalog_cover_grid_has_bounded_card_size():
+    for selector in (".catalog-grid", ".admin-catalog-grid"):
+        assert "11.25rem" in app.style[selector]["grid_template_columns"]
+        assert "15rem" in app.style[selector]["grid_template_columns"]
+    assert app.style[".catalog-card-cover"]["aspect_ratio"] == "0.72"
+
+
 def test_motion_rules_have_reduced_motion_override():
     reduced = app.style["@media (prefers-reduced-motion: reduce)"]["*, *::before, *::after"]
     assert reduced["animation_duration"] == "0.01ms !important"

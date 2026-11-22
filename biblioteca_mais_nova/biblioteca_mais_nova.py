@@ -7,6 +7,8 @@ from typing import Any, Awaitable, Callable
 
 import reflex as rx
 
+from biblioteca_mais_nova.covers import gerar_capa_svg
+
 from biblioteca_mais_nova.signup import (
     SignupValidationError,
     build_signup_payload,
@@ -320,6 +322,9 @@ class State(rx.State):
                     "titulo": title["titulo"],
                     "autores": title["autores"],
                     "capa_url": title.get("capa_url") or "",
+                    "capa_gerada": gerar_capa_svg(
+                        title["titulo"], title["autores"], category_text
+                    ),
                     "categorias": category_text,
                     "exemplares_disponiveis": available,
                     "href": f"/catalogo/{title['id']}",
@@ -363,6 +368,9 @@ class State(rx.State):
                     "titulo": title["titulo"],
                     "autores": title["autores"],
                     "capa_url": title.get("capa_url") or "",
+                    "capa_gerada": gerar_capa_svg(
+                        title["titulo"], title["autores"], category_text
+                    ),
                     "categorias": category_text,
                     "exemplares_disponiveis": entry[
                         "exemplares_disponiveis"
@@ -441,6 +449,15 @@ class State(rx.State):
                 "ano_publicacao": str(title.get("ano_publicacao") or ""),
                 "descricao": title.get("descricao") or "",
                 "capa_url": title.get("capa_url") or "",
+                "capa_gerada": gerar_capa_svg(
+                    title["titulo"],
+                    title["autores"],
+                    ", ".join(
+                        category_names[category_id]
+                        for category_id in category_ids
+                        if category_id in category_names
+                    ) or "Sem categoria",
+                ),
                 "ativo": title.get("ativo") is not False,
                 "categorias": ", ".join(
                     category_names[category_id]
@@ -744,6 +761,11 @@ class State(rx.State):
             "titulo": entry["titulo"]["titulo"],
             "autores": entry["titulo"]["autores"],
             "capa_url": entry["titulo"].get("capa_url") or "",
+            "capa_gerada": gerar_capa_svg(
+                entry["titulo"]["titulo"],
+                entry["titulo"]["autores"],
+                category_text,
+            ),
             "cover_initial": cover_initial,
             "cover_variant": cover_variant,
             "isbn": entry["titulo"].get("isbn") or "",
@@ -2623,17 +2645,26 @@ def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
                 title["capa_url"].to(str) != "",
                 rx.el.img(
                     src=title["capa_url"],
-                    alt="Capa do livro",
+                    alt=f"Capa de «{title_name}»",
                     loading="lazy",
                     class_name="catalog-card-cover-image",
                 ),
-                rx.el.div(
-                    rx.el.span(
-                        title["cover_initial"],
-                        class_name="catalog-cover-initial",
+                rx.cond(
+                    title["capa_gerada"].to(str) != "",
+                    rx.el.img(
+                        src=title["capa_gerada"],
+                        alt=f"Capa de «{title_name}»",
+                        loading="lazy",
+                        class_name="catalog-card-cover-image",
                     ),
-                    class_name=cover_class,
-                    aria_hidden="true",
+                    rx.el.div(
+                        rx.el.span(
+                            title["cover_initial"],
+                            class_name="catalog-cover-initial",
+                        ),
+                        class_name=cover_class,
+                        aria_hidden="true",
+                    ),
                 ),
             ),
             rx.el.span(
@@ -2905,23 +2936,32 @@ def public_catalog_detail() -> rx.Component:
                                 State.public_catalog_detail["capa_url"] != "",
                                 rx.el.img(
                                     src=State.public_catalog_detail["capa_url"],
-                                    alt="Capa do título",
+                                    alt="Capa de «" + State.public_catalog_detail["titulo"].to(str) + "»",
                                     loading="lazy",
                                     class_name="catalog-detail-cover-image",
                                 ),
-                                rx.el.div(
-                                    rx.el.span(
-                                        State.public_catalog_detail[
-                                            "cover_initial"
-                                        ],
-                                        class_name="catalog-cover-initial",
+                                rx.cond(
+                                    State.public_catalog_detail["capa_gerada"] != "",
+                                    rx.el.img(
+                                        src=State.public_catalog_detail["capa_gerada"],
+                                        alt="Capa de «" + State.public_catalog_detail["titulo"].to(str) + "»",
+                                        loading="lazy",
+                                        class_name="catalog-detail-cover-image",
                                     ),
-                                    class_name=_catalog_cover_class(
-                                        State.public_catalog_detail[
-                                            "cover_variant"
-                                        ].to(int)
+                                    rx.el.div(
+                                        rx.el.span(
+                                            State.public_catalog_detail[
+                                                "cover_initial"
+                                            ],
+                                            class_name="catalog-cover-initial",
+                                        ),
+                                        class_name=_catalog_cover_class(
+                                            State.public_catalog_detail[
+                                                "cover_variant"
+                                            ].to(int)
+                                        ),
+                                        aria_hidden="true",
                                     ),
-                                    aria_hidden="true",
                                 ),
                             ),
                             class_name="catalog-detail-visual",
@@ -3709,6 +3749,29 @@ def admin_copy_row(copy: rx.Var[dict[str, Any]]) -> rx.Component:
 
 def admin_title_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
     return rx.el.article(
+        rx.cond(
+            title["capa_url"].to(str) != "",
+            rx.el.img(
+                src=title["capa_url"],
+                alt=f"Capa de «{title['titulo']}»",
+                loading="lazy",
+                class_name="catalog-card-cover-image",
+            ),
+            rx.cond(
+                title["capa_gerada"].to(str) != "",
+                rx.el.img(
+                    src=title["capa_gerada"],
+                    alt=f"Capa de «{title['titulo']}»",
+                    loading="lazy",
+                    class_name="catalog-card-cover-image",
+                ),
+                rx.el.div(
+                    title["titulo"],
+                    class_name="catalog-card-cover",
+                    aria_hidden="true",
+                ),
+            ),
+        ),
         rx.heading(title["titulo"], size="4"),
         rx.text("Autores: ", title["autores"]),
         rx.text("Estado: ", rx.cond(title["ativo"], "Ativo", "Desativado")),
@@ -5642,13 +5705,13 @@ app = rx.App(
         },
         ".catalog-grid": {
             "display": "grid",
-            "grid_template_columns": "repeat(auto-fit, minmax(min(100%, 16rem), 1fr))",
+            "grid_template_columns": "repeat(auto-fill, minmax(min(100%, 11.25rem), 15rem))",
             "gap": "1.1rem",
             "width": "100%",
         },
         ".admin-catalog-grid": {
             "display": "grid",
-            "grid_template_columns": "repeat(auto-fit, minmax(min(100%, 20rem), 1fr))",
+            "grid_template_columns": "repeat(auto-fill, minmax(min(100%, 11.25rem), 15rem))",
             "gap": "1.1rem",
             "width": "100%",
             "max_width": "100%",
