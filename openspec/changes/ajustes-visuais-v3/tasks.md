@@ -14,7 +14,7 @@
 
 ## 4. Emojis decorativos e identificação
 
-- [ ] 4.1 Acrescentar emojis em spans decorativos antes da marca, menu, perfil, seções, selos e botões solicitados; verificar com `test_decorative_emojis_are_aria_hidden` e atualizar os testes relacionados a rótulos.
+- [x] 4.1 Acrescentar emojis em spans decorativos antes da marca, menu, perfil, seções, selos e botões solicitados; verificar com `test_decorative_emojis_are_aria_hidden` e atualizar os testes relacionados a rótulos. Commit `24b955f`. Verificação: `reflex compile --dry` aprovado; `pytest --ignore=evaluation -q`: 262 passed. Visual: feito, aguarda conferência do usuário.
 
 ## 5. Animações leves e reduzidas
 

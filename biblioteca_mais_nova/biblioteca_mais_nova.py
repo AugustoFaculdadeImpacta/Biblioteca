@@ -4960,6 +4960,22 @@ dark_theme_tokens = {
 
 app = rx.App(
     style={
+        "@keyframes biblioteca-page-enter": {
+            "from": {"opacity": "0", "transform": "translateY(8px)"},
+            "to": {"opacity": "1", "transform": "translateY(0)"},
+        },
+        "@keyframes biblioteca-profile-enter": {
+            "from": {"opacity": "0", "transform": "translateY(-4px)"},
+            "to": {"opacity": "1", "transform": "translateY(0)"},
+        },
+        "@keyframes biblioteca-hero-gradient": {
+            "0%, 100%": {"background_position": "0% 50%"},
+            "50%": {"background_position": "100% 50%"},
+        },
+        "@keyframes biblioteca-availability-pulse": {
+            "0%, 100%": {"transform": "scale(1)", "box_shadow": "none"},
+            "50%": {"transform": "scale(1.03)", "box_shadow": "0 0 0 0.25rem rgba(36, 92, 69, 0.12)"},
+        },
         ".a11y-shell": {
             "--bg-page": "#f5efe4",
             "--bg-panel": "#fffdf8",
@@ -5013,6 +5029,8 @@ app = rx.App(
             "padding": "clamp(0.5rem, 3vw, 2rem)",
             "color": "var(--slate-900)",
             "background_color": "var(--bg-page)",
+            "animation": "biblioteca-page-enter 300ms ease-out both",
+            "transition": "background-color 200ms ease, color 200ms ease",
         },
         ".site-header": {
             "display": "flex",
@@ -5171,6 +5189,9 @@ app = rx.App(
             "background_color": "var(--bg-panel)",
             "box_shadow": "var(--shadow-soft)",
         },
+        ".profile-menu[open] .profile-menu-content": {
+            "animation": "biblioteca-profile-enter 180ms ease-out both",
+        },
         ".profile-menu-item": {
             "display": "flex",
             "align_items": "center",
@@ -5312,6 +5333,7 @@ app = rx.App(
         ".a11y-reduce-motion *, .a11y-reduce-motion *::before, .a11y-reduce-motion *::after": {
             "animation_duration": "0.01ms !important",
             "animation_iteration_count": "1 !important",
+            "animation_name": "none !important",
             "scroll_behavior": "auto !important",
             "transition_duration": "0.01ms !important",
         },
@@ -5363,6 +5385,8 @@ app = rx.App(
             "border_radius": "1.2rem",
             "background_color": "var(--bg-panel)",
             "box_shadow": "var(--shadow-soft)",
+            "background_size": "200% 200%",
+            "animation": "biblioteca-page-enter 300ms ease-out both, biblioteca-hero-gradient 20s ease-in-out infinite",
         },
         ".hero-layout": {
             "display": "flex",
@@ -5682,10 +5706,42 @@ app = rx.App(
             "box_shadow": "0 0.35rem 1rem rgba(24, 43, 73, 0.06)",
             "transition": "border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease",
         },
+        ".catalog-grid > :nth-child(-n+8), .admin-catalog-grid > :nth-child(-n+8), .librarian-list > :nth-child(-n+8)": {
+            "animation": "biblioteca-page-enter 300ms ease-out both",
+        },
+        ".catalog-grid > :nth-child(2), .admin-catalog-grid > :nth-child(2), .librarian-list > :nth-child(2)": {
+            "animation_delay": "40ms",
+        },
+        ".catalog-grid > :nth-child(3), .admin-catalog-grid > :nth-child(3), .librarian-list > :nth-child(3)": {
+            "animation_delay": "80ms",
+        },
+        ".catalog-grid > :nth-child(4), .admin-catalog-grid > :nth-child(4), .librarian-list > :nth-child(4)": {
+            "animation_delay": "120ms",
+        },
+        ".catalog-grid > :nth-child(5), .admin-catalog-grid > :nth-child(5), .librarian-list > :nth-child(5)": {
+            "animation_delay": "160ms",
+        },
+        ".catalog-grid > :nth-child(6), .admin-catalog-grid > :nth-child(6), .librarian-list > :nth-child(6)": {
+            "animation_delay": "200ms",
+        },
+        ".catalog-grid > :nth-child(7), .admin-catalog-grid > :nth-child(7), .librarian-list > :nth-child(7)": {
+            "animation_delay": "240ms",
+        },
+        ".catalog-grid > :nth-child(8), .admin-catalog-grid > :nth-child(8), .librarian-list > :nth-child(8)": {
+            "animation_delay": "280ms",
+        },
         ".catalog-card:hover": {
             "transform": "translateY(-2px)",
             "border_color": "var(--brand-500)",
             "box_shadow": "0 0.6rem 1.25rem rgba(24, 43, 73, 0.1)",
+        },
+        ".admin-title-card:hover, .librarian-card:hover, .circulation-card:hover": {
+            "transform": "translateY(-2px)",
+            "box_shadow": "0 0.6rem 1.25rem rgba(24, 43, 73, 0.12)",
+        },
+        "button:hover": {
+            "transform": "translateY(-2px)",
+            "transition": "transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease",
         },
         ".catalog-card-visual": {
             "display": "flex",
@@ -5712,6 +5768,10 @@ app = rx.App(
             "aspect_ratio": "0.72",
             "border_radius": "0.8rem",
             "object_fit": "cover",
+            "transition": "transform 150ms ease",
+        },
+        ".catalog-card-cover:hover .catalog-card-cover-image": {
+            "transform": "scale(1.03)",
         },
         ".catalog-detail-visual": {
             "width": "100%",
@@ -5830,6 +5890,7 @@ app = rx.App(
         ".status-pill-success": {
             "background_color": "var(--success-100)",
             "color": "var(--success-700)",
+            "animation": "biblioteca-availability-pulse 600ms ease-out 1",
         },
         ".status-pill-warning": {
             "background_color": "var(--warning-100)",
@@ -6202,6 +6263,7 @@ app = rx.App(
             "*, *::before, *::after": {
                 "animation_duration": "0.01ms !important",
                 "animation_iteration_count": "1 !important",
+                "animation_name": "none !important",
                 "scroll_behavior": "auto !important",
                 "transition_duration": "0.01ms !important",
             },

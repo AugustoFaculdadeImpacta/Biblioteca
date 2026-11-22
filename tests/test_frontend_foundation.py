@@ -119,6 +119,24 @@ def test_dark_and_high_contrast_tokens_meet_wcag_aa():
     assert _contrast_ratio("#00008b", "#ffffff") >= 7
 
 
+def test_motion_rules_have_reduced_motion_override():
+    reduced = app.style["@media (prefers-reduced-motion: reduce)"]["*, *::before, *::after"]
+    assert reduced["animation_duration"] == "0.01ms !important"
+    assert reduced["animation_name"] == "none !important"
+    assert reduced["transition_duration"] == "0.01ms !important"
+    assert app.style[".app-shell"]["animation"] == "biblioteca-page-enter 300ms ease-out both"
+    assert "@keyframes biblioteca-page-enter" in app.style
+    assert "@keyframes biblioteca-profile-enter" in app.style
+    assert "@keyframes biblioteca-hero-gradient" in app.style
+    assert "@keyframes biblioteca-availability-pulse" in app.style
+    assert app.style[".profile-menu[open] .profile-menu-content"]["animation"].startswith(
+        "biblioteca-profile-enter"
+    )
+    assert app.style[".status-pill-success"]["animation"].startswith(
+        "biblioteca-availability-pulse"
+    )
+
+
 def test_primary_actions_meet_wcag_contrast():
     dark = app.style[".a11y-shell.a11y-dark"]
     primary = app.style[".a11y-shell.a11y-dark .primary-cta"]
