@@ -2,6 +2,12 @@ from urllib.parse import unquote
 from xml.etree import ElementTree
 
 from biblioteca_mais_nova.covers import gerar_capa_svg
+from biblioteca_mais_nova.capas_isbn import (
+    isbn_local,
+    normalizar_isbn,
+    open_library_capa_url,
+    resolver_capa_url,
+)
 from scripts.seed_catalogo_real import TITULOS
 
 
@@ -113,3 +119,24 @@ def test_generated_cover_handles_invalid_data():
     capa = gerar_capa_svg(None, None, None)
     assert capa.startswith("data:image/svg+xml;charset=utf-8,")
     assert "Livro" in __import__("urllib.parse", fromlist=["unquote"]).unquote(capa)
+
+
+def test_isbn_cover_priority_and_normalization():
+    assert normalizar_isbn("978-85-359-0277-8") == "9788535902778"
+    assert open_library_capa_url("978-85-359-0277-8").endswith(
+        "9788535902778-L.jpg?default=false"
+    )
+    assert resolver_capa_url(
+        capa_url="https://cdn.example.test/capa.jpg",
+        isbn="9788535902778",
+    ) == "https://cdn.example.test/capa.jpg"
+    assert resolver_capa_url(
+        isbn="9788535902778",
+        titulo="Dom Casmurro",
+        autoria="Machado de Assis",
+    ).startswith("https://covers.openlibrary.org/")
+
+
+def test_local_isbn_index_falls_back_by_normalized_title_and_author():
+    assert isbn_local("Dom Casmurro", "Machado de Assis") == "9788535902778"
+    assert isbn_local("Título desconhecido", "Autor desconhecido") == ""

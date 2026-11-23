@@ -8,6 +8,7 @@ from typing import Any, Awaitable, Callable
 import reflex as rx
 
 from biblioteca_mais_nova.covers import gerar_capa_svg
+from biblioteca_mais_nova.capas_isbn import resolver_capa_url
 from biblioteca_mais_nova.icons import (
     atributos_acao,
     conteudo_acao,
@@ -342,6 +343,12 @@ class State(rx.State):
                     "titulo": title["titulo"],
                     "autores": title["autores"],
                     "capa_url": title.get("capa_url") or "",
+                    "capa_real": resolver_capa_url(
+                        capa_url=title.get("capa_url"),
+                        isbn=title.get("isbn"),
+                        titulo=title["titulo"],
+                        autoria=title["autores"],
+                    ),
                     "capa_gerada": gerar_capa_svg(
                         title["titulo"], title["autores"], category_text
                     ),
@@ -388,6 +395,12 @@ class State(rx.State):
                     "titulo": title["titulo"],
                     "autores": title["autores"],
                     "capa_url": title.get("capa_url") or "",
+                    "capa_real": resolver_capa_url(
+                        capa_url=title.get("capa_url"),
+                        isbn=title.get("isbn"),
+                        titulo=title["titulo"],
+                        autoria=title["autores"],
+                    ),
                     "capa_gerada": gerar_capa_svg(
                         title["titulo"], title["autores"], category_text
                     ),
@@ -884,6 +897,12 @@ class State(rx.State):
             "titulo": entry["titulo"]["titulo"],
             "autores": entry["titulo"]["autores"],
             "capa_url": entry["titulo"].get("capa_url") or "",
+            "capa_real": resolver_capa_url(
+                capa_url=entry["titulo"].get("capa_url"),
+                isbn=entry["titulo"].get("isbn"),
+                titulo=entry["titulo"]["titulo"],
+                autoria=entry["titulo"]["autores"],
+            ),
             "capa_gerada": gerar_capa_svg(
                 entry["titulo"]["titulo"],
                 entry["titulo"]["autores"],
@@ -3097,9 +3116,9 @@ def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
                     class_name="catalog-card-cover-image",
                 ),
                 rx.cond(
-                    title["capa_gerada"].to(str) != "",
+                    title["capa_real"].to(str) != "",
                     rx.el.img(
-                        src=title["capa_gerada"],
+                        src=title["capa_real"],
                         alt=f"Capa de «{title_name}»",
                         loading="lazy",
                         class_name="catalog-card-cover-image",
