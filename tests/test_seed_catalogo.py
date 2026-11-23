@@ -3,6 +3,7 @@ import os
 
 import pytest
 
+from biblioteca_mais_nova.seed_data import TITULOS as DADOS_COMPARTILHADOS
 from scripts.seed_catalogo_real import (
     TITULOS,
     TITULOS_TESTE,
@@ -10,6 +11,10 @@ from scripts.seed_catalogo_real import (
     normalizar,
     preparar_plano,
 )
+
+
+def test_script_uses_the_shared_book_data_source():
+    assert TITULOS is DADOS_COMPARTILHADOS
 
 
 def test_dry_run_makes_no_write(monkeypatch, capsys):
