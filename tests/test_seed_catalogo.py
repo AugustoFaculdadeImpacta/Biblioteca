@@ -31,6 +31,36 @@ def test_dry_run_makes_no_write(monkeypatch, capsys):
     assert "nenhuma escrita" in saida.lower()
 
 
+def test_real_seed_has_unique_titles_valid_isbns_and_approved_categories():
+    nomes = [item["titulo"] for item in TITULOS]
+    categorias = {
+        "Literatura",
+        "Ciências",
+        "História",
+        "Geografia",
+        "Matemática",
+        "Infantil",
+        "Didáticos",
+        "Biografias",
+    }
+
+    assert len(TITULOS) == 30
+    assert len(set(nomes)) == 30
+    assert {item["categoria"] for item in TITULOS} <= categorias
+    assert all(item["ano_publicacao"] > 0 for item in TITULOS)
+    assert all(item["editora"].strip() and item["edicao"].strip() for item in TITULOS)
+
+    for item in TITULOS:
+        isbn = item["isbn"]
+        assert len(isbn) == 13
+        assert isbn.isdigit()
+        soma = sum(
+            int(digito) * (1 if indice % 2 == 0 else 3)
+            for indice, digito in enumerate(isbn)
+        )
+        assert soma % 10 == 0
+
+
 def test_apply_without_credentials_aborts(monkeypatch, capsys):
     monkeypatch.delenv("XANO_SEED_EMAIL", raising=False)
     monkeypatch.delenv("XANO_SEED_PASSWORD", raising=False)

@@ -27,4 +27,11 @@ $env:XANO_SEED_PASSWORD = "senha da conta"
 Não informe senha ou token em arquivos, commits, logs ou capturas. O script usa os clientes existentes de catálogo e login, não cria categorias e não envia `capa_url`.
 
 O script pula títulos já existentes por comparação sem caixa e sem acentos e desativa somente os títulos de teste com nomes exatos `Jack Sparrow` e `Something`, caso existam.
+
+## Catálogo real da versão v5
+
+- O plano contém 30 títulos reais distribuídos nas oito categorias aprovadas.
+- Cada título contém ISBN-13, ano, editora, edição e descrição própria.
+- ISBN não verificado pela rede fica registrado como não verificado até validação externa.
+- O script não cria categorias; referências a categorias inexistentes são apenas informadas no plano.
 Com `--apply`, a primeira linha da saída é `alvo: Xano remoto`.
