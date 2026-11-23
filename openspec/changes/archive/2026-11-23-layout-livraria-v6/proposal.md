@@ -34,3 +34,7 @@ Nenhuma.
 - Testes em `tests/`.
 - Evidências em `docs/`.
 - Nenhuma publicação ou alteração remota no Xano nesta Change.
+
+## Nota de arquivamento
+
+substituída por restaura-visual-v7

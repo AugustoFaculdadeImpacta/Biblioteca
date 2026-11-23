@@ -1032,3 +1032,18 @@ O critério foi ajustado para detectar o placeholder; não houve quinta rodada.
 - A aparência implementada aguarda conferência do usuário; os dois resultados
   da home escura permanecem falhos e devem ser tratados antes de afirmar
   hidratação visual completa.
+
+### Fechamento OpenSpec
+
+- Os deltas de `frontend-foundation` e `catalog` foram mesclados nas specs
+  principais; `openspec.cmd validate --specs --strict` aprovou as 9 specs.
+  `openspec.cmd validate "restaura-visual-v7" --strict` também passou antes
+  do arquivo.
+- `layout-livraria-v6` foi arquivada sem sincronizar specs em
+  `openspec/changes/archive/2026-11-23-layout-livraria-v6/`, com a nota de
+  substituição por `restaura-visual-v7`; ela estava incompleta (20/32 tarefas).
+- `restaura-visual-v7` foi arquivada em
+  `openspec/changes/archive/2026-11-23-restaura-visual-v7/` após 5/5 tarefas.
+  Os deltas já estavam sincronizados, portanto o arquivo não alterou specs.
+- Commits das evidências finais: `a9075dd` (relatório, matriz, capturas e
+  sync) e `baef058` (hash e evidências da tarefa 5.1).
