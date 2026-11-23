@@ -10,7 +10,7 @@
 
 ## 3. Dados compartilhados de exemplo
 
-- [ ] 3.1 Mover os 30 livros para `biblioteca_mais_nova/seed_data.py` e manter `scripts/seed_catalogo_real.py` como alternativa baseada na mesma fonte. Verificar ISBN-13, campos, quantidade e unicidade com `.\.venv\Scripts\python.exe -m pytest tests/test_seed_catalogo.py`.
+- [x] 3.1 Mover os 30 livros para `biblioteca_mais_nova/seed_data.py` e manter `scripts/seed_catalogo_real.py` como alternativa baseada na mesma fonte. Evidências: commit `5f83036`; `.\.venv\Scripts\python.exe -m pytest tests/test_seed_catalogo.py tests/test_covers.py` (14 aprovados).
 
 ## 4. Importação pelo Acervo
 
