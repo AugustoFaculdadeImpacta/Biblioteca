@@ -14,7 +14,7 @@
 
 ## 4. Importação pelo Acervo
 
-- [ ] 4.1 Implementar seção admin recolhida, prévia somente leitura, confirmação inline e importação sequencial idempotente por título/autoria, com mapeamento de categorias e interrupção segura. Cobrir com cliente simulado a prévia sem escrita, criação, segunda execução, categoria ausente, falha, visibilidade e ausência de segredos; verificar com os testes de importação.
+- [x] 4.1 Implementar seção admin recolhida, prévia somente leitura, confirmação inline e importação sequencial idempotente por título/autoria, com mapeamento de categorias e interrupção segura. Evidências: commit `caa5c81`; `.\.venv\Scripts\python.exe -m pytest tests/test_admin_catalog.py tests/test_icons.py` (35 aprovados). Clientes simulados cobrem prévia sem escrita, mapeamento, idempotência, categoria ausente, interrupção, acesso e mensagens sem segredos.
 
 ## 5. Integração e evidências
 
