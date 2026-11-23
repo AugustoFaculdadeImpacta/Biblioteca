@@ -910,3 +910,67 @@ O backlog em `openspec/changes/validacao-remota-xano/tasks.md` agora mantém abe
 - Após `abf0a3ef0b5cfbf616e9c6d32912a2e43d124160`, `.\.venv\Scripts\python.exe -m reflex compile --dry`: aprovado.
 - Após `abf0a3ef0b5cfbf616e9c6d32912a2e43d124160`, `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`: 301 passaram.
 - O seed foi executado somente em dry-run; nenhuma senha foi usada ou impresa e não houve `--apply`.
+
+## Continuação — Change layout-livraria-v6, validação final (2026-11-23)
+
+### Verificações locais
+
+- `.\.venv\Scripts\python.exe -m reflex compile --dry`: aprovado.
+- Em seguida, `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation`:
+  314 aprovados em 276,39 s.
+- `node --check scripts/verificar_layout.mjs` e `git diff --check`: aprovados.
+- `scripts/verificar.ps1` foi bloqueado pela política de execução antes de
+  iniciar; a política não foi contornada. Os dois comandos foram executados
+  manualmente, em sequência.
+- Nenhuma escrita no Xano foi realizada.
+
+### Última matriz visual — rodada 4/4
+
+A rodada começou em `2026-11-23T09:05:48.605Z`, registrou 28 combinações e
+durou 992 s. Resultado: 11 `PASSOU`, 17 `FALHOU`; a matriz não terminou sem
+violações. As capturas PNG estão em `docs/capturas/verificacao/` e o registro
+incremental completo está em `docs/verificacao-layout.md`.
+
+| Rota | Perfil | Largura | Tema | Resultado | Achados |
+|---|---|---:|---|---|---|
+| `/` | visitante | 360 | claro | FALHOU | hidratação |
+| `/` | visitante | 360 | escuro | PASSOU | nenhum |
+| `/` | visitante | 1366 | claro | FALHOU | hidratação |
+| `/` | visitante | 1366 | escuro | PASSOU | nenhum |
+| `/catalogo` | visitante | 360 | claro | PASSOU | nenhum |
+| `/catalogo` | visitante | 360 | escuro | PASSOU | nenhum |
+| `/catalogo` | visitante | 1366 | claro | PASSOU | nenhum |
+| `/catalogo` | visitante | 1366 | escuro | PASSOU | nenhum |
+| `/catalogo/1` | visitante | 360 | claro | FALHOU | conexão/renderização; `svg` fora do contêiner; botão abaixo de 44 px; contraste insuficiente |
+| `/catalogo/1` | visitante | 360 | escuro | FALHOU | conexão/renderização; `svg` fora do contêiner; botão abaixo de 44 px |
+| `/catalogo/1` | visitante | 1366 | claro | FALHOU | conexão/renderização; `svg` fora do contêiner; botão abaixo de 44 px; contraste insuficiente |
+| `/catalogo/1` | visitante | 1366 | escuro | FALHOU | conexão/renderização; `svg` fora do contêiner; botão abaixo de 44 px |
+| `/login` | visitante | 360 | claro | FALHOU | conexão/renderização; `svg` fora do contêiner; botão abaixo de 44 px; contraste insuficiente |
+| `/login` | visitante | 360 | escuro | FALHOU | conexão/renderização; `svg` fora do contêiner; botão abaixo de 44 px |
+| `/login` | visitante | 1366 | claro | FALHOU | hidratação |
+| `/login` | visitante | 1366 | escuro | PASSOU | nenhum |
+| `/cadastro` | visitante | 360 | claro | PASSOU | nenhum |
+| `/cadastro` | visitante | 360 | escuro | PASSOU | nenhum |
+| `/cadastro` | visitante | 1366 | claro | PASSOU | nenhum |
+| `/cadastro` | visitante | 1366 | escuro | PASSOU | nenhum |
+| `/reservas` | estudante | 1366 | escuro | FALHOU | conta de demonstração indisponível |
+| `/reservas` | estudante | 360 | escuro | FALHOU | conta de demonstração indisponível |
+| `/admin/acervo` | bibliotecário | 1366 | escuro | FALHOU | conta de demonstração indisponível |
+| `/admin/acervo` | bibliotecário | 360 | escuro | FALHOU | conta de demonstração indisponível |
+| `/admin/reservas` | bibliotecário | 1366 | escuro | FALHOU | conta de demonstração indisponível |
+| `/admin/reservas` | bibliotecário | 360 | escuro | FALHOU | conta de demonstração indisponível |
+| `/admin/bibliotecarios` | admin | 1366 | escuro | FALHOU | conta de demonstração indisponível |
+| `/admin/bibliotecarios` | admin | 360 | escuro | FALHOU | conta de demonstração indisponível |
+
+### Pendências e decisão de fechamento
+
+- A tentativa anterior do navegador integrado também encontrou erro de
+  conexão; portanto, a interface continua não verificada visualmente nas
+  combinações que falharam.
+- A limpeza do Edge falhou na rodada por timeout da consulta WMI. O perfil
+  temporário exclusivo foi removido após o processo terminar. O robô foi
+  revisado em `71cb6dc` para encerrar o processo próprio pelo PID, mas essa
+  revisão não foi executada por uma quinta rodada.
+- A validação `openspec.cmd validate --specs --strict` e o push ainda precisam
+  ser concluídos. A Change `layout-livraria-v6` permanece aberta; não arquivar
+  enquanto a matriz não passar sem violações.
