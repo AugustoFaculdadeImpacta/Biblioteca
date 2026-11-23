@@ -750,7 +750,7 @@ def test_title_detail_shows_description_fallback_and_cover(monkeypatch):
 def test_title_detail_actions_follow_effective_role():
     detail = repr(frontend.public_catalog_detail())
 
-    assert "Quero reservar" in detail
+    assert "Reservar" in detail
     assert "Entrar" in detail
     assert "Solicitar empréstimo" not in detail
     assert "Entrar na fila de reserva" not in detail

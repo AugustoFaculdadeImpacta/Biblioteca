@@ -232,7 +232,7 @@ def test_home_keeps_featured_and_about_without_hero_shortcuts():
         if component.id == "conteudo-home"
     )
 
-    assert "Sobre a biblioteca" in homepage
+    assert "Sobre a biblioteca" not in homepage
     assert "Livros em destaque" in homepage
     assert "Mostrar mais" in homepage
     assert "hero-stat-grid" in homepage
@@ -516,7 +516,7 @@ def test_footer_uses_library_name_without_repeating_home_about():
     homepage = _readable(frontend.index())
 
     assert footer.count("Biblioteca escolar") == 1
-    assert "Sobre a biblioteca" in homepage
+    assert "Sobre a biblioteca" not in homepage
     assert "Sobre a biblioteca" not in footer
 
 

@@ -158,6 +158,7 @@ class State(rx.State):
     student_library_loans: list[dict[str, Any]] = []
     student_library_requests: list[dict[str, Any]] = []
     student_library_reservations: list[dict[str, Any]] = []
+    student_reservation_tab: str = "aguardando"
     student_request_pending: bool = False
     student_request_message: str = ""
     student_request_has_error: bool = False
@@ -403,6 +404,69 @@ class State(rx.State):
             featured,
             key=lambda item: _catalog_search_key(item["titulo"]),
         )[:4]
+
+    @rx.var
+    def home_category_shelves(self) -> list[dict[str, Any]]:
+        category_names = {
+            category["id"]: category["nome"]
+            for category in self.public_catalog_categories
+        }
+        emoji_by_category = {
+            "literatura": "🎭",
+            "literatura estrangeira": "🎭",
+            "ciências": "🔬",
+            "ciências": "🔬",
+            "história": "🏛️",
+            "geografia": "🌍",
+            "matemática": "➗",
+            "infantil": "🧸",
+            "didáticos": "📐",
+            "biografias": "👤",
+        }
+        shelves: list[dict[str, Any]] = []
+        for category_id, category_name in sorted(
+            category_names.items(),
+            key=lambda item: _catalog_search_key(item[1]),
+        ):
+            titles: list[dict[str, Any]] = []
+            for entry in self.public_catalog_entries:
+                title = entry["titulo"]
+                if title.get("ativo") is False:
+                    continue
+                if not any(
+                    association["categoria_id"] == category_id
+                    for association in entry["categorias"]
+                ):
+                    continue
+                titles.append(
+                    {
+                        "id": title["id"],
+                        "titulo": title["titulo"],
+                        "autores": title["autores"],
+                        "capa_url": title.get("capa_url") or "",
+                        "capa_gerada": gerar_capa_svg(
+                            title["titulo"], title["autores"], category_name
+                        ),
+                        "href": f"/catalogo/{title['id']}",
+                        "exemplares_disponiveis": entry[
+                            "exemplares_disponiveis"
+                        ],
+                    }
+                )
+            if titles:
+                emoji = emoji_by_category.get(
+                    _catalog_search_key(category_name),
+                    "📖",
+                )
+                shelves.append(
+                    {
+                        "id": category_id,
+                        "nome": category_name,
+                        "emoji": emoji,
+                        "titulos": titles[:6],
+                    }
+                )
+        return shelves
 
     @rx.var
     def home_total_titles(self) -> int:
@@ -740,6 +804,11 @@ class State(rx.State):
     def set_public_catalog_sort(self, value: str):
         if value in {"asc", "desc"}:
             self.public_catalog_sort = value
+
+    @rx.event
+    def set_student_reservation_tab(self, value: str):
+        if value in {"aguardando", "aprovadas", "emprestados", "atrasos"}:
+            self.student_reservation_tab = value
 
     @rx.event
     async def load_home(self):
@@ -2913,6 +2982,24 @@ def _reservation_status_label(status: str) -> str:
     }.get(status, status)
 
 
+def _category_pill_emoji(category_name: str) -> str:
+    return {
+        "literatura": "🎭",
+        "literatura estrangeira": "🎭",
+        "ciências": "🔬",
+        "ciencias": "🔬",
+        "história": "🏛️",
+        "historia": "🏛️",
+        "geografia": "🌍",
+        "matemática": "➗",
+        "matematica": "➗",
+        "infantil": "🧸",
+        "didáticos": "📐",
+        "didaticos": "📐",
+        "biografias": "👤",
+    }.get(_catalog_search_key(category_name), "📖")
+
+
 def public_catalog_category_option(
     category: rx.Var[dict[str, Any]],
 ) -> rx.Component:
@@ -2920,7 +3007,57 @@ def public_catalog_category_option(
 
 
 def home_category_chip(category: rx.Var[dict[str, Any]]) -> rx.Component:
-    return rx.el.span(category["nome"], class_name="home-category-chip")
+    return rx.link(
+        rx.el.span("📖", aria_hidden="true"),
+        rx.text(" ", category["nome"]),
+        href="/catalogo",
+        class_name="home-category-chip",
+    )
+
+
+def home_category_shelf(shelf: rx.Var[dict[str, Any]]) -> rx.Component:
+    return rx.el.section(
+        rx.el.div(
+            rx.heading(
+                rx.el.span(shelf["emoji"], aria_hidden="true"),
+                rx.text(" ", shelf["nome"]),
+                size="5",
+            ),
+            rx.link(
+                "Ver tudo →",
+                href="/catalogo",
+                class_name="section-more-link",
+            ),
+            class_name="home-section-heading",
+        ),
+        rx.el.div(
+            rx.foreach(
+                shelf["titulos"],
+                lambda title: rx.el.article(
+                    rx.el.img(
+                        src=rx.cond(
+                            title["capa_url"].to(str) != "",
+                            title["capa_url"],
+                            title["capa_gerada"],
+                        ),
+                        alt=f"Capa de «{title['titulo']}»",
+                        loading="lazy",
+                        class_name="catalog-card-cover-image",
+                    ),
+                    rx.heading(title["titulo"], size="4"),
+                    rx.text(title["autores"]),
+                    rx.link(
+                        "Ver livro",
+                        href=title["href"],
+                        class_name="catalog-card-link",
+                    ),
+                    class_name="catalog-card",
+                ),
+            ),
+            class_name="home-category-shelf",
+        ),
+        class_name="content-section home-category-shelf-section",
+    )
 
 
 def _catalog_cover_class(cover_variant: rx.Var[int]) -> rx.Var[str]:
@@ -3122,6 +3259,13 @@ def public_catalog() -> rx.Component:
                 rx.heading("Catálogo", size="7"),
                 rx.text(
                     "Consulte os títulos e a quantidade de exemplares disponíveis."
+                ),
+                rx.el.div(
+                    rx.foreach(
+                        State.public_catalog_categories,
+                        home_category_chip,
+                    ),
+                    class_name="home-category-rail catalog-category-rail",
                 ),
                 rx.el.div(
                     rx.el.div(
@@ -3381,26 +3525,27 @@ def public_catalog_detail() -> rx.Component:
                             ),
                         ),
                         rx.button(
-                            conteudo_acao("reservar"),
+                            conteudo_acao("reservar", "Reservar"),
                             type="button",
                             disabled=State.student_request_pending,
                             on_click=State.request_catalog_title(
                                 State.public_catalog_detail["id"]
                             ),
                             class_name="focus-demo-button",
-                            **atributos_acao("reservar"),
+                            **atributos_acao("reservar", "Reservar"),
                         ),
                         align="start",
                         width="100%",
+                        class_name="catalog-detail-actions",
                     ),
                     rx.cond(
                         State.is_authenticated,
                         rx.fragment(),
                         rx.link(
-                            conteudo_acao("entrar"),
+                            conteudo_acao("entrar", "Entrar para reservar"),
                             href="/login",
                             class_name="primary-cta",
-                            **atributos_acao("entrar"),
+                            **atributos_acao("entrar", "Entrar para reservar"),
                         ),
                     ),
                 ),
@@ -3561,13 +3706,46 @@ def student_reservations() -> rx.Component:
                 (~State.student_library_pending)
                 & (~State.student_library_has_error)
                 & (State.student_overdue_loans.length() > 0),
-                overdue_section,
+                rx.fragment(),
                 rx.fragment(),
             ),
             rx.el.section(
                 rx.heading("Reservas e empréstimos", size="7"),
                 rx.text(
                     "Acompanhe pedidos, retiradas e prazos da sua conta."
+                ),
+                rx.el.div(
+                    rx.button(
+                        conteudo_acao("pedidos_reserva", "Aguardando"),
+                        type="button",
+                        on_click=State.set_student_reservation_tab("aguardando"),
+                        class_name="reservation-tab",
+                        **atributos_acao("pedidos_reserva", "Aguardando"),
+                    ),
+                    rx.button(
+                        conteudo_acao("aceitar", "Aprovadas"),
+                        type="button",
+                        on_click=State.set_student_reservation_tab("aprovadas"),
+                        class_name="reservation-tab",
+                        **atributos_acao("aceitar", "Aprovadas"),
+                    ),
+                    rx.button(
+                        conteudo_acao("emprestar", "Emprestados"),
+                        type="button",
+                        on_click=State.set_student_reservation_tab("emprestados"),
+                        class_name="reservation-tab",
+                        **atributos_acao("emprestar", "Emprestados"),
+                    ),
+                    rx.button(
+                        conteudo_acao("regras", "Atrasos"),
+                        type="button",
+                        on_click=State.set_student_reservation_tab("atrasos"),
+                        class_name="reservation-tab",
+                        **atributos_acao("regras", "Atrasos"),
+                    ),
+                    role="tablist",
+                    aria_label="Acompanhamento de reservas",
+                    class_name="reservation-tabs",
                 ),
                 rx.cond(
                     State.student_library_pending,
@@ -3597,11 +3775,23 @@ def student_reservations() -> rx.Component:
                     (~State.student_library_pending)
                     & (~State.student_library_has_error),
                     rx.fragment(
-                        awaiting_approval_section,
-                        approved_section,
-                        borrowed_section,
                         rx.cond(
-                            State.student_overdue_loans.length() == 0,
+                            State.student_reservation_tab == "aguardando",
+                            awaiting_approval_section,
+                            rx.fragment(),
+                        ),
+                        rx.cond(
+                            State.student_reservation_tab == "aprovadas",
+                            approved_section,
+                            rx.fragment(),
+                        ),
+                        rx.cond(
+                            State.student_reservation_tab == "emprestados",
+                            borrowed_section,
+                            rx.fragment(),
+                        ),
+                        rx.cond(
+                            State.student_reservation_tab == "atrasos",
                             overdue_section,
                             rx.fragment(),
                         ),
@@ -3736,10 +3926,20 @@ def index() -> rx.Component:
             ),
             rx.el.section(
                 rx.el.div(
+                    rx.foreach(
+                        State.public_catalog_categories,
+                        home_category_chip,
+                    ),
+                    class_name="home-category-rail",
+                ),
+                id="categorias-home",
+                class_name="content-section home-category-section",
+            ),
+            rx.el.section(
+                rx.el.div(
                     rx.vstack(
                         rx.heading(
-                            rx.el.span("⭐", aria_hidden="true"),
-                            rx.text(" Livros em destaque"),
+                        rx.text("Livros em destaque"),
                             size="5",
                         ),
                         rx.text(
@@ -3789,25 +3989,12 @@ def index() -> rx.Component:
                             State.home_featured_titles,
                             public_catalog_card,
                         ),
-                        class_name="catalog-grid",
+                        class_name="catalog-grid home-category-shelf",
                     ),
                     rx.fragment(),
                 ),
                 id="livros-destaque",
                 class_name="content-section catalog-section home-catalog-section",
-            ),
-            rx.el.section(
-                rx.heading(
-                    rx.el.span("ℹ️", aria_hidden="true"),
-                    rx.text(" Sobre a biblioteca"),
-                    size="5",
-                ),
-                rx.text(
-                    "Um espaço de leitura, pesquisa e descoberta, com um acervo "
-                    "para apoiar a aprendizagem de toda a comunidade escolar."
-                ),
-                id="sobre-biblioteca",
-                class_name="content-section home-about-section",
             ),
             class_name="main-content",
         ),
@@ -6178,6 +6365,7 @@ app = rx.App(
         ".home-hero": {
             "width": "100%",
             "max_width": "72rem",
+            "max_height": "180px",
             "margin": "1rem auto",
             "padding": "clamp(1.5rem, 3vw, 2.5rem)",
             "border": "1px solid var(--line)",
@@ -6447,6 +6635,66 @@ app = rx.App(
             "grid_template_columns": "repeat(auto-fill, minmax(11.25rem, 13.75rem))",
             "gap": "1.1rem",
             "width": "100%",
+        },
+        ".home-category-rail": {
+            "display": "flex",
+            "flex_wrap": "nowrap",
+            "gap": "0.6rem",
+            "width": "100%",
+            "overflow_x": "auto",
+            "padding": "0.25rem 0",
+        },
+        ".home-category-chip": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "flex": "0 0 auto",
+            "min_height": "2.75rem",
+            "padding": "0.5rem 0.9rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "999px",
+            "background_color": "var(--bg-panel)",
+            "color": "var(--text)",
+            "font_weight": "700",
+            "text_decoration": "none",
+        },
+        ".home-category-shelf": {
+            "display": "flex",
+            "flex_wrap": "nowrap",
+            "gap": "1rem",
+            "width": "100%",
+            "overflow_x": "auto",
+            "padding_bottom": "0.5rem",
+        },
+        ".home-category-shelf .catalog-card": {
+            "flex": "0 0 13.75rem",
+        },
+        ".catalog-category-rail": {
+            "margin": "0 0 0.75rem",
+        },
+        ".catalog-detail-card": {
+            "display": "grid",
+            "grid_template_columns": "minmax(12rem, 18rem) minmax(0, 1fr)",
+            "align_items": "start",
+            "gap": "1.5rem",
+        },
+        ".reservation-tabs": {
+            "display": "flex",
+            "flex_wrap": "nowrap",
+            "gap": "0.5rem",
+            "width": "100%",
+            "overflow_x": "auto",
+        },
+        ".reservation-tab": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "justify_content": "center",
+            "flex": "0 0 auto",
+            "min_height": "2.75rem",
+            "padding": "0.5rem 0.9rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "999px",
+            "background_color": "var(--bg-panel)",
+            "color": "var(--text)",
         },
         ".admin-catalog-grid": {
             "display": "flex",
@@ -7258,6 +7506,26 @@ app = rx.App(
             ".catalog-controls": {
                 "grid_template_columns": "minmax(0, 1fr)",
                 "padding": "0.75rem",
+            },
+            ".catalog-detail-card": {
+                "grid_template_columns": "minmax(0, 1fr)",
+            },
+            ".catalog-detail-actions": {
+                "position": "fixed",
+                "left": "0.5rem",
+                "right": "0.5rem",
+                "bottom": "0.5rem",
+                "z_index": "40",
+                "width": "calc(100% - 1rem)",
+                "padding": "0.5rem",
+                "border": "1px solid var(--line)",
+                "border_radius": "0.75rem",
+                "background_color": "var(--bg-panel)",
+                "box_shadow": "var(--shadow-soft)",
+            },
+            ".catalog-detail-actions button, .catalog-detail-actions a": {
+                "width": "100%",
+                "justify_content": "center",
             },
             ".librarian-card": {
                 "width": "100%",

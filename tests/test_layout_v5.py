@@ -112,3 +112,29 @@ def test_page_container_layout_is_stable():
     assert style[".signup-section"]["margin"] == "2rem auto"
     assert style[".admin-acervo-content"]["width"] == "100%"
     assert style[".admin-acervo-content"]["max_width"] == "75rem"
+
+
+def test_delivery_layout_has_category_rails_and_product_detail():
+    style = frontend.app.style
+    home = repr(frontend.index())
+    catalog = repr(frontend.public_catalog())
+    detail = repr(frontend.public_catalog_detail())
+    reservations = repr(frontend.student_reservations())
+
+    assert "home-category-rail" in home
+    assert "home-category-shelf" in home
+    assert "Sobre a biblioteca" not in home
+    assert "catalog-category-rail" in catalog
+    assert "catalog-detail-card" in detail
+    assert "Reservar" in detail
+    assert "reservation-tabs" in reservations
+    assert "Aguardando" in reservations
+    assert "Aprovadas" in reservations
+    assert "Emprestados" in reservations
+    assert "Atrasos" in reservations
+
+    assert style[".home-category-rail"]["overflow_x"] == "auto"
+    assert style[".home-category-shelf"]["overflow_x"] == "auto"
+    assert style[".catalog-detail-card"]["grid_template_columns"] == (
+        "minmax(12rem, 18rem) minmax(0, 1fr)"
+    )

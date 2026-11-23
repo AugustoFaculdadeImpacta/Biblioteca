@@ -666,17 +666,15 @@ def test_student_library_page_and_navigation_are_profile_gated():
 
 def test_student_reservations_has_four_sections_and_empty_states():
     page = _readable_text(frontend.student_reservations())
-    section_labels = (
-        "Aguardando aprovação",
+    tab_labels = (
+        "Aguardando",
         "Aprovadas",
         "Emprestados",
-        "Em atraso",
+        "Atrasos",
     )
 
-    assert all(label in page for label in section_labels)
-    assert page.index("Em atraso") < page.index("Aguardando aprovação")
-    assert page.index("Aguardando aprovação") < page.index("Aprovadas")
-    assert page.index("Aprovadas") < page.index("Emprestados")
+    assert all(label in page for label in tab_labels)
+    assert "reservation-tabs" in repr(frontend.student_reservations())
     assert "Você não tem pedidos aguardando aprovação." in page
     assert "Você não tem reservas aprovadas aguardando retirada." in page
     assert "Você não tem livros emprestados no momento." in page
