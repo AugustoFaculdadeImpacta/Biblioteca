@@ -2438,7 +2438,7 @@ def site_primary_nav() -> rx.Component:
 
 def admin_view_status() -> rx.Component:
     return rx.cond(
-        State.can_manage_librarians,
+        State.can_manage_librarians & (State.admin_view_mode != ""),
         rx.el.div(
             rx.el.div(
                 "Modo de visualização: ",
@@ -2551,30 +2551,62 @@ _APPEARANCE_SCRIPT = r"""
           `${preferences.fontScale}%`);
       }
       if (action === "high-contrast") {
-        const label = preferences.highContrast
-          ? "Alto contraste ativo" : "Ativar alto contraste";
+        const enabled = preferences.highContrast;
+        const state = enabled ? "Ligado" : "Desligado";
+        const status = button.querySelector(
+          `[data-appearance-value="${action}"]`
+        );
+        if (status) setText(status, state);
+        const label = status
+          ? `Alto contraste: ${state}`
+          : enabled ? "Alto contraste ativo" : "Ativar alto contraste";
         setText(button.querySelector("[data-action-label]"), label);
         button.setAttribute("aria-label", label);
         button.setAttribute("title", label);
-        button.setAttribute("aria-pressed", String(preferences.highContrast));
+        if (button.getAttribute("role") === "switch") {
+          button.setAttribute("aria-checked", String(enabled));
+        } else {
+          button.setAttribute("aria-pressed", String(enabled));
+        }
       }
       if (action === "reduce-motion") {
-        const label = preferences.reduceMotion
-          ? "Movimento reduzido" : "Reduzir movimento";
+        const enabled = preferences.reduceMotion;
+        const state = enabled ? "Ligado" : "Desligado";
+        const status = button.querySelector(
+          `[data-appearance-value="${action}"]`
+        );
+        if (status) setText(status, state);
+        const label = status
+          ? `Reduzir movimento: ${state}`
+          : enabled ? "Movimento reduzido" : "Reduzir movimento";
         setText(button.querySelector("[data-action-label]"), label);
         button.setAttribute("aria-label", label);
         button.setAttribute("title", label);
-        button.setAttribute("aria-pressed", String(preferences.reduceMotion));
+        if (button.getAttribute("role") === "switch") {
+          button.setAttribute("aria-checked", String(enabled));
+        } else {
+          button.setAttribute("aria-pressed", String(enabled));
+        }
       }
       if (action === "theme") {
         const dark = preferences.theme === "dark" ||
           (preferences.theme === "system" && colorScheme.matches);
         const label = dark ? "Modo claro" : "Modo escuro";
-        setText(button.querySelector("[data-appearance-theme-label]"), label);
-        button.setAttribute("aria-label", label);
-        button.setAttribute("title", label);
+        const status = button.querySelector("[data-appearance-value='theme']");
+        if (status) {
+          setText(status, dark ? "Ligado" : "Desligado");
+        }
+        const accessibleLabel = status
+          ? `Modo escuro: ${dark ? "Ligado" : "Desligado"}`
+          : label;
+        setText(
+          button.querySelector("[data-appearance-theme-label]"),
+          label
+        );
+        button.setAttribute("aria-label", accessibleLabel);
+        button.setAttribute("title", accessibleLabel);
         const emoji = button.querySelector("[data-appearance-theme-emoji]");
-        setText(emoji, dark ? "☀️" : "🌙");
+        if (emoji) setText(emoji, dark ? "☀️" : "🌙");
         button.setAttribute("aria-checked", String(dark));
       }
     });
@@ -2678,65 +2710,101 @@ _APPEARANCE_SCRIPT = r"""
 def profile_appearance_controls() -> rx.Component:
     return rx.el.div(
         rx.el.div(
-            rx.el.span("🔠", aria_hidden="true"),
-            rx.text(" Tamanho da fonte"),
-            class_name="profile-menu-identity",
-        ),
-        rx.el.div(
-            rx.button(
-                conteudo_acao("diminuir_fonte"),
-                type="button",
-                data_appearance_action="font-decrease",
-                class_name="profile-menu-item",
-                **atributos_acao("diminuir_fonte"),
+            rx.el.span(
+                "Tamanho da fonte",
+                class_name="accessibility-setting-label",
             ),
-            rx.button(
-                conteudo_acao(
-                    "fonte_padrao",
-                    complemento=rx.el.span(
+            rx.el.div(
+                rx.button(
+                    "A−",
+                    type="button",
+                    data_appearance_action="font-decrease",
+                    aria_label="Diminuir fonte",
+                    title="Diminuir fonte",
+                    class_name="appearance-font-button",
+                ),
+                rx.button(
+                    rx.el.span(
                         "100%",
                         data_appearance_font_value="true",
-                        class_name="appearance-font-value",
                     ),
+                    type="button",
+                    data_appearance_action="font-reset",
+                    aria_label="Restaurar fonte padrão",
+                    title="Restaurar fonte padrão",
+                    class_name="appearance-font-button",
                 ),
-                type="button",
-                data_appearance_action="font-reset",
-                class_name="profile-menu-item",
-                **atributos_acao("fonte_padrao"),
+                rx.button(
+                    "A+",
+                    type="button",
+                    data_appearance_action="font-increase",
+                    aria_label="Aumentar fonte",
+                    title="Aumentar fonte",
+                    class_name="appearance-font-button",
+                ),
+                class_name="appearance-font-controls",
+            ),
+            class_name="accessibility-setting-row",
+        ),
+        rx.el.div(
+            rx.el.span(
+                "Alto contraste",
+                class_name="accessibility-setting-label",
             ),
             rx.button(
-                conteudo_acao("aumentar_fonte"),
+                rx.el.span(
+                    "Desligado",
+                    data_appearance_value="high-contrast",
+                ),
                 type="button",
-                data_appearance_action="font-increase",
-                class_name="profile-menu-item",
-                **atributos_acao("aumentar_fonte"),
+                role="switch",
+                aria_checked=False,
+                aria_label="Alto contraste",
+                title="Alto contraste",
+                data_appearance_action="high-contrast",
+                class_name="appearance-switch",
             ),
-            class_name="profile-menu-controls",
+            class_name="accessibility-setting-row",
         ),
-        rx.button(
-            conteudo_acao("alto_contraste"),
-            type="button",
-            aria_pressed=False,
-            data_appearance_action="high-contrast",
-            class_name="profile-menu-item",
-            **atributos_acao("alto_contraste"),
+        rx.el.div(
+            rx.el.span(
+                "Reduzir movimento",
+                class_name="accessibility-setting-label",
+            ),
+            rx.button(
+                rx.el.span(
+                    "Desligado",
+                    data_appearance_value="reduce-motion",
+                ),
+                type="button",
+                role="switch",
+                aria_checked=False,
+                aria_label="Reduzir movimento",
+                title="Reduzir movimento",
+                data_appearance_action="reduce-motion",
+                class_name="appearance-switch",
+            ),
+            class_name="accessibility-setting-row",
         ),
-        rx.button(
-            conteudo_acao("reduzir_movimento"),
-            type="button",
-            aria_pressed=False,
-            data_appearance_action="reduce-motion",
-            class_name="profile-menu-item",
-            **atributos_acao("reduzir_movimento"),
-        ),
-        rx.el.button(
-            conteudo_acao("tema"),
-            type="button",
-            role="switch",
-            aria_checked=False,
-            data_appearance_action="theme",
-            class_name="profile-menu-item",
-            **atributos_acao("tema"),
+        rx.el.div(
+            rx.el.span(
+                "Modo escuro",
+                class_name="accessibility-setting-label",
+            ),
+            rx.button(
+                rx.el.span(
+                    "Desligado",
+                    data_appearance_value="theme",
+                ),
+                type="button",
+                role="switch",
+                aria_checked=False,
+                aria_label="Modo escuro",
+                title="Modo escuro",
+                data_appearance_action="theme",
+                class_name="appearance-switch",
+            ),
+            class_name="accessibility-setting-row",
         ),
         class_name="profile-appearance-controls",
     )
@@ -2907,14 +2975,14 @@ def accessibility_menu() -> rx.Component:
 
 def site_header() -> rx.Component:
     brand = rx.link(
-        rx.el.span("📖", aria_hidden="true"),
+        rx.el.span("📚", aria_hidden="true"),
         rx.text(" Biblioteca escolar", class_name="brand-link-label"),
         href="/",
         class_name="brand-link",
         title="Biblioteca escolar",
         aria_label="Biblioteca escolar",
     )
-    return rx.el.header(
+    header = rx.el.header(
         brand,
         site_primary_nav(),
         rx.el.form(
@@ -2932,13 +3000,13 @@ def site_header() -> rx.Component:
             class_name="site-header-search-form",
         ),
         rx.el.div(
-            admin_view_status(),
             accessibility_menu(),
             profile_menu(),
             class_name="site-header-actions",
         ),
         class_name="site-header",
     )
+    return rx.fragment(header, admin_view_status())
 
 
 def site_footer() -> rx.Component:
@@ -6168,15 +6236,17 @@ app = rx.App(
             "top": "0",
             "z_index": "50",
             "display": "grid",
-            "grid_template_columns": "auto minmax(18rem, 1fr) minmax(12rem, 22rem) auto",
+            "grid_template_columns": "auto minmax(0, 1fr) minmax(10rem, 17rem) auto",
             "grid_template_areas": "\"logo nav busca acoes\"",
             "align_items": "center",
-            "gap": "1rem",
-            "max_width": "75rem",
-            "margin": "0 auto",
+            "gap": "0.75rem",
+            "width": "100%",
+            "max_width": "72rem",
+            "margin": "0 auto 0.75rem",
             "min_height": "4rem",
-            "padding": "0 1rem",
-            "border_bottom": "1px solid var(--line)",
+            "padding": "0.75rem 1rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "1rem",
             "background_color": "var(--bg-panel)",
             "box_shadow": "var(--shadow-soft)",
         },
@@ -6195,15 +6265,16 @@ app = rx.App(
         ".brand-link": {
             "display": "inline-flex",
             "align_items": "center",
-            "flex_shrink": "0",
+            "gap": "0.45rem",
+            "min_width": "0",
             "white_space": "nowrap",
             "background": "transparent",
             "border": "none",
-            "color": "var(--text)",
+            "color": "var(--brand-text)",
             "font_weight": "800",
             "text_decoration": "none",
-            "font_family": "system-ui, -apple-system, 'Segoe UI', sans-serif",
-            "font_size": "1.25rem",
+            "font_family": "Georgia, 'Times New Roman', serif",
+            "font_size": "1.35rem",
         },
         ".brand-link:hover": {
             "color": "var(--brand-text)",
@@ -6213,10 +6284,11 @@ app = rx.App(
             "grid_template_columns": "minmax(0, 1fr) auto",
             "align_items": "center",
             "gap": "0.25rem",
+            "width": "100%",
             "min_width": "0",
-            "padding": "0.25rem 0.25rem 0.25rem 0.75rem",
+            "padding": "0.15rem 0.2rem 0.15rem 0.7rem",
             "border": "1px solid var(--line)",
-            "border_radius": "999px",
+            "border_radius": "0.7rem",
             "background_color": "var(--bg-soft)",
         },
         ".site-header-search": {
@@ -6250,6 +6322,7 @@ app = rx.App(
             "justify_content": "center",
             "gap": "0.35rem",
             "min_width": "0",
+            "overflow": "visible",
         },
         ".site-header-actions": {
             "display": "flex",
@@ -6258,6 +6331,7 @@ app = rx.App(
             "justify_content": "flex-end",
             "gap": "0.5rem",
             "min_width": "0",
+            "white_space": "nowrap",
         },
         ".site-header-actions > .profile-menu, .site-header-actions > .accessibility-menu": {
             "flex": "0 0 auto",
@@ -6295,30 +6369,6 @@ app = rx.App(
             "grid_column": "1 / -1",
             "width": "100%",
         },
-        ".site-header-mobile-panel.is-open": {
-            "display": "flex",
-            "flex_direction": "column",
-            "gap": "0.75rem",
-            "padding_top": "0.75rem",
-            "border_top": "1px solid var(--line)",
-        },
-        ".site-header-mobile-panel .site-primary-nav": {
-            "flex_direction": "column",
-            "align_items": "stretch",
-            "width": "100%",
-        },
-        ".site-header-mobile-panel .site-header-actions": {
-            "flex_direction": "column",
-            "align_items": "stretch",
-            "width": "100%",
-        },
-        ".site-header-mobile-panel .site-header-actions > *": {
-            "width": "100%",
-        },
-        ".site-header-mobile-panel .admin-view-band": {
-            "justify_content": "flex-start",
-            "width": "100%",
-        },
         ".site-primary-nav a": {
             "display": "inline-flex",
             "align_items": "center",
@@ -6345,21 +6395,25 @@ app = rx.App(
             "align_items": "center",
             "justify_content": "center",
             "min_height": "2.75rem",
-            "padding": "0.45rem 0.9rem",
+            "padding": "0.45rem 0.75rem",
+            "border": "1px solid var(--line)",
             "border_radius": "0.55rem",
             "font_weight": "700",
             "list_style": "none",
+            "white_space": "nowrap",
             "cursor": "pointer",
         },
         ".accessibility-menu-trigger": {
-            "border": "1px solid var(--line)",
             "background_color": "transparent",
             "color": "var(--text)",
         },
         ".profile-menu-trigger": {
-            "border": "1px solid var(--brand-700)",
-            "background_color": "var(--brand-700)",
-            "color": "var(--button-primary-text)",
+            "background_color": "transparent",
+            "color": "var(--brand-text)",
+        },
+        ".profile-menu-trigger:hover, .accessibility-menu-trigger:hover": {
+            "background_color": "var(--bg-soft)",
+            "color": "var(--brand-text)",
         },
         ".profile-menu-trigger::-webkit-details-marker, .accessibility-menu-trigger::-webkit-details-marker": {
             "display": "none",
@@ -6418,6 +6472,76 @@ app = rx.App(
             "grid_template_columns": "repeat(3, minmax(0, 1fr))",
             "gap": "0.2rem",
         },
+        ".accessibility-menu-content": {
+            "display": "flex",
+            "flex_direction": "column",
+            "gap": "0.5rem",
+            "width": "min(20rem, 92vw)",
+            "max_width": "min(20rem, 92vw)",
+            "padding": "0.75rem",
+        },
+        ".profile-appearance-controls": {
+            "display": "flex",
+            "flex_direction": "column",
+            "gap": "0.5rem",
+            "width": "100%",
+            "min_width": "0",
+        },
+        ".accessibility-setting-row": {
+            "display": "flex",
+            "flex_wrap": "nowrap",
+            "align_items": "center",
+            "justify_content": "space-between",
+            "gap": "0.75rem",
+            "width": "100%",
+            "min_width": "0",
+        },
+        ".accessibility-setting-label": {
+            "flex": "1 1 auto",
+            "min_width": "0",
+            "color": "var(--slate-900)",
+            "font_size": "0.9rem",
+        },
+        ".appearance-font-controls": {
+            "display": "flex",
+            "flex": "0 0 auto",
+            "gap": "0.25rem",
+        },
+        ".appearance-font-button": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "justify_content": "center",
+            "width": "2.75rem",
+            "min_width": "2.75rem",
+            "min_height": "2.75rem",
+            "padding": "0.25rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.5rem",
+            "background_color": "var(--bg-soft)",
+            "color": "var(--slate-900)",
+            "font": "inherit",
+            "cursor": "pointer",
+        },
+        ".appearance-switch": {
+            "display": "inline-flex",
+            "flex": "0 0 auto",
+            "align_items": "center",
+            "justify_content": "center",
+            "min_width": "6rem",
+            "min_height": "2.75rem",
+            "padding": "0.35rem 0.65rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.5rem",
+            "background_color": "var(--bg-soft)",
+            "color": "var(--slate-900)",
+            "font": "inherit",
+            "cursor": "pointer",
+        },
+        ".appearance-switch[aria-checked='true']": {
+            "border_color": "var(--brand-700)",
+            "background_color": "var(--brand-100)",
+            "color": "var(--brand-text)",
+        },
         ".profile-menu-content [role='separator']": {
             "height": "1px",
             "margin": "0.3rem 0",
@@ -6444,27 +6568,34 @@ app = rx.App(
         },
         ".admin-view-band": {
             "display": "flex",
-            "flex_wrap": "wrap",
+            "flex_wrap": "nowrap",
             "align_items": "center",
+            "justify_content": "center",
             "gap": "0.5rem",
-            "padding": "0.3rem 0.45rem",
-            "border": "1px solid var(--line)",
-            "border_radius": "0.5rem",
+            "width": "100%",
+            "max_width": "72rem",
+            "min_height": "2.25rem",
+            "margin": "0 auto 0.75rem",
+            "padding": "0.15rem 0.5rem",
+            "border_bottom": "1px solid var(--line)",
             "background_color": "var(--bg-soft)",
         },
         ".admin-view-mode-label": {
             "font_weight": "700",
             "color": "var(--brand-text)",
-            "font_size": "0.8rem",
+            "font_size": "0.75rem",
+            "white_space": "nowrap",
         },
         ".admin-view-reset": {
             "min_height": "2.75rem",
-            "padding": "0.35rem 0.65rem",
-            "border": "1px solid var(--brand-700)",
+            "padding": "0.25rem 0.5rem",
+            "border": "1px solid var(--line)",
             "border_radius": "0.5rem",
-            "background_color": "var(--brand-100)",
-            "color": "var(--brand-text)",
+            "background_color": "transparent",
+            "color": "var(--slate-900)",
             "font_weight": "600",
+            "font_size": "0.75rem",
+            "white_space": "nowrap",
             "cursor": "pointer",
         },
         ".a11y-menu": {
@@ -7631,7 +7762,7 @@ app = rx.App(
         },
         ".site-footer": {
             "display": "flex",
-            "flex_wrap": "nowrap",
+            "flex_wrap": "wrap",
             "align_items": "center",
             "justify_content": "space-between",
             "gap": "0.75rem 1.5rem",
@@ -7722,8 +7853,8 @@ app = rx.App(
             },
             ".site-header": {
                 "display": "grid",
-                "grid_template_columns": "minmax(0, 1fr) auto",
-                "grid_template_areas": "\"logo acoes\" \"nav nav\" \"busca busca\"",
+                "grid_template_columns": "minmax(0, 1fr)",
+                "grid_template_areas": "\"logo\" \"nav\" \"busca\" \"acoes\"",
                 "align_items": "center",
                 "gap": "0.5rem",
                 "padding": "0.75rem",
@@ -7766,12 +7897,11 @@ app = rx.App(
                 "display": "none",
             },
             ".brand-link": {
-                "min_width": "2.75rem",
                 "font_size": "1.2rem",
-                "justify_content": "center",
+                "justify_content": "flex-start",
             },
             ".brand-link-label": {
-                "display": "none",
+                "display": "inline",
             },
             ".site-primary-nav": {
                 "align_items": "stretch",
@@ -7780,25 +7910,34 @@ app = rx.App(
                 "width": "100%",
             },
             ".site-header-actions": {
-                "align_items": "stretch",
+                "align_items": "center",
+                "justify_content": "flex-start",
+                "flex_wrap": "wrap",
                 "gap": "0.6rem",
                 "width": "100%",
             },
-            ".site-header-mobile-panel .profile-menu-trigger, .site-header-mobile-panel .accessibility-menu-trigger": {
-                "width": "100%",
-                "justify_content": "center",
+            ".accessibility-menu-content": {
+                "width": "min(20rem, 92vw)",
+                "max_width": "min(20rem, 92vw)",
             },
-            ".profile-menu-content": {
-                "width": "calc(100vw - 2rem)",
-                "max_width": "calc(100vw - 2rem)",
+            ".accessibility-menu .accessibility-menu-content": {
+                "left": "0",
+                "right": "auto",
             },
             ".footer-links": {
                 "width": "100%",
             },
             ".admin-view-band": {
-                "align_items": "flex-start",
-                "flex_direction": "column",
+                "align_items": "center",
+                "justify_content": "space-between",
+                "gap": "0.25rem",
                 "width": "100%",
+            },
+            ".admin-view-mode-label, .admin-view-reset": {
+                "font_size": "0.65rem",
+            },
+            ".admin-view-reset": {
+                "padding": "0.25rem",
             },
             ".content-section": {
                 "padding": "1.25rem 0.25rem",

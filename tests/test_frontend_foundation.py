@@ -99,6 +99,27 @@ def test_visual_tokens_keep_accessible_contrast_and_reduced_motion():
     ]["transition_duration"] == "0.01ms !important"
 
 
+def test_shared_header_and_footer_follow_the_restored_visual_hierarchy():
+    header = app.style[".site-header"]
+
+    assert header["position"] == "sticky"
+    assert header["grid_template_columns"] == (
+        "auto minmax(0, 1fr) minmax(10rem, 17rem) auto"
+    )
+    assert header["border_radius"] == "1rem"
+    assert header["border"] == "1px solid var(--line)"
+    assert "height" not in header
+    assert "max_height" not in header
+    assert app.style[".brand-link"]["font_family"] == (
+        "Georgia, 'Times New Roman', serif"
+    )
+    assert app.style[".profile-menu-trigger"]["background_color"] == "transparent"
+    assert app.style[".accessibility-menu-trigger"]["background_color"] == (
+        "transparent"
+    )
+    assert app.style[".site-footer"]["flex_wrap"] == "wrap"
+
+
 def test_dark_and_high_contrast_tokens_meet_wcag_aa():
     dark = app.style[".a11y-shell.a11y-dark"]
     assert _contrast_ratio(dark["--slate-900"], dark["--bg-page"]) >= 4.5
@@ -421,7 +442,10 @@ def test_touch_targets_and_keyboard_accessibility_at_mobile_viewport():
     assert mobile_styles["a"]["min_height"] == "2.75rem"
     assert mobile_styles["a"]["display"] == "inline-flex"
     assert mobile_styles[".site-header"]["grid_template_columns"] == (
-        "minmax(0, 1fr) auto"
+        "minmax(0, 1fr)"
+    )
+    assert mobile_styles[".site-header"]["grid_template_areas"] == (
+        '"logo" "nav" "busca" "acoes"'
     )
     assert mobile_styles[".site-menu-toggle"]["display"] == "none"
     assert app.style[":focus-visible"] == {

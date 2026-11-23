@@ -371,6 +371,11 @@ def test_admin_view_mode_controls_are_visible_and_accessible():
     menu = _readable(frontend.profile_menu())
     accessibility = _readable(frontend.accessibility_menu())
     style = frontend.app.style
+    header_component = next(
+        component
+        for component in _components(frontend.site_header())
+        if component.class_name == "site-header"
+    )
 
     assert "Modo de visualização" in header
     assert "Modo de visualização" in menu
@@ -383,6 +388,36 @@ def test_admin_view_mode_controls_are_visible_and_accessible():
     assert "Voltar à visão de admin" not in menu
     assert "Voltar à visão de admin" in header
     assert style[":focus-visible"]["outline"].startswith("3px solid ")
+    assert _serialized_class_count(header_component, "admin-view-band") == 0
+    assert style[".admin-view-band"]["min_height"] == "2.25rem"
+    assert style[".admin-view-mode-label"]["white_space"] == "nowrap"
+
+
+def test_accessibility_menu_has_non_overlapping_switch_rows():
+    component = frontend.accessibility_menu()
+    rows = [
+        item
+        for item in _components(component)
+        if item.class_name == "accessibility-setting-row"
+    ]
+    style = frontend.app.style
+
+    assert len(rows) == 4
+    assert all("accessibility-setting-label" in _readable(row) for row in rows)
+    assert "A−" in _readable(rows[0])
+    assert "100%" in _readable(rows[0])
+    assert "A+" in _readable(rows[0])
+    assert _readable(component).count("Desligado") == 3
+    assert style[".accessibility-menu-content"]["width"] == "min(20rem, 92vw)"
+    assert style[".accessibility-menu-content"]["padding"] == "0.75rem"
+    assert style[".accessibility-menu-content"]["gap"] == "0.5rem"
+    assert style[".accessibility-menu-content"]["flex_direction"] == "column"
+    assert style[".accessibility-setting-row"]["display"] == "flex"
+    assert style[".appearance-font-button"]["min_width"] == "2.75rem"
+    assert style[".appearance-font-button"]["min_height"] == "2.75rem"
+    assert style[".appearance-switch"]["min_height"] == "2.75rem"
+    assert "position" not in style[".accessibility-setting-row"]
+    assert style[".profile-menu-content"]["position"] == "absolute"
 
 
 def test_admin_view_mode_can_reset_and_is_hidden_for_non_admin():
@@ -596,10 +631,12 @@ def test_header_separates_profile_and_accessibility_on_mobile():
     assert "Modo escuro" in accessibility
     assert "Cadastrar-se" not in accessibility
     assert mobile[
-        ".site-header-mobile-panel .profile-menu-trigger, "
-        ".site-header-mobile-panel .accessibility-menu-trigger"
-    ]["width"] == "100%"
-    assert mobile[".profile-menu-content"]["max_width"] == "calc(100vw - 2rem)"
+        ".site-header"
+    ]["grid_template_areas"] == '"logo" "nav" "busca" "acoes"'
+    assert mobile[".accessibility-menu-content"]["width"] == "min(20rem, 92vw)"
+    assert mobile[
+        ".accessibility-menu .accessibility-menu-content"
+    ] == {"left": "0", "right": "auto"}
 
 
 def test_profile_disclosure_uses_details_without_rx_menu():
