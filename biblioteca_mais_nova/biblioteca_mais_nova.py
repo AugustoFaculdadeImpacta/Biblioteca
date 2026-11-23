@@ -391,74 +391,37 @@ class State(rx.State):
 
     @rx.var
     def home_featured_titles(self) -> list[dict[str, Any]]:
-        category_names = {
-            category["id"]: category["nome"]
-            for category in self.public_catalog_categories
-        }
-        featured: list[dict[str, Any]] = []
-        for entry in self.public_catalog_entries:
-            title = entry["titulo"]
-            if title.get("ativo") is False:
-                continue
-            category_ids = {
-                association["categoria_id"]
-                for association in entry["categorias"]
-            }
-            category_text = ", ".join(
-                category_names[category_id]
-                for category_id in sorted(category_ids)
-                if category_id in category_names
-            ) or "Sem categoria"
-            cover_initial, cover_variant = _catalog_cover_identity(
-                category_text,
-                title["titulo"],
-            )
-            featured.append(
-                {
-                    "id": title["id"],
-                    "titulo": title["titulo"],
-                    "autores": title["autores"],
-                    "capa_url": title.get("capa_url") or "",
-                    "capa_real": resolver_capa_url(
-                        capa_url=title.get("capa_url"),
-                        isbn=title.get("isbn"),
-                        titulo=title["titulo"],
-                        autoria=title["autores"],
-                    ),
-                    "capa_gerada": gerar_capa_svg(
-                        title["titulo"], title["autores"], category_text
-                    ),
-                    "categorias": category_text,
-                    "exemplares_disponiveis": entry[
-                        "exemplares_disponiveis"
-                    ],
-                    "href": f"/catalogo/{title['id']}",
-                    "cover_initial": cover_initial,
-                    "cover_variant": cover_variant,
-                }
-            )
+        cards = _home_catalog_cards(
+            self.public_catalog_entries,
+            self.public_catalog_categories,
+        )
         return sorted(
-            featured,
+            cards,
             key=lambda item: _catalog_search_key(item["titulo"]),
-        )[:4]
+        )[:10]
+
+    @rx.var
+    def home_new_arrivals(self) -> list[dict[str, Any]]:
+        cards = _home_catalog_cards(
+            self.public_catalog_entries,
+            self.public_catalog_categories,
+        )
+        return sorted(
+            cards,
+            key=lambda item: (
+                _as_utc_datetime(item.get("created_at")) is not None,
+                _as_utc_datetime(item.get("created_at"))
+                or datetime.min.replace(tzinfo=timezone.utc),
+                item["id"],
+            ),
+            reverse=True,
+        )[:10]
 
     @rx.var
     def home_category_shelves(self) -> list[dict[str, Any]]:
         category_names = {
             category["id"]: category["nome"]
             for category in self.public_catalog_categories
-        }
-        emoji_by_category = {
-            "literatura": "🎭",
-            "literatura estrangeira": "🎭",
-            "ciências": "🔬",
-            "ciências": "🔬",
-            "história": "🏛️",
-            "geografia": "🌍",
-            "matemática": "➗",
-            "infantil": "🧸",
-            "didáticos": "📐",
-            "biografias": "👤",
         }
         shelves: list[dict[str, Any]] = []
         for category_id, category_name in sorted(
@@ -490,19 +453,15 @@ class State(rx.State):
                         ],
                     }
                 )
-            if titles:
-                emoji = emoji_by_category.get(
-                    _catalog_search_key(category_name),
-                    "📖",
-                )
-                shelves.append(
-                    {
-                        "id": category_id,
-                        "nome": category_name,
-                        "emoji": emoji,
-                        "titulos": titles[:6],
-                    }
-                )
+            shelves.append(
+                {
+                    "id": category_id,
+                    "nome": category_name,
+                    "emoji": _category_pill_emoji(category_name),
+                    "quantidade": len(titles),
+                    "titulos": titles[:6],
+                }
+            )
         return shelves
 
     @rx.var
@@ -650,6 +609,17 @@ class State(rx.State):
             for request in self.student_library_requests
             if request["estado"] == "Aguardando confirmação da retirada"
         ]
+
+    @rx.var
+    def student_active_loan_count(self) -> int:
+        return sum(not loan["devolvido"] for loan in self.student_library_loans)
+
+    @rx.var
+    def student_awaiting_count(self) -> int:
+        return len(self.student_awaiting_approval_requests) + sum(
+            reservation["estado"] == "Aguardando na fila"
+            for reservation in self.student_library_reservations
+        )
 
     @rx.var
     def student_approved_reservations(self) -> list[dict[str, Any]]:
@@ -858,6 +828,10 @@ class State(rx.State):
     @rx.event
     async def load_home(self):
         await self.load_public_catalog()
+        if self._session_profile == "estudante":
+            await self.load_student_library()
+        elif self._is_librarian():
+            await self._refresh_circulation_data()
 
     @rx.event
     async def load_public_catalog(self):
@@ -2934,7 +2908,7 @@ def accessibility_menu() -> rx.Component:
 def site_header() -> rx.Component:
     brand = rx.link(
         rx.el.span("📖", aria_hidden="true"),
-        rx.text(" Biblioteca escolar"),
+        rx.text(" Biblioteca escolar", class_name="brand-link-label"),
         href="/",
         class_name="brand-link",
         title="Biblioteca escolar",
@@ -3016,6 +2990,62 @@ def _catalog_cover_identity(category_text: str, title_name: str) -> tuple[str, i
         if character.isalnum()
     ) % 5
     return initial, variant
+
+
+def _home_catalog_cards(
+    entries: list[dict[str, Any]],
+    categories: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    category_names = {
+        category["id"]: category["nome"]
+        for category in categories
+    }
+    cards: list[dict[str, Any]] = []
+    for entry in entries:
+        title = entry["titulo"]
+        if title.get("ativo") is False:
+            continue
+        category_ids = {
+            association["categoria_id"]
+            for association in entry["categorias"]
+        }
+        category_text = ", ".join(
+            category_names[category_id]
+            for category_id in sorted(category_ids)
+            if category_id in category_names
+        ) or "Sem categoria"
+        initial, variant = _catalog_cover_identity(
+            category_text,
+            title["titulo"],
+        )
+        cards.append(
+            {
+                "id": title["id"],
+                "titulo": title["titulo"],
+                "autores": title["autores"],
+                "created_at": title.get("created_at"),
+                "capa_url": title.get("capa_url") or "",
+                "capa_real": resolver_capa_url(
+                    capa_url=title.get("capa_url"),
+                    isbn=title.get("isbn"),
+                    titulo=title["titulo"],
+                    autoria=title["autores"],
+                ),
+                "capa_gerada": gerar_capa_svg(
+                    title["titulo"],
+                    title["autores"],
+                    category_text,
+                ),
+                "categorias": category_text,
+                "exemplares_disponiveis": entry[
+                    "exemplares_disponiveis"
+                ],
+                "href": f"/catalogo/{title['id']}",
+                "cover_initial": initial,
+                "cover_variant": variant,
+            }
+        )
+    return cards
 
 
 def _as_utc_datetime(value: object) -> datetime | None:
@@ -3116,55 +3146,160 @@ def public_catalog_category_option(
 
 def home_category_chip(category: rx.Var[dict[str, Any]]) -> rx.Component:
     return rx.link(
-        rx.el.span("📖", aria_hidden="true"),
-        rx.text(" ", category["nome"]),
+        rx.el.span(category["emoji"], aria_hidden="true"),
+        rx.text(" ", category["nome"], " (", category["quantidade"], ")"),
         href="/catalogo",
         class_name="home-category-chip",
     )
 
 
-def home_category_shelf(shelf: rx.Var[dict[str, Any]]) -> rx.Component:
+def home_book_section(
+    *,
+    heading: str,
+    subtitle: str,
+    books: rx.Var[list[dict[str, Any]]],
+    section_id: str,
+) -> rx.Component:
     return rx.el.section(
         rx.el.div(
-            rx.heading(
-                rx.el.span(shelf["emoji"], aria_hidden="true"),
-                rx.text(" ", shelf["nome"]),
-                size="5",
+            rx.vstack(
+                rx.heading(heading, size="5"),
+                rx.text(subtitle, class_name="home-section-subtitle"),
+                align="start",
+                spacing="1",
+                class_name="home-section-copy",
             ),
-            rx.link(
-                "Ver tudo →",
-                href="/catalogo",
-                class_name="section-more-link",
-            ),
-            class_name="home-section-heading",
-        ),
-        rx.el.div(
-            rx.foreach(
-                shelf["titulos"],
-                lambda title: rx.el.article(
-                    rx.el.img(
-                        src=rx.cond(
-                            title["capa_url"].to(str) != "",
-                            title["capa_url"],
-                            title["capa_gerada"],
-                        ),
-                        alt=f"Capa de «{title['titulo']}»",
-                        loading="lazy",
-                        class_name="catalog-card-cover-image",
-                    ),
-                    rx.heading(title["titulo"], size="4"),
-                    rx.text(title["autores"]),
-                    rx.link(
-                        "Ver livro",
-                        href=title["href"],
-                        class_name="catalog-card-link",
-                    ),
-                    class_name="catalog-card",
+            rx.cond(
+                State.public_catalog_has_error,
+                rx.fragment(),
+                rx.el.div(
+                    rx.foreach(books, public_catalog_card),
+                    class_name="catalog-grid home-book-grid",
                 ),
             ),
-            class_name="home-category-shelf",
+            rx.cond(
+                (~State.public_catalog_pending)
+                & (~State.public_catalog_has_error)
+                & (books.length() == 0),
+                rx.text(
+                    "Nenhum título disponível nesta seção.",
+                    role="status",
+                    class_name="home-empty-state",
+                ),
+                rx.fragment(),
+            ),
+            rx.cond(
+                State.public_catalog_pending,
+                rx.text("Carregando o acervo...", role="status"),
+                rx.fragment(),
+            ),
+            rx.cond(
+                State.public_catalog_has_error,
+                rx.el.p(
+                    State.public_catalog_message,
+                    role="alert",
+                    aria_live="polite",
+                    class_name="signup-feedback signup-feedback-error",
+                ),
+                rx.fragment(),
+            ),
+            rx.link(
+                "Ver mais",
+                href="/catalogo",
+                class_name="home-view-more",
+            ),
+            class_name="home-book-section-content",
         ),
-        class_name="content-section home-category-shelf-section",
+        id=section_id,
+        class_name="content-section home-book-section",
+    )
+
+
+def home_profile_summary() -> rx.Component:
+    student_metrics = rx.el.div(
+        rx.el.div(
+            rx.el.strong(State.student_active_loan_count),
+            rx.text("Emprestados"),
+            class_name="home-summary-metric",
+        ),
+        rx.el.div(
+            rx.el.strong(State.student_awaiting_count),
+            rx.text("Aguardando"),
+            class_name="home-summary-metric",
+        ),
+        rx.el.div(
+            rx.el.strong(State.student_overdue_loans.length()),
+            rx.text("Atrasos"),
+            class_name="home-summary-metric",
+        ),
+        class_name="home-summary-metrics",
+    )
+    staff_metrics = rx.el.div(
+        rx.el.div(
+            rx.el.strong(State.circulation_pending_request_count),
+            rx.text("Pedidos pendentes"),
+            class_name="home-summary-metric",
+        ),
+        rx.el.div(
+            rx.el.strong(State.circulation_overdue_loan_count),
+            rx.text("Atrasos"),
+            class_name="home-summary-metric",
+        ),
+        class_name="home-summary-metrics",
+    )
+    student_summary = rx.cond(
+        State.student_library_pending,
+        rx.text("Carregando seu resumo...", role="status"),
+        rx.cond(
+            State.student_library_has_error,
+            rx.el.p(
+                State.student_library_message,
+                role="alert",
+                class_name="signup-feedback signup-feedback-error",
+            ),
+            student_metrics,
+        ),
+    )
+    staff_summary = rx.cond(
+        State.circulation_pending,
+        rx.text("Carregando o resumo operacional...", role="status"),
+        rx.cond(
+            State.circulation_has_error,
+            rx.el.p(
+                State.circulation_message,
+                role="alert",
+                class_name="signup-feedback signup-feedback-error",
+            ),
+            staff_metrics,
+        ),
+    )
+    return rx.cond(
+        State.is_authenticated,
+        rx.el.section(
+            rx.heading("Resumo da biblioteca", size="4"),
+            rx.cond(State.is_student, student_summary, staff_summary),
+            class_name="content-section home-profile-summary",
+        ),
+        rx.fragment(),
+    )
+
+
+def home_reservation_steps() -> rx.Component:
+    return rx.el.section(
+        rx.el.div(
+            rx.heading("🙋 Como reservar", size="5"),
+            rx.text(
+                "Escolha um livro, faça a solicitação e retire na biblioteca."
+            ),
+            class_name="home-section-copy",
+        ),
+        rx.el.ol(
+            rx.el.li(rx.el.strong("Escolha"), rx.text(" um livro do catálogo.")),
+            rx.el.li(rx.el.strong("Reserve"), rx.text(" pelo botão da página do livro.")),
+            rx.el.li(rx.el.strong("Retire"), rx.text(" na biblioteca após a confirmação.")),
+            class_name="home-reservation-steps",
+        ),
+        class_name="content-section home-reservation-section",
     )
 
 
@@ -3956,76 +4091,34 @@ def index() -> rx.Component:
             rx.el.section(
                 rx.el.div(
                     rx.vstack(
-                        rx.el.span(
-                            "Biblioteca contemporânea e acolhedora",
-                            class_name="eyebrow",
-                        ),
                         rx.heading(
-                            "Descubra o próximo livro que vai mudar seu dia.",
+                            "Bem-vindo à Biblioteca escolar",
                             size="7",
                         ),
-                        rx.text(
-                            "Explore o acervo, acompanhe empréstimos e reservas e aproveite uma biblioteca que combina tradição e praticidade.",
-                            class_name="hero-copy",
-                        ),
                         align="start",
-                        spacing="3",
+                        spacing="2",
                         class_name="hero-copy-wrap",
                     ),
-                    rx.cond(
-                        State.public_catalog_pending,
-                        rx.text(
-                            "Carregando indicadores do acervo...",
-                            role="status",
-                            class_name="home-stat-status",
+                    rx.el.form(
+                        rx.el.input(
+                            id="home-catalog-search",
+                            name="q",
+                            type="search",
+                            placeholder="Buscar livros…",
+                            value=State.public_catalog_search,
+                            on_change=State.set_public_catalog_search,
+                            aria_label="Buscar livros no catálogo",
+                            class_name="campo home-search-input",
                         ),
-                        rx.cond(
-                            State.public_catalog_has_error,
-                            rx.text(
-                                "Indicadores do acervo indisponíveis.",
-                                role="status",
-                                class_name="home-stat-status",
-                            ),
-                            rx.el.aside(
-                                rx.el.div(
-                                    rx.el.div(
-                                        rx.el.strong(
-                                            State.home_total_titles,
-                                            class_name="hero-stat-value",
-                                        ),
-                                        rx.text(
-                                            "Títulos",
-                                            class_name="hero-stat-label",
-                                        ),
-                                        class_name="hero-stat-card",
-                                    ),
-                                    rx.el.div(
-                                        rx.el.strong(
-                                            State.home_available_copies,
-                                            class_name="hero-stat-value",
-                                        ),
-                                        rx.text(
-                                            "Exemplares disponíveis",
-                                            class_name="hero-stat-label",
-                                        ),
-                                        class_name="hero-stat-card",
-                                    ),
-                                    rx.el.div(
-                                        rx.el.strong(
-                                            State.home_category_count,
-                                            class_name="hero-stat-value",
-                                        ),
-                                        rx.text(
-                                            "Categorias",
-                                            class_name="hero-stat-label",
-                                        ),
-                                        class_name="hero-stat-card",
-                                    ),
-                                    class_name="hero-stat-grid",
-                                ),
-                                aria_label="Estatísticas do catálogo público",
-                            ),
+                        rx.el.button(
+                            conteudo_acao("buscar"),
+                            type="submit",
+                            **atributos_acao("buscar"),
+                            class_name="home-search-submit",
                         ),
+                        id="form-busca-home",
+                        on_submit=State.submit_global_search,
+                        class_name="home-search-form",
                     ),
                     class_name="hero-layout",
                 ),
@@ -4033,77 +4126,63 @@ def index() -> rx.Component:
                 class_name="content-section home-hero",
             ),
             rx.el.section(
-                rx.el.div(
-                    rx.foreach(
-                        State.public_catalog_categories,
-                        home_category_chip,
+                rx.cond(
+                    State.public_catalog_pending,
+                    rx.text("Carregando estatísticas do acervo...", role="status"),
+                    rx.cond(
+                        State.public_catalog_has_error,
+                        rx.text(
+                            "Estatísticas do acervo indisponíveis.",
+                            role="status",
+                        ),
+                        rx.text(
+                            State.home_total_titles,
+                            " títulos · ",
+                            State.home_available_copies,
+                            " exemplares disponíveis · ",
+                            State.home_category_count,
+                            " categorias",
+                        ),
                     ),
+                ),
+                aria_label="Estatísticas do catálogo público",
+                class_name="content-section home-stat-band",
+            ),
+            home_profile_summary(),
+            home_book_section(
+                heading="📚 Estante de livros",
+                subtitle="Explore títulos do acervo disponíveis para leitura.",
+                books=State.home_featured_titles,
+                section_id="estante-home",
+            ),
+            home_book_section(
+                heading="🆕 Novidades no acervo",
+                subtitle="Títulos adicionados mais recentemente ao catálogo.",
+                books=State.home_new_arrivals,
+                section_id="novidades-home",
+            ),
+            rx.el.section(
+                rx.el.div(
+                    rx.heading("🏷️ Categorias", size="5"),
+                    rx.text(
+                        "Explore os títulos por assunto.",
+                        class_name="home-section-subtitle",
+                    ),
+                    class_name="home-section-copy",
+                ),
+                rx.el.div(
+                    rx.foreach(State.home_category_shelves, home_category_chip),
                     class_name="home-category-rail",
+                ),
+                rx.link(
+                    "Ver mais",
+                    href="/catalogo",
+                    class_name="home-view-more",
                 ),
                 id="categorias-home",
                 class_name="content-section home-category-section",
             ),
-            rx.el.section(
-                rx.el.div(
-                    rx.vstack(
-                        rx.heading(
-                        rx.text("Livros em destaque"),
-                            size="5",
-                        ),
-                        rx.text(
-                            "Alguns títulos disponíveis no catálogo da biblioteca."
-                        ),
-                        align="start",
-                        spacing="1",
-                    ),
-                    rx.link(
-                        conteudo_acao("mostrar_mais"),
-                        href="/catalogo",
-                        class_name="section-more-link",
-                        **atributos_acao("mostrar_mais"),
-                    ),
-                    class_name="home-section-heading",
-                ),
-                rx.cond(
-                    State.public_catalog_pending,
-                    rx.text("Carregando o acervo...", role="status"),
-                    rx.fragment(),
-                ),
-                rx.cond(
-                    State.public_catalog_has_error,
-                    rx.el.p(
-                        State.public_catalog_message,
-                        role="alert",
-                        aria_live="polite",
-                        class_name="signup-feedback signup-feedback-error",
-                    ),
-                    rx.fragment(),
-                ),
-                rx.cond(
-                    (~State.public_catalog_pending)
-                    & (~State.public_catalog_has_error)
-                    & (State.home_featured_titles.length() == 0),
-                    rx.text(
-                        "Nenhum título disponível no catálogo no momento.",
-                        role="status",
-                    ),
-                    rx.fragment(),
-                ),
-                rx.cond(
-                    (~State.public_catalog_has_error)
-                    & (State.home_featured_titles.length() > 0),
-                    rx.el.div(
-                        rx.foreach(
-                            State.home_featured_titles,
-                            public_catalog_card,
-                        ),
-                        class_name="catalog-grid home-category-shelf",
-                    ),
-                    rx.fragment(),
-                ),
-                id="livros-destaque",
-                class_name="content-section catalog-section home-catalog-section",
-            ),
+            home_reservation_steps(),
             class_name="main-content",
         ),
         site_footer(),
@@ -6000,10 +6079,6 @@ app = rx.App(
             "from": {"opacity": "0", "transform": "translateY(-4px)"},
             "to": {"opacity": "1", "transform": "translateY(0)"},
         },
-        "@keyframes biblioteca-hero-gradient": {
-            "0%, 100%": {"background_position": "0% 50%"},
-            "50%": {"background_position": "100% 50%"},
-        },
         "@keyframes biblioteca-availability-pulse": {
             "0%, 100%": {"transform": "scale(1)", "box_shadow": "none"},
             "50%": {"transform": "scale(1.03)", "box_shadow": "0 0 0 0.25rem rgba(36, 92, 69, 0.12)"},
@@ -6183,6 +6258,9 @@ app = rx.App(
             "justify_content": "flex-end",
             "gap": "0.5rem",
             "min_width": "0",
+        },
+        ".site-header-actions > .profile-menu, .site-header-actions > .accessibility-menu": {
+            "flex": "0 0 auto",
         },
         ".site-menu-toggle": {
             "display": "none",
@@ -6520,49 +6598,67 @@ app = rx.App(
             "gap": "1.25rem",
             "width": "100%",
             "max_width": "75rem",
-            "margin": "0 auto",
+            "margin": "0 auto 1.5rem",
             "padding": "1.5rem 0",
+        },
+        "*": {
+            "min_width": "0",
         },
         ".home-hero": {
             "width": "100%",
-            "max_width": "72rem",
-            "max_height": "180px",
-            "margin": "1rem auto",
-            "padding": "clamp(1.5rem, 3vw, 2.5rem)",
+            "max_width": "75rem",
+            "margin": "0 auto 1.5rem",
+            "padding": "0.75rem",
             "border": "1px solid var(--line)",
             "border_radius": "1.2rem",
-            "background_color": "var(--bg-panel)",
+            "background": "linear-gradient(120deg, var(--brand-700), var(--brand-500))",
             "box_shadow": "var(--shadow-soft)",
-            "background_size": "200% 200%",
-            "animation": "biblioteca-page-enter 300ms ease-out both, biblioteca-hero-gradient 20s ease-in-out infinite",
         },
         ".hero-layout": {
-            "display": "flex",
-            "flex_wrap": "wrap",
+            "display": "grid",
+            "grid_template_columns": "minmax(0, 1fr) auto",
             "align_items": "center",
-            "justify_content": "space-between",
             "width": "100%",
             "gap": "1.5rem",
+            "padding": "1.5rem",
+            "border_radius": "0.9rem",
+            "background_color": "var(--bg-panel)",
         },
         ".hero-copy-wrap": {
-            "flex": "1 1 20rem",
-            "max_width": "36rem",
-        },
-        ".eyebrow": {
-            "display": "inline-flex",
-            "padding": "0.25rem 0.6rem",
-            "border_radius": "999px",
-            "background_color": "var(--brand-100)",
-            "color": "var(--brand-text)",
-            "font_size": "0.75rem",
-            "font_weight": "700",
-            "text_transform": "uppercase",
-            "letter_spacing": "0.08em",
+            "min_width": "0",
         },
         ".hero-copy": {
             "color": "var(--slate-700)",
             "font_size": "1.05rem",
-            "max_width": "32rem",
+            "max_width": "100%",
+        },
+        ".home-search-form": {
+            "display": "grid",
+            "grid_template_columns": "minmax(0, 1fr) auto",
+            "align_items": "center",
+            "gap": "0.5rem",
+            "width": "min(100%, 30rem)",
+            "padding": "0.4rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.8rem",
+            "background_color": "var(--bg-soft)",
+        },
+        ".home-search-input": {
+            "height": "auto",
+            "min_height": "3rem",
+            "border": "none",
+            "background": "transparent",
+            "font_size": "1rem",
+        },
+        ".home-search-submit": {
+            "min_height": "3rem",
+            "padding": "0.5rem 1rem",
+            "border": "1px solid var(--button-primary-border)",
+            "border_radius": "0.6rem",
+            "background_color": "var(--button-primary-bg)",
+            "color": "var(--button-primary-text)",
+            "font_weight": "700",
+            "cursor": "pointer",
         },
         ".primary-cta, .secondary-cta, .feature-card": {
             "display": "inline-flex",
@@ -6594,106 +6690,114 @@ app = rx.App(
             "background_color": "var(--sand-100)",
             "color": "var(--brand-text)",
         },
-        ".hero-stat-grid": {
-            "display": "grid",
-            "grid_template_columns": "repeat(auto-fit, minmax(min(100%, 10rem), 1fr))",
-            "gap": "0.9rem",
-            "flex": "1 1 18rem",
-            "min_width": "0",
-        },
-        ".hero-stat-card": {
-            "display": "flex",
-            "flex_direction": "column",
-            "justify_content": "center",
-            "min_height": "6.5rem",
-            "padding": "1rem",
-            "border": "1px solid var(--line)",
-            "border_radius": "1rem",
-            "background_color": "var(--sand-100)",
-            "box_shadow": "var(--shadow-soft)",
-        },
-        ".hero-stat-value": {
-            "color": "var(--brand-text)",
-            "font_family": "Georgia, 'Times New Roman', serif",
-            "font_size": "1.75rem",
-            "line_height": "1.1",
-        },
-        ".hero-stat-label": {
-            "font_size": "0.7rem",
-            "text_transform": "uppercase",
-            "letter_spacing": "0.08em",
-            "color": "var(--slate-500)",
-        },
         ".catalog-section": {
             "width": "100%",
             "max_width": "72rem",
-            "margin": "1rem auto",
+            "margin": "0 auto 1.5rem",
         },
-        ".home-catalog-section": {
-            "padding": "clamp(1.1rem, 2.5vw, 1.6rem)",
-            "border": "1px solid var(--line)",
-            "border_radius": "1rem",
-            "background_color": "var(--bg-panel)",
-            "box_shadow": "var(--shadow-soft)",
-        },
-        ".home-about-section": {
-            "width": "100%",
-            "max_width": "72rem",
-            "margin": "1rem auto",
-            "border": "1px solid var(--line)",
-            "border_radius": "1rem",
-            "background_color": "var(--bg-soft)",
-        },
-        ".home-about-section p": {
-            "max_width": "50rem",
-            "color": "var(--slate-700)",
-        },
-        ".home-stat-status": {
+        ".home-stat-band": {
             "display": "flex",
-            "align_items": "center",
-            "min_height": "6.5rem",
-            "padding": "1rem",
-            "border": "1px solid var(--line)",
-            "border_radius": "1rem",
-            "background_color": "var(--sand-100)",
-            "color": "var(--slate-700)",
-        },
-        ".home-section-heading": {
-            "display": "flex",
+            "flex_direction": "row",
             "flex_wrap": "wrap",
-            "align_items": "center",
-            "justify_content": "space-between",
-            "gap": "1rem",
-            "width": "100%",
-        },
-        ".section-more-link": {
-            "display": "inline-flex",
+            "position": "static",
             "align_items": "center",
             "justify_content": "center",
-            "min_height": "2.75rem",
-            "padding": "0.55rem 0.9rem",
+            "gap": "0.35rem",
+            "width": "100%",
+            "padding": "1rem",
+            "border_radius": "0.75rem",
+            "background_color": "var(--brand-700)",
+            "color": "var(--button-primary-text)",
+            "font_weight": "700",
+            "text_align": "center",
+        },
+        ".home-profile-summary": {
+            "gap": "0.75rem",
+            "padding": "1rem 1.25rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.9rem",
+            "background_color": "var(--bg-panel)",
+        },
+        ".home-profile-summary h2": {
+            "margin": "0",
+        },
+        ".home-summary-metrics": {
+            "display": "flex",
+            "flex_wrap": "wrap",
+            "gap": "0.75rem",
+            "width": "100%",
+        },
+        ".home-summary-metric": {
+            "display": "flex",
+            "flex_direction": "column",
+            "gap": "0.2rem",
+            "min_width": "8rem",
+            "padding": "0.65rem 0.85rem",
             "border_radius": "0.65rem",
-            "background_color": "var(--brand-100)",
-            "color": "var(--brand-text)",
+            "background_color": "var(--bg-soft)",
+        },
+        ".home-section-copy": {
+            "min_width": "0",
+        },
+        ".home-section-copy h2": {
+            "margin": "0",
+            "font_weight": "800",
+        },
+        ".home-section-subtitle": {
+            "color": "var(--slate-700)",
+        },
+        ".home-book-section": {
+            "gap": "1rem",
+            "margin_bottom": "1.5rem",
+        },
+        ".home-book-section-content": {
+            "display": "flex",
+            "flex_direction": "column",
+            "align_items": "stretch",
+            "gap": "1rem",
+            "width": "100%",
+            "min_width": "0",
+        },
+        ".home-book-grid": {
+            "grid_template_columns": "repeat(auto-fill, minmax(min(100%, 10rem), 12.5rem))",
+            "align_items": "stretch",
+            "width": "100%",
+        },
+        ".home-empty-state": {
+            "width": "100%",
+            "padding": "0.75rem 1rem",
+            "border_radius": "0.65rem",
+            "background_color": "var(--bg-soft)",
+            "color": "var(--slate-700)",
+        },
+        ".home-view-more": {
+            "display": "flex",
+            "align_items": "center",
+            "justify_content": "center",
+            "width": "100%",
+            "min_height": "2.75rem",
+            "padding": "0.65rem 1rem",
+            "border_radius": "0.7rem",
+            "background_color": "var(--button-primary-bg)",
+            "color": "var(--button-primary-text)",
             "font_weight": "700",
             "text_decoration": "none",
         },
-        ".home-category-list": {
-            "display": "flex",
-            "flex_wrap": "wrap",
-            "gap": "0.6rem",
-            "width": "100%",
+        ".home-category-section": {
+            "gap": "0.75rem",
+            "margin_bottom": "1.5rem",
         },
-        ".home-category-chip": {
-            "display": "inline-flex",
-            "align_items": "center",
-            "min_height": "2.5rem",
-            "padding": "0.4rem 0.75rem",
-            "border": "1px solid var(--line)",
-            "border_radius": "999px",
-            "background_color": "var(--bg-soft)",
-            "color": "var(--slate-900)",
-            "font_weight": "600",
+        ".home-reservation-section": {
+            "gap": "0.75rem",
+            "margin_bottom": "1.5rem",
+        },
+        ".home-reservation-steps": {
+            "display": "grid",
+            "grid_template_columns": "repeat(3, minmax(0, 1fr))",
+            "gap": "1rem",
+            "width": "100%",
+            "margin": "0",
+            "padding_left": "1.25rem",
         },
         ".student-library-section": {
             "display": "flex",
@@ -6793,7 +6897,7 @@ app = rx.App(
         },
         ".catalog-grid": {
             "display": "grid",
-            "grid_template_columns": "repeat(auto-fill, minmax(11.25rem, 13.75rem))",
+            "grid_template_columns": "repeat(auto-fill, minmax(min(100%, 10rem), 12.5rem))",
             "gap": "1.1rem",
             "width": "100%",
         },
@@ -6803,6 +6907,7 @@ app = rx.App(
             "gap": "0.6rem",
             "width": "100%",
             "overflow_x": "auto",
+            "margin_top": "1rem",
             "padding": "0.25rem 0",
         },
         ".home-category-chip": {
@@ -6818,17 +6923,6 @@ app = rx.App(
             "font_weight": "700",
             "text_decoration": "none",
         },
-        ".home-category-shelf": {
-            "display": "flex",
-            "flex_wrap": "nowrap",
-            "gap": "1rem",
-            "width": "100%",
-            "overflow_x": "auto",
-            "padding_bottom": "0.5rem",
-        },
-        ".home-category-shelf .catalog-card": {
-            "flex": "0 0 13.75rem",
-        },
         ".catalog-category-rail": {
             "margin": "0 0 0.75rem",
         },
@@ -6837,6 +6931,12 @@ app = rx.App(
             "grid_template_columns": "minmax(12rem, 18rem) minmax(0, 1fr)",
             "align_items": "start",
             "gap": "1.5rem",
+            "min_width": "0",
+            "padding": "1.25rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.9rem",
+            "background_color": "var(--bg-panel)",
+            "box_shadow": "0 0.35rem 1rem rgba(24, 43, 73, 0.06)",
         },
         ".reservation-tabs": {
             "display": "flex",
@@ -6900,7 +7000,7 @@ app = rx.App(
         },
         ".admin-catalog-cover-image, .admin-catalog-cover-fallback": {
             "width": "72px",
-            "height": "108px",
+            "aspect_ratio": "2 / 3",
             "object_fit": "cover",
             "border_radius": "0.45rem",
             "border": "1px solid var(--line)",
@@ -6910,7 +7010,7 @@ app = rx.App(
             "align_items": "center",
             "justify_content": "center",
             "padding": "0.35rem",
-            "overflow": "hidden",
+            "overflow_wrap": "anywhere",
             "background": "var(--bg-soft)",
             "color": "var(--slate-900)",
             "font_size": "0.72rem",
@@ -6952,7 +7052,7 @@ app = rx.App(
             "margin": "0",
             "padding_left": "1.25rem",
         },
-        ".catalog-card, .catalog-detail-card": {
+        ".catalog-card": {
             "display": "flex",
             "flex_direction": "column",
             "align_items": "flex-start",
@@ -7013,8 +7113,7 @@ app = rx.App(
             "align_items": "center",
             "justify_content": "center",
             "width": "100%",
-            "min_height": "11rem",
-            "aspect_ratio": "0.72",
+            "aspect_ratio": "2 / 3",
             "border": "1px solid var(--line)",
             "border_radius": "0.8rem",
             "background_color": "var(--brand-900)",
@@ -7023,8 +7122,7 @@ app = rx.App(
         ".catalog-card-cover-image": {
             "display": "block",
             "width": "100%",
-            "min_height": "11rem",
-            "aspect_ratio": "0.72",
+            "aspect_ratio": "2 / 3",
             "border_radius": "0.8rem",
             "object_fit": "cover",
             "transition": "transform 150ms ease",
@@ -7037,13 +7135,12 @@ app = rx.App(
             "max_width": "22rem",
         },
         ".catalog-detail-visual .catalog-card-cover": {
-            "min_height": "22rem",
+            "aspect_ratio": "2 / 3",
         },
         ".catalog-detail-cover-image": {
             "display": "block",
             "width": "100%",
-            "min_height": "22rem",
-            "aspect_ratio": "0.72",
+            "aspect_ratio": "2 / 3",
             "border_radius": "0.8rem",
             "object_fit": "cover",
         },
@@ -7609,6 +7706,11 @@ app = rx.App(
                 "transition_duration": "0.01ms !important",
             },
         },
+        "@media screen and (min-width: 48.01rem) and (max-width: 64rem)": {
+            ".home-book-grid": {
+                "grid_template_columns": "repeat(4, minmax(0, 1fr))",
+            },
+        },
         "@media screen and (max-width: 48rem)": {
             "a": {
                 "display": "inline-flex",
@@ -7632,7 +7734,6 @@ app = rx.App(
             ".site-header > .site-primary-nav": {
                 "grid_area": "nav",
                 "overflow_x": "auto",
-                "overflow_y": "hidden",
                 "white_space": "nowrap",
             },
             ".site-header > .site-header-search-form": {
@@ -7642,15 +7743,21 @@ app = rx.App(
                 "grid_area": "acoes",
             },
             ".hero-layout": {
-                "align_items": "stretch",
-                "flex_direction": "column",
+                "align_items": "center",
+                "grid_template_columns": "minmax(0, 1fr)",
             },
-            ".hero-copy-wrap, .hero-stat-grid": {
+            ".hero-copy-wrap": {
                 "width": "100%",
                 "max_width": "100%",
             },
-            ".hero-stat-card": {
-                "min_width": "0",
+            ".home-search-form": {
+                "width": "100%",
+            },
+            ".home-book-grid": {
+                "grid_template_columns": "repeat(3, minmax(0, 1fr))",
+            },
+            ".home-reservation-steps": {
+                "grid_template_columns": "minmax(0, 1fr)",
             },
             ".site-header-desktop": {
                 "display": "none",
@@ -7659,8 +7766,12 @@ app = rx.App(
                 "display": "none",
             },
             ".brand-link": {
-                "min_width": "0",
+                "min_width": "2.75rem",
                 "font_size": "1.2rem",
+                "justify_content": "center",
+            },
+            ".brand-link-label": {
+                "display": "none",
             },
             ".site-primary-nav": {
                 "align_items": "stretch",
@@ -7712,17 +7823,8 @@ app = rx.App(
                 "grid_template_columns": "minmax(0, 1fr)",
             },
             ".catalog-detail-actions": {
-                "position": "fixed",
-                "left": "0.5rem",
-                "right": "0.5rem",
-                "bottom": "0.5rem",
-                "z_index": "40",
-                "width": "calc(100% - 1rem)",
-                "padding": "0.5rem",
-                "border": "1px solid var(--line)",
-                "border_radius": "0.75rem",
-                "background_color": "var(--bg-panel)",
-                "box_shadow": "var(--shadow-soft)",
+                "align_items": "stretch",
+                "width": "100%",
             },
             ".catalog-detail-actions button, .catalog-detail-actions a": {
                 "width": "100%",
@@ -7746,6 +7848,11 @@ app = rx.App(
             },
             ".admin-title-edit-form, .librarian-form": {
                 "padding": "0.75rem",
+            },
+        },
+        "@media screen and (max-width: 30rem)": {
+            ".home-book-grid": {
+                "grid_template_columns": "repeat(2, minmax(0, 1fr))",
             },
         },
     },

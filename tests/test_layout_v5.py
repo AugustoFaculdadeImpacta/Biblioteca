@@ -52,6 +52,7 @@ def test_header_contract_is_stable_without_action_classes():
     assert brand["background"] == "transparent"
     assert brand["border"] == "none"
     assert brand["color"] == "var(--text)"
+    assert "brand-link-label" in repr(frontend.site_header())
 
     assert nav["flex_wrap"] == "nowrap"
     assert nav_link["min_height"] == "2.75rem"
@@ -69,7 +70,12 @@ def test_header_contract_is_stable_without_action_classes():
 
     mobile = style["@media screen and (max-width: 48rem)"]
     assert mobile[".site-menu-toggle"]["display"] == "none"
+    assert mobile[".brand-link"]["min_width"] == "2.75rem"
+    assert mobile[".brand-link-label"]["display"] == "none"
     assert mobile[".site-header"]["grid_template_areas"] == '"logo acoes" "nav nav" "busca busca"'
+    assert style[
+        ".site-header-actions > .profile-menu, .site-header-actions > .accessibility-menu"
+    ]["flex"] == "0 0 auto"
 
 
 def test_header_nav_and_footer_tokens_meet_text_contrast():
@@ -104,7 +110,7 @@ def test_page_container_layout_is_stable():
     assert style[".content-section"]["width"] == "100%"
     assert style[".content-section"]["max_width"] == "75rem"
     assert style[".catalog-grid"]["grid_template_columns"] == (
-        "repeat(auto-fill, minmax(11.25rem, 13.75rem))"
+        "repeat(auto-fill, minmax(min(100%, 10rem), 12.5rem))"
     )
     assert style[".librarian-list"]["display"] == "flex"
     assert style[".librarian-list"]["flex_direction"] == "column"
@@ -122,8 +128,17 @@ def test_delivery_layout_has_category_rails_and_product_detail():
     reservations = repr(frontend.student_reservations())
 
     assert "home-category-rail" in home
-    assert "home-category-shelf" in home
+    assert "home-book-grid" in home
     assert "Sobre a biblioteca" not in home
+    assert "Bem-vindo" in home
+    assert "Estante de livros" in home
+    assert "Novidades no acervo" in home
+    assert "Categorias" in home
+    assert "Como reservar" in home
+    assert "Escolha" in home
+    assert "Reserve" in home
+    assert "Retire" in home
+    assert "home-stat-band" in home
     assert "catalog-category-rail" in catalog
     assert "catalog-detail-card" in detail
     assert "Reservar" in detail
@@ -134,7 +149,109 @@ def test_delivery_layout_has_category_rails_and_product_detail():
     assert "Atrasos" in reservations
 
     assert style[".home-category-rail"]["overflow_x"] == "auto"
-    assert style[".home-category-shelf"]["overflow_x"] == "auto"
+    assert style[".home-category-rail"]["flex_wrap"] == "nowrap"
+    assert style[".home-category-rail"]["margin_top"] == "1rem"
+    assert style[".home-stat-band"]["display"] == "flex"
+    assert style[".home-stat-band"]["position"] == "static"
+    assert style[".hero-layout"]["display"] == "grid"
+    assert style[".hero-layout"]["align_items"] == "center"
+    assert style[".hero-layout"]["grid_template_columns"] == "minmax(0, 1fr) auto"
+    assert style[".hero-layout"]["gap"] == "1.5rem"
+    assert style[".hero-layout"]["padding"] == "1.5rem"
+    assert style["@media screen and (max-width: 48rem)"][".hero-layout"][
+        "grid_template_columns"
+    ] == "minmax(0, 1fr)"
+    assert style[".content-section"]["margin"] == "0 auto 1.5rem"
+    assert style["*"]["min_width"] == "0"
+    assert style[".home-book-grid"]["grid_template_columns"] == (
+        "repeat(auto-fill, minmax(min(100%, 10rem), 12.5rem))"
+    )
     assert style[".catalog-detail-card"]["grid_template_columns"] == (
         "minmax(12rem, 18rem) minmax(0, 1fr)"
     )
+
+
+def test_home_flow_containers_have_no_fixed_height_or_positioning():
+    style = frontend.app.style
+    seletores = (
+        ".home-hero",
+        ".hero-layout",
+        ".hero-copy-wrap",
+        ".hero-copy",
+        ".home-stat-band",
+        ".home-profile-summary",
+        ".home-summary-metrics",
+        ".home-book-section",
+        ".home-book-grid",
+        ".home-category-section",
+        ".home-category-rail",
+        ".home-category-chip",
+        ".home-reservation-section",
+        ".home-reservation-steps",
+    )
+
+    for seletor in seletores:
+        regra = style[seletor]
+        assert "height" not in regra, seletor
+        assert "max_height" not in regra, seletor
+        assert regra.get("overflow") != "hidden", seletor
+        assert regra.get("position") not in {"absolute", "fixed"}, seletor
+        assert "transform" not in regra, seletor
+        for nome in ("margin", "margin_top", "margin_right", "margin_bottom", "margin_left"):
+            valor = str(regra.get(nome, ""))
+            assert not re.search(r"-\d", valor), (seletor, nome, valor)
+    assert ".hero-stat-grid" not in style
+    assert ".home-category-shelf" not in style
+
+
+def test_primary_pages_keep_content_in_normal_flow():
+    style = frontend.app.style
+    content_selectors = (
+        ".content-section",
+        ".catalog-section",
+        ".catalog-controls",
+        ".catalog-grid",
+        ".catalog-detail-visual",
+        ".catalog-detail-card",
+        ".student-library-section",
+        ".student-reservations-heading",
+        ".reservation-tabs",
+        ".admin-catalog-section",
+        ".admin-acervo-content",
+        ".admin-catalog-grid",
+        ".admin-title-card",
+        ".admin-title-row",
+        ".admin-title-data",
+        ".librarian-management-section",
+        ".operational-counts",
+        ".librarian-list",
+        ".librarian-card",
+        ".signup-section",
+        ".signup-form",
+        ".signup-feedback",
+        ".auth-tabs",
+    )
+
+    for seletor in content_selectors:
+        regra = style[seletor]
+        assert "height" not in regra, seletor
+        assert "max_height" not in regra, seletor
+        assert regra.get("overflow") != "hidden", seletor
+        assert regra.get("position") not in {"absolute", "fixed"}, seletor
+        assert "transform" not in regra, seletor
+        for nome in ("margin", "margin_top", "margin_right", "margin_bottom", "margin_left"):
+            valor = str(regra.get(nome, ""))
+            assert not re.search(r"-\d", valor), (seletor, nome, valor)
+
+    mobile = style["@media screen and (max-width: 48rem)"]
+    assert style[".catalog-detail-card"]["display"] == "grid"
+    assert mobile[".catalog-detail-card"]["grid_template_columns"] == (
+        "minmax(0, 1fr)"
+    )
+    assert mobile[".catalog-detail-actions"]["width"] == "100%"
+    assert "position" not in mobile[".catalog-detail-actions"]
+    assert mobile[".site-header > .site-primary-nav"].get("overflow_y") != "hidden"
+    assert "height" not in style[
+        ".admin-catalog-cover-image, .admin-catalog-cover-fallback"
+    ]
+    assert "overflow" not in style[".admin-catalog-cover-fallback"]

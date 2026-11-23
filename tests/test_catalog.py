@@ -309,6 +309,7 @@ def test_public_catalog_services_validate_list_and_detail_without_auth(
             "ano_publicacao": 2024,
             "descricao": "Uma descrição",
             "capa_url": "https://capas.example.test/livro.jpg",
+            "created_at": "2024-01-02T03:04:05Z",
         },
         "categorias": [
             {"id": 9, "titulo_id": 81, "categoria_id": 7},
@@ -511,11 +512,12 @@ def test_catalog_controls_and_card_states_are_responsive():
     assert "Indisp" in catalog
     assert "Ver detalhes" in catalog
     assert "repeat(auto-fill" in style[".catalog-grid"]["grid_template_columns"]
-    assert "11.25rem" in style[".catalog-grid"]["grid_template_columns"]
-    assert "13.75rem" in style[".catalog-grid"]["grid_template_columns"]
+    assert "10rem" in style[".catalog-grid"]["grid_template_columns"]
+    assert "12.5rem" in style[".catalog-grid"]["grid_template_columns"]
     assert "repeat(auto-fit" in style[".catalog-controls"]["grid_template_columns"]
-    assert style[".catalog-card-cover"]["aspect_ratio"] == "0.72"
-    assert style[".catalog-card-cover"]["min_height"] == "11rem"
+    assert style[".catalog-card-cover"]["aspect_ratio"] == "2 / 3"
+    assert "min_height" not in style[".catalog-card-cover"]
+    assert "height" not in style[".catalog-card-cover"]
     assert style[".catalog-cover-0"]["background_color"] == "var(--brand-900)"
     assert style[".catalog-cover-1"]["background_color"] == "var(--success-700)"
     assert style[".catalog-cover-2"]["background_color"] == "var(--warning-700)"

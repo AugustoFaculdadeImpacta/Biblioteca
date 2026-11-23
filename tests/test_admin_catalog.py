@@ -503,7 +503,7 @@ def test_acervo_hides_inactive_by_default_and_keeps_one_panel_open():
     asyncio.run(verify())
 
 
-def test_acervo_vertical_layout_is_responsive_and_covers_are_fixed():
+def test_acervo_vertical_layout_is_responsive_and_covers_keep_portrait_ratio():
     page = repr(frontend.catalog_admin())
     style = frontend.app.style
     mobile = style["@media screen and (max-width: 48rem)"]
@@ -520,7 +520,8 @@ def test_acervo_vertical_layout_is_responsive_and_covers_are_fixed():
         ".admin-catalog-cover-image, .admin-catalog-cover-fallback"
     ]
     assert cover_style["width"] == "72px"
-    assert cover_style["height"] == "108px"
+    assert cover_style["aspect_ratio"] == "2 / 3"
+    assert "height" not in cover_style
     assert mobile[".admin-title-row"]["grid_template_columns"] == (
         "72px minmax(0, 1fr)"
     )

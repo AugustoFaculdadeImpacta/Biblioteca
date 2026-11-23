@@ -25,6 +25,7 @@ class PublicTitleFields(TypedDict):
     id: int
     titulo: str
     autores: str
+    created_at: NotRequired[str | int | float | None]
     ativo: NotRequired[bool | None]
     isbn: NotRequired[str | None]
     editora: NotRequired[str | None]
@@ -218,6 +219,12 @@ def _parse_public_catalog_entry(value: object) -> PublicCatalogEntry:
         "titulo": title["titulo"],
         "autores": title["autores"],
     }
+    created_at = title.get("created_at")
+    if created_at is not None and type(created_at) not in {str, int, float}:
+        raise _response_error()
+    if "created_at" in title:
+        parsed_title["created_at"] = created_at
+
     active = title.get("ativo")
     if active is not None and type(active) is not bool:
         raise _response_error()

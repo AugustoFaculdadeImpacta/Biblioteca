@@ -226,10 +226,11 @@ def test_home_sections_use_catalog_data_and_explicit_empty_error_states(
     monkeypatch,
 ):
     homepage = repr(frontend.index())
-    assert "Livros em destaque" in homepage
+    assert "Estante de livros" in homepage
+    assert "Novidades no acervo" in homepage
     assert "Sobre a biblioteca" not in homepage
-    assert "Mostrar mais" in homepage
-    assert homepage.count("section-more-link") == 1
+    assert homepage.count("home-view-more") == 3
+    assert "Ver mais" in homepage
     assert "Carregando o acervo" in homepage
     assert "Nenhum" in homepage
     assert "Livros que mais saem" not in homepage
@@ -288,6 +289,67 @@ def test_home_sections_use_catalog_data_and_explicit_empty_error_states(
             assert redirect is None
             assert state.public_catalog_has_error is True
             assert calls["titles"] == 2
+
+    asyncio.run(verify())
+
+
+def test_home_estante_novidades_and_category_counts_use_public_catalog():
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"home-sections-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state.public_catalog_categories = [
+                {"id": 1, "nome": "Literatura"},
+                {"id": 2, "nome": "CiÊncias"},
+                {"id": 3, "nome": "Sem títulos"},
+            ]
+            state.public_catalog_entries = [
+                {
+                    "titulo": {
+                        "id": title_id,
+                        "titulo": f"Livro {title_id:02}",
+                        "autores": "Autoria",
+                        "ativo": True,
+                        "isbn": None,
+                        "created_at": (
+                            f"2024-01-{13 - title_id:02}T00:00:00Z"
+                        ),
+                    },
+                    "categorias": [
+                        {
+                            "categoria_id": 1 if title_id < 6 else 2,
+                        }
+                    ],
+                    "exemplares_disponiveis": 1,
+                }
+                for title_id in range(1, 13)
+            ]
+
+            assert len(state.home_featured_titles) == 10
+            assert [book["id"] for book in state.home_new_arrivals] == list(
+                range(1, 11)
+            )
+            categories = state.home_category_shelves
+            by_name = {item["nome"]: item for item in categories}
+            assert by_name["Literatura"]["quantidade"] == 5
+            assert by_name["CiÊncias"]["quantidade"] == 7
+            assert by_name["Sem títulos"]["quantidade"] == 0
+            assert by_name["CiÊncias"]["emoji"] == "🔬"
+
+    asyncio.run(verify())
+
+
+def test_home_search_encodes_accented_query_for_catalog_navigation():
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"home-search-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            redirect = await state.submit_global_search({"q": "ação"})
+
+            assert state.public_catalog_search == "ação"
+            assert "/catalogo?q=a%C3%A7%C3%A3o" in repr(redirect)
 
     asyncio.run(verify())
 
