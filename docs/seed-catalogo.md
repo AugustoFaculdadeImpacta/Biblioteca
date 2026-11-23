@@ -28,10 +28,11 @@ Não informe senha ou token em arquivos, commits, logs ou capturas. O script usa
 
 O script pula títulos já existentes por comparação sem caixa e sem acentos e desativa somente os títulos de teste com nomes exatos `Jack Sparrow` e `Something`, caso existam.
 
-## Catálogo real da versão v5
+## Catálogo real da versão v6
 
 - O plano contém 30 títulos reais distribuídos nas oito categorias aprovadas.
 - Cada título contém ISBN-13, ano, editora, edição e descrição própria.
-- ISBN não verificado pela rede fica registrado como não verificado até validação externa.
+- A validação externa da Open Library foi tentada nesta máquina; não foi possível confirmar os 30 registros por 404 ou falha de rede. Os ISBN ficam registrados como não verificados até validação externa bem-sucedida.
 - O script não cria categorias; referências a categorias inexistentes são apenas informadas no plano.
-Com `--apply`, a primeira linha da saída é `alvo: Xano remoto`.
+- Sem `--apply`, a primeira linha da saída é `alvo: demonstração local`.
+- Com `--apply`, a primeira linha da saída é `alvo: Xano remoto`; neste ambiente, as variáveis `XANO_SEED_EMAIL` e `XANO_SEED_PASSWORD` não existem, portanto nenhuma aplicação remota foi feita.

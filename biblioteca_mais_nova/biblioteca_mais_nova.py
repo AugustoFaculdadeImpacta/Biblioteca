@@ -2,6 +2,7 @@
 
 import unicodedata
 import os
+from urllib.parse import quote
 from datetime import datetime, timezone
 from functools import wraps
 from typing import Any, Awaitable, Callable
@@ -821,6 +822,14 @@ class State(rx.State):
     @rx.event
     def set_public_catalog_search(self, value: str):
         self.public_catalog_search = value
+
+    @rx.event
+    async def submit_global_search(self, form_data: dict[str, Any]):
+        termo = str(form_data.get("q") or "").strip()
+        self.public_catalog_search = termo
+        if termo:
+            return rx.redirect(f"/catalogo?q={quote(termo)}")
+        return rx.redirect("/catalogo")
 
     @rx.event
     def set_public_catalog_category(self, value: str):
@@ -2924,55 +2933,35 @@ def accessibility_menu() -> rx.Component:
 
 def site_header() -> rx.Component:
     brand = rx.link(
-        rx.el.span("📚", aria_hidden="true"),
+        rx.el.span("📖", aria_hidden="true"),
         rx.text(" Biblioteca escolar"),
         href="/",
         class_name="brand-link",
         title="Biblioteca escolar",
         aria_label="Biblioteca escolar",
     )
-    menu_label = rx.cond(
-        State.mobile_navigation_open,
-        "Fechar menu",
-        "Abrir menu",
-    )
-    mobile_profile_actions = rx.el.div(
-        admin_view_status(),
-        accessibility_menu(),
-        profile_menu(),
-        class_name="site-header-actions",
-    )
     return rx.el.header(
         brand,
-        rx.button(
-            conteudo_acao("menu_navegacao", menu_label),
-            type="button",
-            aria_expanded=State.mobile_navigation_open,
-            aria_controls="navegacao-movel",
-            on_click=State.toggle_mobile_navigation,
-            class_name="site-menu-toggle",
-            **atributos_acao("menu_navegacao", menu_label),
+        site_primary_nav(),
+        rx.el.form(
+            rx.el.input(
+                name="q",
+                type="search",
+                placeholder="Buscar livros…",
+                value=State.public_catalog_search,
+                on_change=State.set_public_catalog_search,
+                aria_label="Buscar livros",
+                class_name="site-header-search",
+            ),
+            rx.el.span("🔎", aria_hidden="true", class_name="site-header-search-icon"),
+            on_submit=State.submit_global_search,
+            class_name="site-header-search-form",
         ),
         rx.el.div(
-            site_primary_nav(),
-            rx.el.div(
-                admin_view_status(),
-                accessibility_menu(),
-                profile_menu(),
-                class_name="site-header-actions",
-            ),
-            class_name="site-header-desktop",
-        ),
-        rx.el.div(
-            site_primary_nav(),
-            mobile_profile_actions,
-            id="navegacao-movel",
-            aria_hidden=~State.mobile_navigation_open,
-            class_name=rx.cond(
-                State.mobile_navigation_open,
-                "site-header-mobile-panel is-open",
-                "site-header-mobile-panel",
-            ),
+            admin_view_status(),
+            accessibility_menu(),
+            profile_menu(),
+            class_name="site-header-actions",
         ),
         class_name="site-header",
     )
@@ -6103,11 +6092,10 @@ app = rx.App(
             "position": "sticky",
             "top": "0",
             "z_index": "50",
-            "display": "flex",
-            "flex_direction": "row",
-            "flex_wrap": "nowrap",
+            "display": "grid",
+            "grid_template_columns": "auto minmax(18rem, 1fr) minmax(12rem, 22rem) auto",
+            "grid_template_areas": "\"logo nav busca acoes\"",
             "align_items": "center",
-            "justify_content": "space-between",
             "gap": "1rem",
             "max_width": "75rem",
             "margin": "0 auto",
@@ -6116,6 +6104,18 @@ app = rx.App(
             "border_bottom": "1px solid var(--line)",
             "background_color": "var(--bg-panel)",
             "box_shadow": "var(--shadow-soft)",
+        },
+        ".site-header > .brand-link": {
+            "grid_area": "logo",
+        },
+        ".site-header > .site-primary-nav": {
+            "grid_area": "nav",
+        },
+        ".site-header > .site-header-search-form": {
+            "grid_area": "busca",
+        },
+        ".site-header > .site-header-actions": {
+            "grid_area": "acoes",
         },
         ".brand-link": {
             "display": "inline-flex",
@@ -6127,11 +6127,38 @@ app = rx.App(
             "color": "var(--text)",
             "font_weight": "800",
             "text_decoration": "none",
-            "font_family": "Georgia, 'Times New Roman', serif",
+            "font_family": "system-ui, -apple-system, 'Segoe UI', sans-serif",
             "font_size": "1.25rem",
         },
         ".brand-link:hover": {
             "color": "var(--brand-text)",
+        },
+        ".site-header-search-form": {
+            "display": "grid",
+            "grid_template_columns": "minmax(0, 1fr) auto",
+            "align_items": "center",
+            "gap": "0.25rem",
+            "min_width": "0",
+            "padding": "0.25rem 0.25rem 0.25rem 0.75rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "999px",
+            "background_color": "var(--bg-soft)",
+        },
+        ".site-header-search": {
+            "width": "100%",
+            "min_width": "0",
+            "min_height": "2.25rem",
+            "border": "none",
+            "outline": "none",
+            "background": "transparent",
+            "color": "var(--text)",
+        },
+        ".site-header-search-icon": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "justify_content": "center",
+            "width": "2rem",
+            "min_height": "2rem",
         },
         ".site-header-desktop": {
             "display": "flex",
@@ -7594,9 +7621,25 @@ app = rx.App(
             ".site-header": {
                 "display": "grid",
                 "grid_template_columns": "minmax(0, 1fr) auto",
+                "grid_template_areas": "\"logo acoes\" \"nav nav\" \"busca busca\"",
                 "align_items": "center",
                 "gap": "0.5rem",
                 "padding": "0.75rem",
+            },
+            ".site-header > .brand-link": {
+                "grid_area": "logo",
+            },
+            ".site-header > .site-primary-nav": {
+                "grid_area": "nav",
+                "overflow_x": "auto",
+                "overflow_y": "hidden",
+                "white_space": "nowrap",
+            },
+            ".site-header > .site-header-search-form": {
+                "grid_area": "busca",
+            },
+            ".site-header > .site-header-actions": {
+                "grid_area": "acoes",
             },
             ".hero-layout": {
                 "align_items": "stretch",
@@ -7613,7 +7656,7 @@ app = rx.App(
                 "display": "none",
             },
             ".site-menu-toggle": {
-                "display": "inline-flex",
+                "display": "none",
             },
             ".brand-link": {
                 "min_width": "0",

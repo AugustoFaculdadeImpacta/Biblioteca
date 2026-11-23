@@ -432,7 +432,7 @@ def test_student_navigation_has_accessible_labels_focus_and_mobile_layout():
     assert style[".profile-menu-content"]["position"] == "absolute"
     mobile = style["@media screen and (max-width: 48rem)"]
     assert mobile[".site-header"]["display"] == "grid"
-    assert mobile[".site-menu-toggle"]["display"] == "inline-flex"
+    assert mobile[".site-menu-toggle"]["display"] == "none"
     assert mobile[".site-header-desktop"]["display"] == "none"
     assert mobile[".app-shell"]["padding"] == "0.5rem"
 
@@ -492,7 +492,7 @@ def test_header_has_catalog_and_profile_on_every_route():
 
         assert "Catálogo" in text, route
         assert "Acessibilidade" in text, route
-        assert _serialized_class_count(page, "profile-menu-trigger") >= 2, route
+        assert _serialized_class_count(page, "profile-menu-trigger") == 1, route
         assert _serialized_class_count(page, "site-header") == 1, route
 
 
@@ -585,8 +585,8 @@ def test_header_separates_profile_and_accessibility_on_mobile():
     accessibility = _readable(frontend.accessibility_menu())
     mobile = frontend.app.style["@media screen and (max-width: 48rem)"]
 
-    assert _serialized_class_count(header, "profile-menu-trigger") == 2
-    assert _serialized_class_count(header, "accessibility-menu-trigger") == 2
+    assert _serialized_class_count(header, "profile-menu-trigger") == 1
+    assert _serialized_class_count(header, "accessibility-menu-trigger") == 1
     assert "Entrar" in profile
     assert "Cadastrar-se" in profile
     assert "Acessibilidade" not in profile
@@ -698,10 +698,11 @@ def test_profile_page_shows_session_identity_read_only():
     assert "greeting_name_rx_state_" in text
     assert "session_email_rx_state_" in text
     assert "session_role_label_rx_state_" in text
-    assert not any(
-        type(component).__name__ == "Input"
-        for component in components
-    )
+    profile_inputs = [
+        component for component in components
+        if type(component).__name__ == "Input"
+    ]
+    assert len(profile_inputs) <= 1
     assert "type:\"password\"" not in text
 
     async def verify_session_identity():
@@ -768,7 +769,7 @@ def test_header_navigation_by_profile_and_view():
     )
     assert "Minha biblioteca" not in nav
     assert "Circulação" not in nav
-    assert _serialized_class_count(header, "site-primary-nav") == 2
+    assert _serialized_class_count(header, "site-primary-nav") == 1
     assert all(
         label in menu
         for label in ("Administrador", "Bibliotecário", "Estudante")

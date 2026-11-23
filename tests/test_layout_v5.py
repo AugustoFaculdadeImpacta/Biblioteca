@@ -37,18 +37,17 @@ def test_header_contract_is_stable_without_action_classes():
     assert header["position"] == "sticky"
     assert header["top"] == "0"
     assert header["z_index"] == "50"
-    assert header["display"] == "flex"
-    assert header["flex_direction"] == "row"
-    assert header["flex_wrap"] == "nowrap"
+    assert header["display"] == "grid"
+    assert header["grid_template_columns"] == "auto minmax(18rem, 1fr) minmax(12rem, 22rem) auto"
+    assert header["grid_template_areas"] == '"logo nav busca acoes"'
     assert header["align_items"] == "center"
-    assert header["justify_content"] == "space-between"
     assert header["min_height"] == "4rem"
     assert header["padding"] == "0 1rem"
     assert header["background_color"] == "var(--bg-panel)"
     assert header["border_bottom"] == "1px solid var(--line)"
 
     assert brand["font_size"] == "1.25rem"
-    assert brand["font_family"] == "Georgia, 'Times New Roman', serif"
+    assert "sans-serif" in brand["font_family"]
     assert brand["white_space"] == "nowrap"
     assert brand["background"] == "transparent"
     assert brand["border"] == "none"
@@ -69,7 +68,8 @@ def test_header_contract_is_stable_without_action_classes():
     assert "data-action-type" not in nav_page
 
     mobile = style["@media screen and (max-width: 48rem)"]
-    assert mobile[".site-menu-toggle"]["display"] == "inline-flex"
+    assert mobile[".site-menu-toggle"]["display"] == "none"
+    assert mobile[".site-header"]["grid_template_areas"] == '"logo acoes" "nav nav" "busca busca"'
 
 
 def test_header_nav_and_footer_tokens_meet_text_contrast():
