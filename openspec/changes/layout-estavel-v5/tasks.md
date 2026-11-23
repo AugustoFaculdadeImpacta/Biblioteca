@@ -22,15 +22,15 @@
 
 ## 6. Resolver capas por ISBN
 
-- [ ] 6.1 Criar `biblioteca_mais_nova/capas_isbn.py`, fallback e prioridade HTTPS/Open Library/capa gerada; validar em `tests/test_covers.py` e `tests/test_layout_v5.py`, sem baixar imagens nem requisitar o servidor.
+- [x] 6.1 Criar `biblioteca_mais_nova/capas_isbn.py`, fallback e prioridade HTTPS/Open Library/capa gerada; validar em `tests/test_covers.py` e `tests/test_layout_v5.py`, sem baixar imagens nem requisitar o servidor.
 
 ## 7. Reescrever seed de 30 títulos reais
 
-- [ ] 7.1 Substituir a lista por 30 livros reais, ISBN-13 válidos e oito categorias aprovadas; validar dry-run, descrições, edições e ausência de `--apply` em `tests/test_seed_catalogo.py` e `docs/seed-catalogo.md`.
+- [x] 7.1 Substituir a lista por 30 livros reais, ISBN-13 válidos e oito categorias aprovadas; validar dry-run, descrições, edições e ausência de `--apply` em `tests/test_seed_catalogo.py` e `docs/seed-catalogo.md`.
 
 ## 8. Diagnosticar desativação
 
-- [ ] 8.1 Implementar logs opt-in com chaves apenas, comparar local/remoto do PATCH e documentar em `docs/diagnostico-desativacao.md`; validar em `tests/test_admin_catalog.py` e `tests/test_layout_v5.py`.
+- [x] 8.1 Implementar logs opt-in com chaves apenas, comparar local/remoto do PATCH e documentar em `docs/diagnostico-desativacao.md`; validar em `tests/test_admin_catalog.py` e `tests/test_layout_v5.py`.
 
 ## Workflow follow-up
 
