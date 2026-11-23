@@ -265,7 +265,7 @@ def test_login_page_contains_only_login_form():
     assert "form-cadastro-estudante" not in page
     assert "signup-nome" not in input_ids
     assert "signup-email" not in input_ids
-    assert "Ver catálogo" in page
+    assert "Criar conta" in page
 
 
 def test_signup_page_contains_only_signup_form():
@@ -531,7 +531,7 @@ def test_page_bodies_do_not_duplicate_global_navigation():
     assert "Acompanhar em Minha biblioteca" not in detail
     assert "Voltar ao catálogo" not in student_library
     assert "Ver catálogo" not in home
-    assert "Ver catálogo" in login
+    assert "Criar conta" in login
     assert "Cadastrar-se" in login
     assert "Entrar" in signup
 

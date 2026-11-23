@@ -4014,6 +4014,21 @@ def student_signup() -> rx.Component:
         site_header(),
         rx.el.main(
             rx.el.section(
+                rx.el.nav(
+                    rx.link(
+                        "Entrar",
+                        href="/login",
+                        class_name="auth-tab",
+                    ),
+                    rx.link(
+                        "Criar conta",
+                        href="/cadastro",
+                        class_name="auth-tab auth-tab-active",
+                        aria_current="page",
+                    ),
+                    aria_label="Acesso",
+                    class_name="auth-tabs",
+                ),
                 rx.heading("Cadastro de estudante", size="7"),
                 rx.text(
                     "Crie sua conta para acessar os serviços da biblioteca."
@@ -4087,11 +4102,6 @@ def student_signup() -> rx.Component:
                     "O perfil de estudante é atribuído pelo sistema.",
                     class_name="signup-note",
                 ),
-                rx.link(
-                    conteudo_acao("entrar"),
-                    href="/login",
-                    **atributos_acao("entrar"),
-                ),
                 id="conteudo-cadastro",
                 class_name="content-section signup-section",
             ),
@@ -4113,6 +4123,21 @@ def login_page() -> rx.Component:
         site_header(),
         rx.el.main(
             rx.el.section(
+                rx.el.nav(
+                    rx.link(
+                        "Entrar",
+                        href="/login",
+                        class_name="auth-tab auth-tab-active",
+                        aria_current="page",
+                    ),
+                    rx.link(
+                        "Criar conta",
+                        href="/cadastro",
+                        class_name="auth-tab",
+                    ),
+                    aria_label="Acesso",
+                    class_name="auth-tabs",
+                ),
                 rx.heading("Entrar", size="7"),
                 rx.text("Acesse sua conta com e-mail e senha."),
                 rx.cond(
@@ -4166,16 +4191,6 @@ def login_page() -> rx.Component:
                     on_submit=State.submit_login,
                     reset_on_submit=False,
                     class_name="signup-form",
-                ),
-                rx.link(
-                    conteudo_acao("catalogo", "Ver catálogo"),
-                    href="/catalogo",
-                    **atributos_acao("catalogo", "Ver catálogo"),
-                ),
-                rx.link(
-                    conteudo_acao("cadastrar"),
-                    href="/cadastro",
-                    **atributos_acao("cadastrar"),
                 ),
                 id="conteudo-login",
                 class_name="content-section signup-section",
@@ -7010,6 +7025,30 @@ app = rx.App(
             "border_radius": "1rem",
             "background_color": "var(--bg-panel)",
             "box_shadow": "var(--shadow-soft)",
+        },
+        ".auth-tabs": {
+            "display": "grid",
+            "grid_template_columns": "repeat(2, minmax(0, 1fr))",
+            "gap": "0.5rem",
+            "width": "100%",
+            "margin_bottom": "0.75rem",
+        },
+        ".auth-tab": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "justify_content": "center",
+            "min_height": "2.75rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "999px",
+            "background_color": "var(--bg-panel)",
+            "color": "var(--text)",
+            "font_weight": "700",
+            "text_decoration": "none",
+        },
+        ".auth-tab-active": {
+            "border": "1px solid var(--brand-700)",
+            "background_color": "var(--brand-100)",
+            "color": "var(--brand-text)",
         },
         ".admin-acervo-content": {
             "width": "100%",

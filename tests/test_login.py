@@ -48,12 +48,11 @@ def test_login_page_has_only_labeled_email_and_password_fields():
         "login-senha",
     ]
     assert not any(field.name._var_value == "perfil" for field in fields)
-    assert any(
-        component.custom_attrs.get("aria-label") == "Cadastrar-se"
-        and "/cadastro" in repr(component)
-        for component in components
-        if component.alias == "RadixThemesLink"
-    )
+    page_text = repr(page)
+    assert "auth-tabs" in page_text
+    assert "Entrar" in page_text
+    assert "Criar conta" in page_text
+    assert "Ver catálogo" not in page_text
     assert frontend.app.style[":focus-visible"] == {
         "outline": "3px solid var(--brand-700)",
         "outline_offset": "3px",

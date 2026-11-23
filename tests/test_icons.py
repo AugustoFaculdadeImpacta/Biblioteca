@@ -94,14 +94,18 @@ def test_every_button_and_link_uses_the_shared_action_helpers():
             if isinstance(class_keyword, ast.Constant)
             else ""
         )
-        if isinstance(class_names, str) and class_names in {
+        if isinstance(class_names, str) and (
+            class_names in {
             "brand-link",
             "site-nav-link",
             "footer-link",
             "home-category-chip",
             "catalog-card-link",
             "section-more-link",
-        }:
+            "auth-tab",
+            }
+            or class_names.startswith("auth-tab ")
+        ):
             continue
         content = call.args[0]
         assert (

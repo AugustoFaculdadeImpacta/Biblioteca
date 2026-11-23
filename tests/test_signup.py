@@ -61,12 +61,10 @@ def test_signup_route_has_labeled_fields_in_keyboard_order_and_visible_focus():
         "signup-senha",
     ]
     assert not any(field.name._var_value == "perfil" for field in fields)
-    assert any(
-        component.custom_attrs.get("aria-label") == "Entrar"
-        and "/login" in repr(component)
-        for component in components
-        if component.alias == "RadixThemesLink"
-    )
+    page_text = repr(page)
+    assert "auth-tabs" in page_text
+    assert "Entrar" in page_text
+    assert "Criar conta" in page_text
     assert frontend.app.style[":focus-visible"] == {
         "outline": "3px solid var(--brand-700)",
         "outline_offset": "3px",
