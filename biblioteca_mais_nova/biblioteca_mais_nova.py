@@ -45,6 +45,7 @@ from biblioteca_mais_nova.catalog import (
     list_public_titles,
     update_title,
 )
+from biblioteca_mais_nova.seed_data import TITULOS as TITULOS_EXEMPLO
 from biblioteca_mais_nova.circulation import (
     AdminReservation,
     LoanRequest,
@@ -152,6 +153,18 @@ class State(rx.State):
     admin_catalog_edit_title_id: int | None = None
     admin_catalog_copy_title_id: int | None = None
     admin_catalog_new_title_open: bool = False
+    example_seed_pending: bool = False
+    example_seed_confirming: bool = False
+    example_seed_preview_ready: bool = False
+    example_seed_preview_create_count: int = 0
+    example_seed_preview_existing_count: int = 0
+    example_seed_missing_categories: list[str] = []
+    example_seed_progress: int = 0
+    example_seed_created: int = 0
+    example_seed_ignored: int = 0
+    example_seed_errors: int = 0
+    example_seed_message: str = ""
+    example_seed_has_error: bool = False
     _session_token: str = ""
     _session_profile: str = ""
     _session_name: str = ""
@@ -1776,6 +1789,163 @@ class State(rx.State):
         await self._refresh_admin_catalog()
 
     @rx.event
+    async def preview_example_books(self):
+        if not self._is_admin():
+            return self._redirect_non_admin()
+        if self.example_seed_pending:
+            self.example_seed_message = "Aguarde a operação atual do acervo."
+            self.example_seed_has_error = True
+            return
+
+        self.example_seed_pending = True
+        self.example_seed_preview_ready = False
+        self.example_seed_message = ""
+        self.example_seed_has_error = False
+        try:
+            entries = await list_admin_catalog(self._session_token)
+            categories = await list_categories()
+            plan = _example_book_plan(entries, categories, TITULOS_EXEMPLO)
+        except (
+            XanoConfigurationError,
+            XanoRequestError,
+            XanoResponseError,
+        ) as error:
+            self.example_seed_message = catalog_error_message(error)
+            self.example_seed_has_error = True
+        else:
+            self.example_seed_preview_create_count = len(plan["criar"])
+            self.example_seed_preview_existing_count = plan["existentes"]
+            self.example_seed_missing_categories = plan["categorias_ausentes"]
+            self.example_seed_preview_ready = True
+        finally:
+            self.example_seed_pending = False
+
+    @rx.event
+    def request_example_books_import(self):
+        if not self._is_admin():
+            return self._redirect_non_admin()
+        if self.example_seed_pending:
+            self.example_seed_message = "Aguarde a operação atual do acervo."
+            self.example_seed_has_error = True
+            return
+        self.example_seed_confirming = True
+
+    @rx.event
+    def cancel_example_books_import(self):
+        if not self._is_admin():
+            return self._redirect_non_admin()
+        self.example_seed_confirming = False
+
+    @rx.event
+    async def confirm_example_books_import(self):
+        if not self._is_admin():
+            return self._redirect_non_admin()
+        if self.example_seed_pending:
+            self.example_seed_message = "Aguarde a operação atual do acervo."
+            self.example_seed_has_error = True
+            return
+
+        self.example_seed_confirming = False
+        self.example_seed_pending = True
+        self.example_seed_progress = 0
+        self.example_seed_created = 0
+        self.example_seed_ignored = 0
+        self.example_seed_errors = 0
+        self.example_seed_message = ""
+        self.example_seed_has_error = False
+        self.example_seed_preview_ready = False
+        failure_message = ""
+        plan_loaded = False
+
+        try:
+            try:
+                entries = await list_admin_catalog(self._session_token)
+                categories = await list_categories()
+                plan = _example_book_plan(entries, categories, TITULOS_EXEMPLO)
+                plan_loaded = True
+            except (
+                XanoConfigurationError,
+                XanoRequestError,
+                XanoResponseError,
+            ) as error:
+                self.example_seed_errors = 1
+                failure_message = catalog_error_message(error)
+            else:
+                self.example_seed_preview_create_count = len(plan["criar"])
+                self.example_seed_preview_existing_count = plan["existentes"]
+                self.example_seed_missing_categories = plan["categorias_ausentes"]
+                self.example_seed_preview_ready = True
+                existing_pairs = plan["pares_existentes"]
+                category_ids = plan["ids_categoria"]
+                for index, book in enumerate(TITULOS_EXEMPLO, start=1):
+                    pair = _example_book_key(book["titulo"], book["autores"])
+                    if pair in existing_pairs:
+                        self.example_seed_ignored += 1
+                        self.example_seed_progress = index
+                        continue
+
+                    category_id = category_ids.get(
+                        _catalog_search_key(" ".join(book["categoria"].split()))
+                    )
+                    if category_id is None:
+                        self.example_seed_ignored += 1
+                        self.example_seed_progress = index
+                        continue
+
+                    try:
+                        payload = build_title_payload(
+                            {
+                                "titulo": book["titulo"],
+                                "autores": book["autores"],
+                                "isbn": book["isbn"],
+                                "editora": book["editora"],
+                                "edicao": book["edicao"],
+                                "ano_publicacao": str(book["ano_publicacao"]),
+                                "descricao": book["descricao"],
+                            }
+                        )
+                        title = await create_title(
+                            payload,
+                            self._session_token,
+                        )
+                        self.example_seed_created += 1
+                        existing_pairs.add(pair)
+                        await associate_category(
+                            title["id"],
+                            category_id,
+                            self._session_token,
+                        )
+                        for _ in range(book["exemplares"]):
+                            await create_copy(title["id"], self._session_token)
+                    except (
+                        CatalogValidationError,
+                        XanoConfigurationError,
+                        XanoRequestError,
+                        XanoResponseError,
+                    ) as error:
+                        self.example_seed_errors = 1
+                        self.example_seed_progress = index
+                        failure_message = catalog_error_message(error)
+                        break
+                    else:
+                        self.example_seed_progress = index
+        finally:
+            self.example_seed_pending = False
+
+        if plan_loaded:
+            await self._refresh_admin_catalog()
+        error_label = "erro" if self.example_seed_errors == 1 else "erros"
+        totals = (
+            f"{self.example_seed_created} criados, "
+            f"{self.example_seed_ignored} ignorados, "
+            f"{self.example_seed_errors} {error_label}"
+        )
+        self.example_seed_message = f"Importação encerrada: {totals}."
+        if failure_message:
+            self.example_seed_message += f" {failure_message}"
+        self.example_seed_has_error = self.example_seed_errors > 0
+
+    @rx.event
     async def save_admin_title(self, form_data: dict[str, Any]):
         if not self._is_librarian():
             return self._redirect_non_librarian()
@@ -3037,6 +3207,55 @@ def _catalog_search_key(value: str) -> str:
         for character in decomposed
         if not unicodedata.combining(character)
     )
+
+
+def _example_book_key(title: str, authors: str) -> tuple[str, str]:
+    return (
+        _catalog_search_key(" ".join(title.split())),
+        _catalog_search_key(" ".join(authors.split())),
+    )
+
+
+def _example_book_plan(
+    entries: list[AdminCatalogEntry],
+    categories: list[dict[str, Any]],
+    books: list[dict[str, Any]],
+) -> dict[str, Any]:
+    existing_pairs = {
+        _example_book_key(
+            entry["titulo"]["titulo"],
+            entry["titulo"]["autores"],
+        )
+        for entry in entries
+    }
+    category_ids = {
+        _catalog_search_key(" ".join(category["nome"].split())): category["id"]
+        for category in categories
+    }
+    creatable: list[dict[str, Any]] = []
+    missing_categories: list[str] = []
+    existing_count = 0
+    for book in books:
+        pair = _example_book_key(book["titulo"], book["autores"])
+        if pair in existing_pairs:
+            existing_count += 1
+            continue
+        category_key = _catalog_search_key(
+            " ".join(book["categoria"].split())
+        )
+        if category_key not in category_ids:
+            if book["categoria"] not in missing_categories:
+                missing_categories.append(book["categoria"])
+            continue
+        creatable.append(book)
+
+    return {
+        "criar": creatable,
+        "existentes": existing_count,
+        "categorias_ausentes": missing_categories,
+        "pares_existentes": existing_pairs,
+        "ids_categoria": category_ids,
+    }
 
 
 def _catalog_cover_identity(category_text: str, title_name: str) -> tuple[str, int]:
@@ -4904,6 +5123,121 @@ def admin_title_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
     )
 
 
+def example_books_import_section() -> rx.Component:
+    return rx.cond(
+        State.can_manage_librarians,
+        rx.el.details(
+            rx.el.summary(
+                "📥 Livros de exemplo",
+                class_name="admin-example-seed-summary",
+            ),
+            rx.text(
+                "Adiciona 30 livros reais ao acervo, com 2 ou 3 exemplares "
+                "cada. Livros que já existem são ignorados."
+            ),
+            rx.button(
+                conteudo_acao("detalhes", "Ver o que será adicionado"),
+                type="button",
+                on_click=State.preview_example_books,
+                disabled=State.example_seed_pending,
+                class_name="nav-logout",
+                **atributos_acao("detalhes", "Ver o que será adicionado"),
+            ),
+            rx.cond(
+                State.example_seed_preview_ready,
+                rx.vstack(
+                    rx.text(
+                        "Serão criados: ",
+                        State.example_seed_preview_create_count,
+                    ),
+                    rx.text(
+                        "Já existem: ",
+                        State.example_seed_preview_existing_count,
+                    ),
+                    rx.cond(
+                        State.example_seed_missing_categories.length() > 0,
+                        rx.vstack(
+                            rx.text("Categorias que não existem no acervo:"),
+                            rx.foreach(
+                                State.example_seed_missing_categories,
+                                lambda category: rx.text(category),
+                            ),
+                            align="start",
+                        ),
+                        rx.text("Todas as categorias necessárias existem."),
+                    ),
+                    align="start",
+                    width="100%",
+                ),
+                rx.fragment(),
+            ),
+            rx.cond(
+                State.example_seed_confirming,
+                rx.hstack(
+                    rx.button(
+                        conteudo_acao("confirmar_desativacao", "Confirmar"),
+                        type="button",
+                        on_click=State.confirm_example_books_import,
+                        disabled=State.example_seed_pending,
+                        class_name="focus-demo-button",
+                        **atributos_acao(
+                            "confirmar_desativacao",
+                            "Confirmar",
+                        ),
+                    ),
+                    rx.button(
+                        conteudo_acao("nao_confirmar", "Cancelar"),
+                        type="button",
+                        on_click=State.cancel_example_books_import,
+                        disabled=State.example_seed_pending,
+                        class_name="nav-logout",
+                        **atributos_acao("nao_confirmar", "Cancelar"),
+                    ),
+                    wrap="wrap",
+                ),
+                rx.button(
+                    conteudo_acao("novo_titulo", "Adicionar agora"),
+                    type="button",
+                    on_click=State.request_example_books_import,
+                    disabled=State.example_seed_pending,
+                    class_name="focus-demo-button",
+                    **atributos_acao("novo_titulo", "Adicionar agora"),
+                ),
+            ),
+            rx.cond(
+                State.example_seed_pending,
+                rx.text(
+                    State.example_seed_progress,
+                    " de 30",
+                    role="status",
+                    aria_live="polite",
+                ),
+                rx.fragment(),
+            ),
+            rx.cond(
+                State.example_seed_message != "",
+                rx.el.p(
+                    State.example_seed_message,
+                    role=rx.cond(
+                        State.example_seed_has_error,
+                        "alert",
+                        "status",
+                    ),
+                    aria_live="polite",
+                    class_name=rx.cond(
+                        State.example_seed_has_error,
+                        "signup-feedback signup-feedback-error",
+                        "signup-feedback signup-feedback-success",
+                    ),
+                ),
+                rx.fragment(),
+            ),
+            class_name="admin-example-seed",
+        ),
+        rx.fragment(),
+    )
+
+
 def catalog_admin() -> rx.Component:
     return rx.box(
         rx.link(
@@ -5169,6 +5503,7 @@ def catalog_admin() -> rx.Component:
                 id="conteudo-acervo",
                 class_name="content-section admin-acervo-content",
             ),
+            example_books_import_section(),
             rx.el.section(
                 rx.heading("Acervo completo", size="6"),
                 rx.text(
@@ -7481,6 +7816,23 @@ app = rx.App(
             "margin": "1.5rem auto",
             "padding": "1.25rem 0",
             "align_items": "stretch",
+        },
+        ".admin-example-seed": {
+            "display": "flex",
+            "flex_direction": "column",
+            "gap": "0.75rem",
+            "width": "min(100%, 75rem)",
+            "min_width": "0",
+            "margin": "0 auto",
+            "padding": "1rem 1.25rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "1rem",
+            "background_color": "var(--bg-panel)",
+            "box_shadow": "var(--shadow-soft)",
+        },
+        ".admin-example-seed-summary": {
+            "cursor": "pointer",
+            "font_weight": "700",
         },
         ".librarian-management-section": {
             "width": "min(100%, 72rem)",

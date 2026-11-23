@@ -53,6 +53,20 @@ def _entry(active=True):
     }
 
 
+def _example_book(title, authors, category, copies=2):
+    return {
+        "titulo": title,
+        "autores": authors,
+        "isbn": "9780000000002",
+        "ano_publicacao": 2024,
+        "editora": "Editora teste",
+        "edicao": "Brasileira",
+        "categoria": category,
+        "exemplares": copies,
+        "descricao": "Descrição de teste.",
+    }
+
+
 def test_public_catalog_never_returns_inactive_titles(monkeypatch):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
     response = [
@@ -536,6 +550,219 @@ def test_acervo_paginates_in_groups_of_ten():
             state.admin_catalog_visible_limit = 10
             state.show_more_admin_catalog()
             assert state.admin_catalog_visible_limit == 20
+
+    asyncio.run(verify())
+
+
+def test_example_books_preview_is_read_only_and_reports_categories(monkeypatch):
+    books = [
+        _example_book("Dom Casmurro", "Machado de Assis", "Literatura"),
+        _example_book("Livro Novo", "Autora Nova", "Literatura"),
+        _example_book("Livro sem categoria", "Outra Autora", "Ciências"),
+    ]
+    monkeypatch.setattr(frontend, "TITULOS_EXEMPLO", books)
+
+    async def admin_catalog(token):
+        assert token == "token-admin"
+        return [
+            {
+                "titulo": {
+                    "titulo": "DOM CASMURRO",
+                    "autores": "Machado de Ássis",
+                }
+            }
+        ]
+
+    async def categories():
+        return [{"id": 7, "nome": "literatura"}]
+
+    async def unexpected(*args, **kwargs):
+        raise AssertionError("A prévia não pode fazer gravações.")
+
+    monkeypatch.setattr(frontend, "list_admin_catalog", admin_catalog)
+    monkeypatch.setattr(frontend, "list_categories", categories)
+    monkeypatch.setattr(frontend, "create_title", unexpected)
+    monkeypatch.setattr(frontend, "associate_category", unexpected)
+    monkeypatch.setattr(frontend, "create_copy", unexpected)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"example-preview-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-admin", "admin")
+
+            await state.preview_example_books()
+
+            assert state.example_seed_preview_ready is True
+            assert state.example_seed_preview_create_count == 1
+            assert state.example_seed_preview_existing_count == 1
+            assert state.example_seed_missing_categories == ["Ciências"]
+            serialized = json.dumps(state.dict(), default=str)
+            assert "token-admin" not in serialized
+            assert "_session_token" not in serialized
+
+    asyncio.run(verify())
+
+
+def test_example_books_import_maps_categories_and_is_idempotent(monkeypatch):
+    books = [
+        _example_book("Livro Um", "Autora Um", "Literatura", copies=2),
+        _example_book("Livro Dois", "Autor Dois", "Ciências", copies=3),
+        _example_book("Sem categoria", "Outra Autoria", "História"),
+    ]
+    monkeypatch.setattr(frontend, "TITULOS_EXEMPLO", books)
+    entries = []
+    title_calls = []
+    category_calls = []
+    copy_calls = []
+
+    async def admin_catalog(token):
+        assert token == "token-admin"
+        return list(entries)
+
+    async def categories():
+        return [
+            {"id": 7, "nome": "literatura"},
+            {"id": 9, "nome": "CIENCIAS"},
+        ]
+
+    async def create_title(payload, token):
+        assert token == "token-admin"
+        title_calls.append(payload)
+        title_id = len(title_calls) + 100
+        entry = _entry()
+        entry["titulo"]["titulo"] = payload["titulo"]
+        entry["titulo"]["autores"] = payload["autores"]
+        entries.append(entry)
+        return {"id": title_id}
+
+    async def associate_category(title_id, category_id, token):
+        category_calls.append((title_id, category_id, token))
+        return {
+            "id": title_id + 1000,
+            "titulo_id": title_id,
+            "categoria_id": category_id,
+        }
+
+    async def create_copy(title_id, token):
+        copy_calls.append((title_id, token))
+        return {
+            "id": len(copy_calls) + 500,
+            "titulo_id": title_id,
+            "estado": "disponivel",
+            "codigo_tombo": f"EX-{len(copy_calls):06}",
+        }
+
+    monkeypatch.setattr(frontend, "list_admin_catalog", admin_catalog)
+    monkeypatch.setattr(frontend, "list_categories", categories)
+    monkeypatch.setattr(frontend, "create_title", create_title)
+    monkeypatch.setattr(frontend, "associate_category", associate_category)
+    monkeypatch.setattr(frontend, "create_copy", create_copy)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"example-import-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-admin", "admin")
+
+            state.request_example_books_import()
+            assert state.example_seed_confirming is True
+            await state.confirm_example_books_import()
+
+            assert state.example_seed_created == 2
+            assert state.example_seed_ignored == 1
+            assert state.example_seed_errors == 0
+            assert [call[1] for call in category_calls] == [7, 9]
+            assert len(copy_calls) == 5
+
+            state.request_example_books_import()
+            await state.confirm_example_books_import()
+
+            assert len(title_calls) == 2
+            assert state.example_seed_created == 0
+            assert state.example_seed_ignored == 3
+            assert state.example_seed_errors == 0
+
+    asyncio.run(verify())
+
+
+def test_example_books_import_stops_at_first_server_error_without_secrets(
+    monkeypatch,
+):
+    books = [
+        _example_book("Livro Um", "Autora Um", "Literatura"),
+        _example_book("Livro Dois", "Autor Dois", "Literatura"),
+    ]
+    monkeypatch.setattr(frontend, "TITULOS_EXEMPLO", books)
+    create_calls = []
+
+    async def admin_catalog(token):
+        return []
+
+    async def categories():
+        return [{"id": 7, "nome": "Literatura"}]
+
+    async def create_title(payload, token):
+        create_calls.append(payload)
+        raise XanoResponseError(503)
+
+    async def unexpected(*args, **kwargs):
+        raise AssertionError("A sequência deve parar na primeira falha.")
+
+    monkeypatch.setattr(frontend, "list_admin_catalog", admin_catalog)
+    monkeypatch.setattr(frontend, "list_categories", categories)
+    monkeypatch.setattr(frontend, "create_title", create_title)
+    monkeypatch.setattr(frontend, "associate_category", unexpected)
+    monkeypatch.setattr(frontend, "create_copy", unexpected)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"example-import-error-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("sensitive-session-value", "admin")
+            state.request_example_books_import()
+            await state.confirm_example_books_import()
+
+            assert len(create_calls) == 1
+            assert state.example_seed_progress == 1
+            assert state.example_seed_errors == 1
+            assert "1 erro" in state.example_seed_message
+            assert "sensitive-session-value" not in state.example_seed_message
+            assert "503" not in state.example_seed_message
+
+    asyncio.run(verify())
+
+
+def test_example_books_import_is_admin_only_and_section_is_conditional(
+    monkeypatch,
+):
+    async def unexpected(*args, **kwargs):
+        raise AssertionError("Somente admin real pode consultar ou gravar.")
+
+    monkeypatch.setattr(frontend, "list_admin_catalog", unexpected)
+    monkeypatch.setattr(frontend, "list_categories", unexpected)
+    monkeypatch.setattr(frontend, "create_title", unexpected)
+    page = repr(frontend.example_books_import_section())
+
+    assert "can_manage_librarians" in page
+    assert "Livros de exemplo" in page
+    assert "Confirmar" in page
+    assert "Cancelar" in page
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"example-import-noadmin-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-librarian", "bibliotecario")
+
+            await state.preview_example_books()
+            result = await state.confirm_example_books_import()
+
+            assert "_var_value='/'" in repr(result)
 
     asyncio.run(verify())
 
