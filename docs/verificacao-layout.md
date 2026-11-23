@@ -157,3 +157,22 @@ combinações escuras da home e nas quatro combinações do catálogo que o rob�
 registrou como `PASSOU`. Elas não contam como confirmação visual de conteúdo
 carregado. O critério do robô foi ajustado para detectar esse estado, sem uma
 quinta rodada.
+
+## Rodada 2026-11-23T21:17:58.468Z
+
+| rota | perfil | largura | tema | resultado | violações | captura |
+|---|---|---:|---|---|---|---|
+| / | visitante | 360 | claro | PASSOU | nenhuma | [PNG](./capturas/verificacao/home-visitante-360-claro.png) |
+| / | visitante | 360 | escuro | FALHOU | hidratação | [PNG](./capturas/verificacao/home-visitante-360-escuro.png) |
+| / | visitante | 1366 | claro | PASSOU | nenhuma | [PNG](./capturas/verificacao/home-visitante-1366-claro.png) |
+| / | visitante | 1366 | escuro | FALHOU | hidratação | [PNG](./capturas/verificacao/home-visitante-1366-escuro.png) |
+| /catalogo | visitante | 360 | claro | PASSOU | nenhuma | [PNG](./capturas/verificacao/catalogo-visitante-360-claro.png) |
+| /catalogo | visitante | 360 | escuro | PASSOU | nenhuma | [PNG](./capturas/verificacao/catalogo-visitante-360-escuro.png) |
+| /catalogo | visitante | 1366 | claro | PASSOU | nenhuma | [PNG](./capturas/verificacao/catalogo-visitante-1366-claro.png) |
+| /catalogo | visitante | 1366 | escuro | PASSOU | nenhuma | [PNG](./capturas/verificacao/catalogo-visitante-1366-escuro.png) |
+| /login | visitante | 360 | claro | PASSOU | nenhuma | [PNG](./capturas/verificacao/login-visitante-360-claro.png) |
+| /login | visitante | 360 | escuro | PASSOU | nenhuma | [PNG](./capturas/verificacao/login-visitante-360-escuro.png) |
+| /login | visitante | 1366 | claro | PASSOU | nenhuma | [PNG](./capturas/verificacao/login-visitante-1366-claro.png) |
+| /login | visitante | 1366 | escuro | PASSOU | nenhuma | [PNG](./capturas/verificacao/login-visitante-1366-escuro.png) |
+
+Duração desta rodada: 287s. Limite total: 900s.

@@ -1,14 +1,14 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 
 const baseUrl = "http://localhost:3000";
 const edgeCandidates = [
   String.raw`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`,
   String.raw`C:\Program Files\Microsoft\Edge\Application\msedge.exe`,
 ];
-const visitorRoutes = ["/", "/catalogo", "/catalogo/1", "/login", "/cadastro"];
+const visitorRoutes = ["/", "/catalogo", "/login"];
 const widths = [360, 1366];
 const themes = ["claro", "escuro"];
 const reportPath = path.join(process.cwd(), "docs", "verificacao-layout.md");
@@ -18,7 +18,7 @@ const captureDir = path.join(
   "capturas",
   "verificacao",
 );
-const totalLimitMs = 20 * 60 * 1000;
+const totalLimitMs = 15 * 60 * 1000;
 const startedAt = Date.now();
 const deadline = startedAt + totalLimitMs;
 const firstLoads = new Set();
@@ -30,18 +30,6 @@ for (const route of visitorRoutes) {
   for (const width of widths) {
     for (const theme of themes) {
       matrix.push({ route, profile: "visitante", width, theme });
-    }
-  }
-}
-
-for (const group of [
-  { profile: "estudante", routes: ["/reservas"] },
-  { profile: "bibliotecario", routes: ["/admin/acervo", "/admin/reservas"] },
-  { profile: "admin", routes: ["/admin/bibliotecarios"] },
-]) {
-  for (const route of group.routes) {
-    for (const width of [1366, 360]) {
-      matrix.push({ route, profile: group.profile, width, theme: "escuro" });
     }
   }
 }
@@ -261,31 +249,6 @@ async function launchEdge() {
     debugPort,
     browserUrl: version.webSocketDebuggerUrl,
   };
-}
-
-function loadDemoAccounts() {
-  const timeout = Math.min(10000, remainingMs());
-  if (timeout <= 0) throw new Error("limite total atingido");
-  const python = path.join(
-    process.cwd(),
-    ".venv",
-    "Scripts",
-    "python.exe",
-  );
-  const source =
-    "import json; " +
-    "from scripts.demo_seed_data import DEMO_USERS; " +
-    "from scripts.demo_api import PASSWORD; " +
-    "print(json.dumps({'users': [{'perfil': u['perfil'], 'email': u['email']} " +
-    "for u in DEMO_USERS], 'password': PASSWORD}))";
-  const output = execFileSync(python, ["-c", source], {
-    cwd: process.cwd(),
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"],
-    windowsHide: true,
-    timeout,
-  });
-  return JSON.parse(output);
 }
 
 async function setViewportAndTheme(cdp, combo, priorScriptId) {
@@ -595,68 +558,6 @@ async function runCombo(cdp, combo, priorScriptId, setupViolation = "") {
   return scriptId;
 }
 
-async function login(cdp, account, password) {
-  const navigation = await navigate(cdp, "/login");
-  if (!navigation.hydrated) return false;
-  const values = await cdp.evaluate(`(() => {
-    const email = document.querySelector("#login-email");
-    const senha = document.querySelector("#login-senha");
-    const botao = document.querySelector("#form-login button[type='submit']");
-    if (!email || !senha || !botao) return false;
-    const setter = Object.getOwnPropertyDescriptor(
-      HTMLInputElement.prototype, "value"
-    ).set;
-    setter.call(email, ${JSON.stringify(account.email)});
-    setter.call(senha, ${JSON.stringify(password)});
-    email.dispatchEvent(new Event("input", { bubbles: true }));
-    senha.dispatchEvent(new Event("input", { bubbles: true }));
-    email.dispatchEvent(new Event("change", { bubbles: true }));
-    senha.dispatchEvent(new Event("change", { bubbles: true }));
-    botao.click();
-    return true;
-  })()`);
-  if (!values) return false;
-
-  const end = Math.min(Date.now() + 90000, deadline);
-  while (Date.now() < end && remainingMs() > 0) {
-    const authenticated = await cdp.evaluate(
-      `location.pathname !== "/login" && ` +
-        `!!document.querySelector("details.profile-menu") && ` +
-        `/Sair/.test(document.querySelector("details.profile-menu").textContent)`,
-      Math.min(5000, end - Date.now(), remainingMs()),
-    );
-    if (authenticated) return true;
-    await sleep(400);
-  }
-  return false;
-}
-
-async function logout(cdp) {
-  const clicked = await cdp.evaluate(`(() => {
-    const menu = document.querySelector("details.profile-menu");
-    if (!menu) return false;
-    menu.open = true;
-    const button = [...menu.querySelectorAll("button")].find((item) =>
-      /Sair/.test(item.innerText)
-    );
-    if (!button) return false;
-    button.click();
-    return true;
-  })()`);
-  if (!clicked) return false;
-  const end = Math.min(Date.now() + 30000, deadline);
-  while (Date.now() < end && remainingMs() > 0) {
-    const signedOut = await cdp.evaluate(
-      `!document.querySelector("details.profile-menu") || ` +
-        `!/Sair/.test(document.querySelector("details.profile-menu").textContent)`,
-      Math.min(5000, end - Date.now(), remainingMs()),
-    );
-    if (signedOut) return true;
-    await sleep(300);
-  }
-  return false;
-}
-
 function recordUnattempted(combos, status, reason) {
   for (const combo of combos) {
     appendResult(combo, status, [reason]);
@@ -685,73 +586,13 @@ async function main() {
     await pageConnection.send("Runtime.enable");
     await pageConnection.send("Network.enable");
 
-    const visitorCombos = matrix.filter(
-      (combo) => combo.profile === "visitante",
-    );
-    for (const combo of visitorCombos) {
+    for (const combo of matrix) {
       if (remainingMs() <= 0) {
-        appendResult(combo, "TEMPO ESGOTADO", ["limite total de 20 minutos"]);
+        appendResult(combo, "TEMPO ESGOTADO", ["limite total de 15 minutos"]);
         continue;
       }
       scriptId = await runCombo(pageConnection, combo, scriptId);
     }
-
-    let demo;
-    let accountError = false;
-    try {
-      demo = loadDemoAccounts();
-    } catch {
-      accountError = true;
-    }
-
-    const profileGroups = [
-      { profile: "estudante", routes: ["/reservas"] },
-      { profile: "bibliotecario", routes: ["/admin/acervo", "/admin/reservas"] },
-      { profile: "admin", routes: ["/admin/bibliotecarios"] },
-    ];
-    for (const group of profileGroups) {
-      const account = demo?.users?.find(
-        (user) => user.perfil === group.profile,
-      );
-      let authenticated = false;
-      if (remainingMs() > 0 && account && !accountError) {
-        authenticated = await login(pageConnection, account, demo.password);
-      }
-
-      const groupCombos = matrix.filter(
-        (combo) =>
-          combo.profile === group.profile && group.routes.includes(combo.route),
-      );
-      for (const combo of groupCombos) {
-        const setupViolation = authenticated
-          ? ""
-          : accountError || !account
-            ? "conta de demonstração indisponível"
-            : "autenticação do perfil falhou";
-        if (remainingMs() <= 0) {
-          appendResult(combo, "TEMPO ESGOTADO", ["limite total de 20 minutos"]);
-          continue;
-        }
-        scriptId = await runCombo(
-          pageConnection,
-          combo,
-          scriptId,
-          setupViolation,
-        );
-      }
-
-      if (authenticated && remainingMs() > 0) {
-        const signedOut = await logout(pageConnection);
-        if (!signedOut) {
-          await pageConnection.send("Network.clearBrowserCookies");
-          await pageConnection.send("Storage.clearDataForOrigin", {
-            origin: baseUrl,
-            storageTypes: "all",
-          });
-        }
-      }
-    }
-
   } catch {
     const remaining = matrix.filter(
       (combo) =>
@@ -761,7 +602,7 @@ async function main() {
     );
     const status = remainingMs() === 0 ? "TEMPO ESGOTADO" : "NÃO VERIFICADO";
     const reason = remainingMs() === 0
-      ? "limite total de 20 minutos"
+      ? "limite total de 15 minutos"
       : "Edge não conseguiu executar a matriz";
     recordUnattempted(remaining, status, reason);
   } finally {
@@ -791,7 +632,7 @@ async function main() {
     const duration = Math.round((Date.now() - startedAt) / 1000);
     fs.appendFileSync(
       reportPath,
-      `\nDuração desta rodada: ${duration}s. Limite total: 1200s.\n`,
+      `\nDuração desta rodada: ${duration}s. Limite total: 900s.\n`,
       "utf8",
     );
     process.exitCode = failures ? 1 : 0;

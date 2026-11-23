@@ -28,6 +28,10 @@ Marca, navegação, ações principais e selos MUST usar o símbolo previsto no 
 - **WHEN** pessoa encontra um botão de ação principal
 - **THEN** encontra um emoji e um texto de uma a três palavras, com `title` e `aria-label` correspondentes
 
+#### Scenario: Ações distintas usam emojis exclusivos
+- **WHEN** duas ações distintas aparecem no site
+- **THEN** cada uma usa emoji exclusivo conforme o dicionário documentado
+
 #### Scenario: Emoji não é espalhado pelo conteúdo
 - **WHEN** pessoa percorre textos, metadados, títulos de seção ou descrições que não sejam o título de destaque
 - **THEN** esses conteúdos não recebem emojis decorativos adicionais

@@ -977,6 +977,58 @@ O critério foi ajustado para detectar o placeholder; não houve quinta rodada.
   revisado após `71cb6dc` para encerrar o processo próprio pelo PID e detectar
   estados `Carregando`, mas essas revisões não foram executadas por uma quinta
   rodada.
-- A validação `openspec.cmd validate --specs --strict` e o push ainda precisam
-  ser concluídos. A Change `layout-livraria-v6` permanece aberta; não arquivar
-  enquanto a matriz não passar sem violações.
+- Naquele momento, a validação estrita das specs e o push ainda precisavam ser
+  concluídos. A recomendação de manter `layout-livraria-v6` aberta foi
+  posteriormente substituída pela instrução de arquivá-la como superada por
+  `restaura-visual-v7`, mesmo com a matriz incompleta.
+
+## Restauração visual v7 — verificação final
+
+### Verificações locais
+
+- `scripts/verificar.ps1` foi bloqueado pela política de execução do PowerShell;
+  não houve tentativa de contornar a política. Os passos equivalentes foram
+  executados em sequência: `.\.venv\Scripts\python.exe -m reflex compile --dry`
+  passou e `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation` passou
+  com 322 testes.
+- A API demo respondeu HTTP 200 e as rotas `/`, `/catalogo` e `/login`
+  responderam HTTP 200 ao aquecimento com `Invoke-WebRequest -TimeoutSec 300`.
+- A porta 8000 estava ocupada por processo não identificável e não foi
+  encerrada. O Reflex foi iniciado na porta 8001; frontend em 3000. Os serviços
+  iniciados para a verificação foram encerrados ao final. Nenhuma escrita no
+  Xano foi realizada.
+- O robô foi executado uma única vez, somente para visitante, em 12 combinações
+  das três rotas, duas larguras e dois temas. Início registrado em
+  `2026-11-23T21:17:58.468Z`; duração 287 s; limite 900 s.
+
+### Última matriz visual
+
+| Rota | Perfil | Largura | Tema | Resultado | Achados | Captura |
+|---|---|---:|---|---|---|---|
+| `/` | visitante | 360 | claro | PASSOU | nenhum | [PNG](./capturas/verificacao/home-visitante-360-claro.png) |
+| `/` | visitante | 360 | escuro | FALHOU | hidratação | [PNG](./capturas/verificacao/home-visitante-360-escuro.png) |
+| `/` | visitante | 1366 | claro | PASSOU | nenhum | [PNG](./capturas/verificacao/home-visitante-1366-claro.png) |
+| `/` | visitante | 1366 | escuro | FALHOU | hidratação | [PNG](./capturas/verificacao/home-visitante-1366-escuro.png) |
+| `/catalogo` | visitante | 360 | claro | PASSOU | nenhum | [PNG](./capturas/verificacao/catalogo-visitante-360-claro.png) |
+| `/catalogo` | visitante | 360 | escuro | PASSOU | nenhum | [PNG](./capturas/verificacao/catalogo-visitante-360-escuro.png) |
+| `/catalogo` | visitante | 1366 | claro | PASSOU | nenhum | [PNG](./capturas/verificacao/catalogo-visitante-1366-claro.png) |
+| `/catalogo` | visitante | 1366 | escuro | PASSOU | nenhum | [PNG](./capturas/verificacao/catalogo-visitante-1366-escuro.png) |
+| `/login` | visitante | 360 | claro | PASSOU | nenhum | [PNG](./capturas/verificacao/login-visitante-360-claro.png) |
+| `/login` | visitante | 360 | escuro | PASSOU | nenhum | [PNG](./capturas/verificacao/login-visitante-360-escuro.png) |
+| `/login` | visitante | 1366 | claro | PASSOU | nenhum | [PNG](./capturas/verificacao/login-visitante-1366-claro.png) |
+| `/login` | visitante | 1366 | escuro | PASSOU | nenhum | [PNG](./capturas/verificacao/login-visitante-1366-escuro.png) |
+
+### O que não foi verificado
+
+- A home no tema escuro não hidratou em nenhuma largura; as capturas mostram
+  conteúdo ainda carregando em 360 px e uma página sem conteúdo visível em
+  1366 px. Esses estados não foram tratados como aprovação visual. A saída do
+  robô também informou falha ao observar o encerramento do Edge pelo processo
+  iniciado; uma consulta posterior não encontrou Edge associado ao perfil
+  temporário `biblioteca-layout-`.
+- A rodada não cobriu rotas de detalhe, cadastro, reservas ou administração,
+  contas autenticadas, menus abertos nem interações. Não houve uma segunda
+  rodada nem verificação visual dessas áreas.
+- A aparência implementada aguarda conferência do usuário; os dois resultados
+  da home escura permanecem falhos e devem ser tratados antes de afirmar
+  hidratação visual completa.

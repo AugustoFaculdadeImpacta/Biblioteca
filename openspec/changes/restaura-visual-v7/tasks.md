@@ -2,11 +2,11 @@
 
 ## 1. Cabeçalho e aparência compartilhada
 
-- [x] 1.1 Restaurar os tokens, tipografia, cabeçalho, faixa de visão do admin, Perfil, Acessibilidade e rodapé; manter busca, navegação e preferências existentes. Evidências: commit `221beb8`; `.\.venv\Scripts\python.exe -m pytest tests/test_navigation.py tests/test_frontend_foundation.py` (66 aprovados). Aparência implementada, aguarda conferência do usuário; matriz visual será registrada em 5.1.
+- [x] 1.1 Restaurar os tokens, tipografia, cabeçalho, faixa de visão do admin, Perfil, Acessibilidade e rodapé; manter busca, navegação e preferências existentes. Evidências: commit `221beb8`; `.\.venv\Scripts\python.exe -m pytest tests/test_navigation.py tests/test_frontend_foundation.py` (66 aprovados); saída do robô em `docs/verificacao-layout.md` (12 combinações de rotas públicas). Aparência implementada, aguarda conferência do usuário; menus abertos e estados administrativos não foram verificados visualmente.
 
 ## 2. Home e cartões
 
-- [x] 2.1 Restaurar o hero e as seções da home sem perder dados dinâmicos, resumo por perfil, novidades, categorias ou passos de reserva; reintroduzir Sobre, corrigir contagens das pílulas e atualizar os contratos CSS antigos. Evidências: commit `d70d812`; `.\.venv\Scripts\python.exe -m pytest tests/test_layout_v5.py tests/test_primary_journeys.py tests/test_catalog.py tests/test_navigation.py tests/test_frontend_foundation.py tests/test_icons.py` (124 aprovados). Aparência implementada, aguarda conferência do usuário; matriz visual será registrada em 5.1.
+- [x] 2.1 Restaurar o hero e as seções da home sem perder dados dinâmicos, resumo por perfil, novidades, categorias ou passos de reserva; reintroduzir Sobre, corrigir contagens das pílulas e atualizar os contratos CSS antigos. Evidências: commit `d70d812`; `.\.venv\Scripts\python.exe -m pytest tests/test_layout_v5.py tests/test_primary_journeys.py tests/test_catalog.py tests/test_navigation.py tests/test_frontend_foundation.py tests/test_icons.py` (124 aprovados); robô em `docs/verificacao-layout.md` (home claro passou nas duas larguras; home escuro falhou na hidratação nas duas). Aparência implementada, aguarda conferência do usuário; tema escuro da home não está verificado visualmente.
 
 ## 3. Dados compartilhados de exemplo
 
