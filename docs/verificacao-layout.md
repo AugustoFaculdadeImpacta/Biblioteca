@@ -151,3 +151,9 @@ a limpeza do Edge pelo filtro WMI excedeu o tempo limite. O perfil temporário
 exclusivo desta rodada foi removido após o término do processo. O robô foi
 ajustado depois para encerrar pelo PID que iniciou; essa revisão não foi
 executada em uma quinta rodada.
+
+A inspeção das capturas também mostrou estado `Carregando` nas duas
+combinações escuras da home e nas quatro combinações do catálogo que o robô
+registrou como `PASSOU`. Elas não contam como confirmação visual de conteúdo
+carregado. O critério do robô foi ajustado para detectar esse estado, sem uma
+quinta rodada.

@@ -68,15 +68,17 @@
   (`a58da19`).
 - 7.2–7.4 e 8.3: implementação e testes em `ade3390`; `reflex compile
   --dry` aprovado e `pytest --ignore=evaluation` com 314 aprovados.
-- 9.1: robô alterado em `71cb6dc` e `node --check` aprovado. A matriz foi
-  executada antes da última revisão de limpeza por PID; essa revisão ainda
-  não foi exercitada pelo robô, então a tarefa permanece aberta.
+- 9.1: robô alterado em `71cb6dc` e depois revisado para encerrar pelo PID e
+  detectar estado `Carregando`; `node --check` passou. As duas revisões
+  posteriores não foram exercitadas pelo robô; a tarefa permanece aberta.
 - 9.2: o robô registrou as 28 combinações da matriz em `docs/verificacao-layout.md`
   e salvou 28 PNGs. As oito combinações autenticadas falharam porque as contas
   de demonstração estavam indisponíveis; não foram verificadas como perfis
-  autenticados.
+  autenticados. Seis combinações registradas como `PASSOU` ainda exibiam
+  conteúdo carregando nas capturas.
 - 9.3: a quarta e última rodada durou 992 s, com 11 combinações `PASSOU` e
-  17 `FALHOU`. A Change não pode ser arquivada.
+  17 `FALHOU`; seis dos `PASSOU` ainda exibiam `Carregando`. A Change não pode
+  ser arquivada.
 - 9.4: a tentativa anterior do navegador integrado também encontrou erro de
   conexão; o resultado permanece explicitamente não verificado visualmente.
 - 10.1: relatório final e tabela da matriz registrados em `abe2558`.
@@ -90,6 +92,8 @@
 Violações e limites restantes do último passe:
 
 - Home em tema claro: falha de hidratação em 360 e 1366 px.
+- Home escura e catálogo nas duas larguras: capturas em estado `Carregando`;
+  esses seis resultados `PASSOU` não confirmam conteúdo renderizado.
 - Detalhe `/catalogo/1`: erro de conexão/renderização, filho `svg` fora do
   contêiner, botão abaixo de 44 px e, no tema claro, contraste abaixo de 4,5:1.
 - Login: erro de conexão/renderização e alvo/overflow em telas móveis; o tema

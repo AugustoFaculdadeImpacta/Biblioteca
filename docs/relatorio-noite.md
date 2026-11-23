@@ -962,6 +962,11 @@ incremental completo está em `docs/verificacao-layout.md`.
 | `/admin/bibliotecarios` | admin | 1366 | escuro | FALHOU | conta de demonstração indisponível |
 | `/admin/bibliotecarios` | admin | 360 | escuro | FALHOU | conta de demonstração indisponível |
 
+Embora o robô tenha registrado `PASSOU` nas duas larguras da home escura e
+nas quatro combinações do catálogo, as capturas ainda mostram conteúdo
+`Carregando`. Esses seis resultados não confirmam o conteúdo visual carregado.
+O critério foi ajustado para detectar o placeholder; não houve quinta rodada.
+
 ### Pendências e decisão de fechamento
 
 - A tentativa anterior do navegador integrado também encontrou erro de
@@ -969,8 +974,9 @@ incremental completo está em `docs/verificacao-layout.md`.
   combinações que falharam.
 - A limpeza do Edge falhou na rodada por timeout da consulta WMI. O perfil
   temporário exclusivo foi removido após o processo terminar. O robô foi
-  revisado em `71cb6dc` para encerrar o processo próprio pelo PID, mas essa
-  revisão não foi executada por uma quinta rodada.
+  revisado após `71cb6dc` para encerrar o processo próprio pelo PID e detectar
+  estados `Carregando`, mas essas revisões não foram executadas por uma quinta
+  rodada.
 - A validação `openspec.cmd validate --specs --strict` e o push ainda precisam
   ser concluídos. A Change `layout-livraria-v6` permanece aberta; não arquivar
   enquanto a matriz não passar sem violações.

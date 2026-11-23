@@ -378,6 +378,7 @@ async function inspectPage(cdp, timeoutMs) {
     const text = document.body?.innerText || "";
     const errors =
       /Connection Error|Cannot connect to server|An error occurred/i.test(text);
+    const loading = /\bCarregando\b/i.test(text);
     const width = Math.max(
       document.documentElement.scrollWidth,
       document.body?.scrollWidth || 0,
@@ -490,6 +491,7 @@ async function inspectPage(cdp, timeoutMs) {
     }
     return {
       errors,
+      loading,
       bodyLength: text.length,
       headers: headers.length,
       headerHeight,
@@ -544,6 +546,7 @@ async function runCombo(cdp, combo, priorScriptId, setupViolation = "") {
         if (result.errors || result.bodyLength <= 200) {
           violations.push("erro de conexão/renderização ou corpo menor que 200 caracteres");
         }
+        if (result.loading) violations.push("conteúdo ainda carregando");
         if (result.path !== combo.route) {
           violations.push(`redirecionado para ${result.path}`);
         }
