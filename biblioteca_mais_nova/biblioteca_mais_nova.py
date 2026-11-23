@@ -1,6 +1,7 @@
 """Estrutura inicial da interface da Biblioteca."""
 
 import unicodedata
+import os
 from datetime import datetime, timezone
 from functools import wraps
 from typing import Any, Awaitable, Callable
@@ -95,6 +96,28 @@ def _timestamp_is_past(
         if deadline.tzinfo is None:
             deadline = deadline.replace(tzinfo=timezone.utc)
     return deadline < now
+
+
+def _diagnostico_desativacao(
+    *,
+    title_id: int,
+    status_code: int,
+    body_keys: list[str],
+    response_keys: list[str],
+    active_response: object,
+    active_reloaded: object,
+) -> None:
+    if os.environ.get("BIBLIOTECA_DIAGNOSTICO") != "1":
+        return
+    print(
+        "desativacao-titulo "
+        f"metodo=PATCH caminho=/catalogo/titulos/{title_id} "
+        f"chaves_corpo={','.join(body_keys)} "
+        f"status={status_code} "
+        f"chaves_resposta={','.join(response_keys)} "
+        f"ativo_resposta={active_response!r} "
+        f"ativo_releitura={active_reloaded!r}",
+    )
 
 
 class State(rx.State):
@@ -1877,13 +1900,14 @@ class State(rx.State):
         }
         year = title.get("ano_publicacao")
         form_data["ano_publicacao"] = str(year) if year is not None else ""
+        payload: dict[str, Any] = {}
         try:
             self.admin_catalog_pending = True
             self.admin_catalog_title_action_title_id = title_id
             self.admin_catalog_title_action_message = "Processando..."
             self.admin_catalog_title_action_error = False
             payload = build_title_payload(form_data)
-            await update_title(
+            update_result = await update_title(
                 title_id,
                 payload,
                 self._session_token,
@@ -1901,6 +1925,18 @@ class State(rx.State):
             self.admin_catalog_title_action_message = catalog_error_message(error)
             self.admin_catalog_title_action_error = True
             self.admin_catalog_confirm_title_id = None
+            _diagnostico_desativacao(
+                title_id=title_id,
+                status_code=(
+                    error.status_code
+                    if isinstance(error, XanoResponseError)
+                    else 0
+                ),
+                body_keys=sorted(payload.keys()),
+                response_keys=[],
+                active_response=None,
+                active_reloaded=None,
+            )
             return
         finally:
             self.admin_catalog_pending = False
@@ -1916,6 +1952,22 @@ class State(rx.State):
         )
 
         if self.admin_catalog_has_error:
+            _diagnostico_desativacao(
+                title_id=title_id,
+                status_code=200,
+                body_keys=sorted(payload.keys()),
+                response_keys=(
+                    sorted(update_result.keys())
+                    if isinstance(update_result, dict)
+                    else []
+                ),
+                active_response=(
+                    update_result.get("ativo")
+                    if isinstance(update_result, dict)
+                    else None
+                ),
+                active_reloaded=None,
+            )
             self.admin_catalog_message = (
                 "Não foi possível confirmar a atualização do título após a resposta "
                 "do servidor."
@@ -1928,6 +1980,22 @@ class State(rx.State):
             return
 
         if refreshed_entry is None:
+            _diagnostico_desativacao(
+                title_id=title_id,
+                status_code=200,
+                body_keys=sorted(payload.keys()),
+                response_keys=(
+                    sorted(update_result.keys())
+                    if isinstance(update_result, dict)
+                    else []
+                ),
+                active_response=(
+                    update_result.get("ativo")
+                    if isinstance(update_result, dict)
+                    else None
+                ),
+                active_reloaded=None,
+            )
             self.admin_catalog_message = (
                 "Não foi possível confirmar a atualização do título após a resposta "
                 "do servidor."
@@ -1943,6 +2011,22 @@ class State(rx.State):
             refreshed_entry["titulo"].get("ativo") is not False
         )
         if refreshed_active != active:
+            _diagnostico_desativacao(
+                title_id=title_id,
+                status_code=200,
+                body_keys=sorted(payload.keys()),
+                response_keys=(
+                    sorted(update_result.keys())
+                    if isinstance(update_result, dict)
+                    else []
+                ),
+                active_response=(
+                    update_result.get("ativo")
+                    if isinstance(update_result, dict)
+                    else None
+                ),
+                active_reloaded=refreshed_active,
+            )
             if not active:
                 self.admin_catalog_message = (
                     "O servidor respondeu, mas o título continua ativo. "
@@ -1962,6 +2046,22 @@ class State(rx.State):
             self.admin_catalog_title_action_error = True
             return
 
+        _diagnostico_desativacao(
+            title_id=title_id,
+            status_code=200,
+            body_keys=sorted(payload.keys()),
+            response_keys=(
+                sorted(update_result.keys())
+                if isinstance(update_result, dict)
+                else []
+            ),
+            active_response=(
+                update_result.get("ativo")
+                if isinstance(update_result, dict)
+                else None
+            ),
+            active_reloaded=refreshed_active,
+        )
         self.admin_catalog_message = (
             "Título reativado." if active else "Título desativado."
         )

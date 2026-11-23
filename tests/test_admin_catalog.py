@@ -199,6 +199,63 @@ def test_title_deactivation_detects_apparent_success(monkeypatch):
     asyncio.run(verify())
 
 
+def test_deactivation_diagnostic_is_opt_in_and_never_prints_secrets(
+    monkeypatch,
+    capfd,
+):
+    async def update(title_id, payload, token, *, active=None):
+        assert active is False
+        return {"id": title_id, "ativo": False, "detalhe_publico": "ok"}
+
+    async def admin_catalog(token):
+        return [_entry(active=False)]
+
+    monkeypatch.setattr(frontend, "update_title", update)
+    monkeypatch.setattr(frontend, "list_admin_catalog", admin_catalog)
+    monkeypatch.delenv("BIBLIOTECA_DIAGNOSTICO", raising=False)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(
+                ident=f"title-diagnostic-off-{uuid4()}",
+                cls=rx.State,
+            )
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-super-secreto", "bibliotecario")
+            state.admin_catalog_entries = [_entry(active=True)]
+            state.request_title_deactivation(81)
+            await state.set_title_active(81, False)
+
+    asyncio.run(verify())
+    assert "desativacao-titulo" not in capfd.readouterr().out
+
+    monkeypatch.setenv("BIBLIOTECA_DIAGNOSTICO", "1")
+
+    async def verify_enabled():
+        async with frontend.app.modify_state(
+            BaseStateToken(
+                ident=f"title-diagnostic-on-{uuid4()}",
+                cls=rx.State,
+            )
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-super-secreto", "bibliotecario")
+            state.admin_catalog_entries = [_entry(active=True)]
+            state.request_title_deactivation(81)
+            await state.set_title_active(81, False)
+
+    asyncio.run(verify_enabled())
+    output = capfd.readouterr().out
+    assert "desativacao-titulo" in output
+    assert "metodo=PATCH" in output
+    assert "caminho=/catalogo/titulos/81" in output
+    assert "chaves_corpo=" in output
+    assert "ativo_releitura=False" in output
+    assert "token-super-secreto" not in output
+    assert "81" in output
+
+
 def test_title_deactivation_reports_refresh_connection_failure(monkeypatch):
     async def update(title_id, payload, token, *, active=None):
         return {"id": title_id, "ativo": False}
