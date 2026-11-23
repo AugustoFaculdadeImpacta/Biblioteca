@@ -122,7 +122,7 @@ def test_dark_and_high_contrast_tokens_meet_wcag_aa():
 
 def test_catalog_cover_grid_has_bounded_card_size():
     assert "11.25rem" in app.style[".catalog-grid"]["grid_template_columns"]
-    assert "15rem" in app.style[".catalog-grid"]["grid_template_columns"]
+    assert "13.75rem" in app.style[".catalog-grid"]["grid_template_columns"]
     assert app.style[".admin-catalog-grid"]["display"] == "flex"
     assert app.style[".admin-catalog-grid"]["flex_direction"] == "column"
     assert app.style[".catalog-card-cover"]["aspect_ratio"] == "0.72"

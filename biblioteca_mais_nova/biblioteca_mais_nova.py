@@ -4710,7 +4710,7 @@ def catalog_admin() -> rx.Component:
                     ),
                 ),
                 id="conteudo-acervo",
-                class_name="content-section signup-section",
+                class_name="content-section admin-acervo-content",
             ),
             rx.el.section(
                 rx.heading("Acervo completo", size="6"),
@@ -5772,7 +5772,7 @@ app = rx.App(
         },
         ".app-shell": {
             "min_height": "100vh",
-            "padding": "clamp(0.5rem, 3vw, 2rem)",
+            "padding": "0 1rem",
             "color": "var(--slate-900)",
             "background_color": "var(--bg-page)",
             "animation": "biblioteca-page-enter 300ms ease-out both",
@@ -6161,15 +6161,19 @@ app = rx.App(
         },
         ".main-content": {
             "width": "100%",
-            "max_width": "72rem",
+            "max_width": "75rem",
             "margin": "0 auto",
+            "padding": "0",
         },
         ".content-section": {
             "display": "flex",
             "flex_direction": "column",
             "align_items": "flex-start",
             "gap": "1.25rem",
-            "padding": "clamp(1.5rem, 3vw, 2.5rem) 1rem",
+            "width": "100%",
+            "max_width": "75rem",
+            "margin": "0 auto",
+            "padding": "1.5rem 0",
         },
         ".home-hero": {
             "width": "100%",
@@ -6440,7 +6444,7 @@ app = rx.App(
         },
         ".catalog-grid": {
             "display": "grid",
-            "grid_template_columns": "repeat(auto-fill, minmax(min(100%, 11.25rem), 15rem))",
+            "grid_template_columns": "repeat(auto-fill, minmax(11.25rem, 13.75rem))",
             "gap": "1.1rem",
             "width": "100%",
         },
@@ -6759,6 +6763,13 @@ app = rx.App(
             "background_color": "var(--bg-panel)",
             "box_shadow": "var(--shadow-soft)",
         },
+        ".admin-acervo-content": {
+            "width": "100%",
+            "max_width": "75rem",
+            "margin": "1.5rem auto",
+            "padding": "1.25rem 0",
+            "align_items": "stretch",
+        },
         ".librarian-management-section": {
             "width": "min(100%, 72rem)",
             "margin": "1rem auto",
@@ -6831,8 +6842,8 @@ app = rx.App(
             "background_color": "var(--bg-soft)",
         },
         ".librarian-list": {
-            "display": "grid",
-            "grid_template_columns": "repeat(auto-fit, minmax(min(100%, 18rem), 1fr))",
+            "display": "flex",
+            "flex_direction": "column",
             "gap": "1rem",
             "width": "100%",
             "max_width": "100%",

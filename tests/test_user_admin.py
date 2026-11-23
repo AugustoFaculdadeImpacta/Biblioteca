@@ -210,9 +210,8 @@ def test_librarian_management_page_has_labeled_fields_and_responsive_styles():
     ]
     assert "admin/bibliotecarios" in frontend.app._unevaluated_pages
     assert frontend.app.style[":focus-visible"]["outline"].startswith("3px solid ")
-    assert frontend.app.style[".librarian-list"]["grid_template_columns"] == (
-        "repeat(auto-fit, minmax(min(100%, 18rem), 1fr))"
-    )
+    assert frontend.app.style[".librarian-list"]["display"] == "flex"
+    assert frontend.app.style[".librarian-list"]["flex_direction"] == "column"
     assert frontend.app.style["@media screen and (max-width: 48rem)"][
         ".librarian-card"
     ]["width"] == "100%"

@@ -93,3 +93,22 @@ def test_header_nav_and_footer_tokens_meet_text_contrast():
     assert footer["background"] == "transparent"
     assert footer["border"] == "none"
     assert footer["color"] == "var(--text)"
+
+
+def test_page_container_layout_is_stable():
+    style = frontend.app.style
+
+    assert style[".app-shell"]["padding"] == "0 1rem"
+    assert style[".main-content"]["max_width"] == "75rem"
+    assert style[".main-content"]["margin"] == "0 auto"
+    assert style[".content-section"]["width"] == "100%"
+    assert style[".content-section"]["max_width"] == "75rem"
+    assert style[".catalog-grid"]["grid_template_columns"] == (
+        "repeat(auto-fill, minmax(11.25rem, 13.75rem))"
+    )
+    assert style[".librarian-list"]["display"] == "flex"
+    assert style[".librarian-list"]["flex_direction"] == "column"
+    assert style[".signup-section"]["width"] == "min(100%, 34rem)"
+    assert style[".signup-section"]["margin"] == "2rem auto"
+    assert style[".admin-acervo-content"]["width"] == "100%"
+    assert style[".admin-acervo-content"]["max_width"] == "75rem"
