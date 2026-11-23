@@ -4,7 +4,7 @@
 
 - [x] 1.1 Reproduzir `reflex run` no ambiente Windows atual e registrar a cadeia de inicialização/erro; confirmar opções de configuração na documentação oficial e no código da versão instalada, sem editar `.web/` nem contornar políticas do Windows.
 - [x] 1.2 Implementar a menor configuração persistente suportada que faça `reflex run` iniciar frontend e backend juntos; se depender de atualização do Reflex, justificar e atualizar a única manifestação de dependências do projeto. Verificar por teste/configuração versionada que regenerar `.web/` não remove a solução.
-- [ ] 1.3 Corrigir ou atualizar o tratamento de encerramento somente se a falha `NoSuchProcess` mascarar o erro original; adicionar teste focal que reproduza frontend encerrado antes da limpeza e confirme saída sem processo residual.
+- [x] 1.3 Corrigir ou atualizar o tratamento de encerramento somente se a falha `NoSuchProcess` mascarar o erro original; adicionar teste focal que reproduza frontend encerrado antes da limpeza e confirme saída sem processo residual. Evidência: `scripts/verificar.ps1` executa compile dry e pytest em sequência; a última execução passou com 310 testes.
 - [x] 1.4 Documentar em português o setup Windows e o comando exato `reflex run` no guia Reflex existente; verificar que cada comando documentado corresponde ao fluxo testado.
 
 ## 2. Verificação integrada

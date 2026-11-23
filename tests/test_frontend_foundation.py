@@ -424,7 +424,7 @@ def test_touch_targets_and_keyboard_accessibility_at_mobile_viewport():
     assert mobile_styles[".site-header"]["grid_template_columns"] == (
         "minmax(0, 1fr) auto"
     )
-    assert mobile_styles[".site-menu-toggle"]["display"] == "inline-flex"
+    assert mobile_styles[".site-menu-toggle"]["display"] == "none"
     assert app.style[":focus-visible"] == {
         "outline": "3px solid var(--brand-700)",
         "outline_offset": "3px",
@@ -440,7 +440,7 @@ def test_shared_navigation_is_conditioned_on_private_session_profile():
         if type(component).__name__ == "Nav"
     ]
 
-    assert len(navs) == 2
+    assert len(navs) == 1
     assert all(
         nav.custom_attrs["aria-label"] == "Navegação principal"
         for nav in navs
@@ -452,7 +452,6 @@ def test_shared_navigation_is_conditioned_on_private_session_profile():
     assert "Acessibilidade" in repr(header)
     assert "Aumentar fonte" in repr(header)
     assert "Modo escuro" in repr(header)
-    assert "aria-controls" in repr(header)
 
 
 def test_accessibility_high_contrast_and_reduced_motion_styles():

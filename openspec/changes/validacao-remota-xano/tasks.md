@@ -2,9 +2,9 @@
 
 ## 1. Destino e autorização
 
-- [ ] 1.1 Confirmar workspace, branch, ambiente e destino do Xano real antes de qualquer operação remota; registrar a evidência do painel ou do CLI.
+- [x] 1.1 Confirmar workspace, branch, ambiente e destino do Xano real antes de qualquer operação remota; o CLI identificou workspace `151966` (`Augusto's Workspace`), branch `v1`; pull somente de definições feito fora do repositório.
 - [ ] 1.2 Fazer backup seguro e revisão do diff antes da publicação parcial; confirmar que o arquivo alvo é o mínimo obrigatório do escopo.
-- [ ] 1.3 Verificar `allow_push`, permissões e limites do workspace, sem alterar preferências do ambiente sem autorização explícita.
+- [x] 1.3 Verificar `allow_push`, permissões e limites do workspace, sem alterar preferências do ambiente sem autorização explícita. Resultado: `allow_push=false`.
 
 ## 2. Validação remota de catalog e identidade
 
