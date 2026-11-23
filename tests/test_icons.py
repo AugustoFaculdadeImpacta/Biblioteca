@@ -165,3 +165,11 @@ def test_librarian_deactivation_requires_inline_confirmation():
     assert "State.cancel_librarian_deactivation" in card_source
     assert 'conteudo_acao("confirmar_desativacao")' in card_source
     assert 'conteudo_acao("nao_confirmar")' in card_source
+
+
+def test_icon_guide_restricts_decorative_emojis_to_semantic_places():
+    guide = (ROOT / "docs" / "guia-de-icones.md").read_text(encoding="utf-8")
+
+    assert "Títulos de seção" in guide
+    assert "ações principais" in guide
+    assert "selos de estado" in guide

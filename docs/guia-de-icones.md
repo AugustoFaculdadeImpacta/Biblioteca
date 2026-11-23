@@ -80,3 +80,9 @@ Cada ação tem um emoji exclusivo e um rótulo curto. O emoji fica em um `<span
 - O botão de restauração administrativa mantém o texto exigido pelo fluxo (**Voltar à visão de admin**), embora seja mais longo que os demais rótulos.
 - Alguns emojis foram escolhidos diferentes da lista inicial para manter exclusividade: **📮 Quero reservar** não repete **🙋 Minhas reservas**; **🤝 Aceitar** deixa **✅** livre para confirmar a desativação; **🛑 Cancelar reserva** deixa **❌ Não** exclusivo da confirmação. Os selos são estados, não ações, e têm dicionário separado.
 - Os controles sem um pictograma de ação claro usam emojis de uso comum; não carregam scripts ou imagens externos.
+
+## Uso semântico
+
+- Emojis ficam em cabeçalho, ações principais, selos de estado e pílulas de categoria.
+- Títulos de seção, descrições de texto e rodapé não recebem emojis decorativos.
+- Cada ação usa um único emoji exclusivo no dicionário; selos usam o dicionário separado.
