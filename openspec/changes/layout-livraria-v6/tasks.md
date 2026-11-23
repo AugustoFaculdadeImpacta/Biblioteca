@@ -38,26 +38,62 @@
 
 ## 7. Corrigir a home e documentar o diagnóstico
 
-- [ ] 7.1 Auditar e registrar em `docs/diagnostico-home.md` todas as regras de hero, home, estatísticas, pílulas e seções, destacando altura, overflow, posicionamento, transformações e margens.
-- [ ] 7.2 Remover propriedades de layout que comprimem ou sobrepõem hero, estatísticas, pílulas e seções; aplicar o contrato de grid e fluxo responsivo.
-- [ ] 7.3 Reorganizar a home com banner e busca, faixa de estatísticas, resumo autenticado, estante, novidades, categorias e três passos de reserva.
-- [ ] 7.4 Atualizar os testes para provar ausência de altura fixa/overflow de corte e presença da hierarquia de conteúdo exigida.
+- [x] 7.1 Auditar e registrar em `docs/diagnostico-home.md` todas as regras de hero, home, estatísticas, pílulas e seções, destacando altura, overflow, posicionamento, transformações e margens.
+- [x] 7.2 Remover propriedades de layout que comprimem ou sobrepõem hero, estatísticas, pílulas e seções; aplicar o contrato de grid e fluxo responsivo.
+- [x] 7.3 Reorganizar a home com banner e busca, faixa de estatísticas, resumo autenticado, estante, novidades, categorias e três passos de reserva.
+- [x] 7.4 Atualizar os testes para provar ausência de altura fixa/overflow de corte e presença da hierarquia de conteúdo exigida.
 
 ## 8. Auditar demais páginas e estilos
 
-- [ ] 8.1 Varrer todos os estilos e componentes do app para alturas fixas, cortes, posicionamento, transformações e margens negativas fora das exceções.
+- [x] 8.1 Varrer todos os estilos e componentes do app para alturas fixas, cortes, posicionamento, transformações e margens negativas fora das exceções.
 - [ ] 8.2 Corrigir os defeitos encontrados em catálogo, detalhe, reservas, acervo, contas, login e cadastro.
-- [ ] 8.3 Adicionar testes CSS cobrindo classes e contêineres de todas as páginas principais.
+- [x] 8.3 Adicionar testes CSS cobrindo classes e contêineres de todas as páginas principais.
 
 ## 9. Robustecer e executar o robô visual
 
 - [ ] 9.1 Reescrever o robô para persistir cada combinação, limitar duração e encerrar apenas o Edge próprio.
 - [ ] 9.2 Executar a matriz inicial visitante em 5 rotas, 2 larguras e 2 temas, e os perfis autenticados nas rotas administrativas e pessoais especificadas.
 - [ ] 9.3 Corrigir violações e repetir até quatro iterações, registrando resultado e captura de cada combinação.
-- [ ] 9.4 Se Edge não funcionar, tentar uma vez o navegador integrado; na ausência de evidência, registrar explicitamente não verificado visualmente.
+- [x] 9.4 Se Edge não funcionar, tentar uma vez o navegador integrado; na ausência de evidência, registrar explicitamente não verificado visualmente.
 
 ## 10. Fechamento da continuação
 
-- [ ] 10.1 Atualizar relatório com tabela completa do último passe e itens não verificados.
+- [x] 10.1 Atualizar relatório com tabela completa do último passe e itens não verificados.
 - [ ] 10.2 Executar `scripts/verificar.ps1` sequencialmente e `openspec.cmd validate --specs --strict`.
 - [ ] 10.3 Comitar cada tarefa concluída e publicar a branch `trabalho-autopilot`.
+
+### Evidências e pendências da execução 2026-11-23
+
+- 7.1 e 8.1: diagnóstico registrado em `docs/diagnostico-home.md`
+  (`a58da19`).
+- 7.2–7.4 e 8.3: implementação e testes em `ade3390`; `reflex compile
+  --dry` aprovado e `pytest --ignore=evaluation` com 314 aprovados.
+- 9.1: robô alterado em `71cb6dc` e `node --check` aprovado. A matriz foi
+  executada antes da última revisão de limpeza por PID; essa revisão ainda
+  não foi exercitada pelo robô, então a tarefa permanece aberta.
+- 9.2: o robô registrou as 28 combinações da matriz em `docs/verificacao-layout.md`
+  e salvou 28 PNGs. As oito combinações autenticadas falharam porque as contas
+  de demonstração estavam indisponíveis; não foram verificadas como perfis
+  autenticados.
+- 9.3: a quarta e última rodada durou 992 s, com 11 combinações `PASSOU` e
+  17 `FALHOU`. A Change não pode ser arquivada.
+- 9.4: a tentativa anterior do navegador integrado também encontrou erro de
+  conexão; o resultado permanece explicitamente não verificado visualmente.
+- 10.1: relatório final e tabela da matriz registrados em `abe2558`.
+- 10.2: `openspec.cmd validate --specs --strict` passou com 9 specs e 0
+  falhas. A execução de `scripts/verificar.ps1` foi bloqueada pela política do
+  PowerShell antes de iniciar; sem contornar a política, foram executados
+  manualmente e em sequência os mesmos comandos de compile e pytest.
+
+Violações e limites restantes do último passe:
+
+- Home em tema claro: falha de hidratação em 360 e 1366 px.
+- Detalhe `/catalogo/1`: erro de conexão/renderização, filho `svg` fora do
+  contêiner, botão abaixo de 44 px e, no tema claro, contraste abaixo de 4,5:1.
+- Login: erro de conexão/renderização e alvo/overflow em telas móveis; o tema
+  claro em 1366 px não hidratou. O botão também falhou contraste no tema claro.
+- Reservas do estudante e páginas administrativas: nenhuma foi validada com
+  sessão autenticada, pois as contas de demonstração estavam indisponíveis.
+- A limpeza do Edge falhou nesta execução durante a consulta WMI. O perfil
+  temporário exclusivo foi removido após o processo terminar; a rotina foi
+  revisada para encerrar pelo PID, mas não houve quinta rodada para revalidá-la.
