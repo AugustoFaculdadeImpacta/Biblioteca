@@ -34,4 +34,4 @@
 
 - [x] 6.1 Concluir a tarefa 1.3 da Change de execução Windows com script sequencial.
 - [x] 6.2 Preparar checklist do Xano e arquivar a validação remota sem publicação.
-- [ ] 6.3 Validar specs estritas, gerar relatório, commitar e publicar no Git.
+- [x] 6.3 Validar specs estritas, gerar relatório, commitar e publicar no Git.
