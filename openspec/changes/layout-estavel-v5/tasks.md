@@ -18,7 +18,7 @@
 
 ## 5. Padronizar emojis
 
-- [ ] 5.1 Remover emojis de títulos/parágrafos/rodapé desnecessários e atualizar guia/dicionário; validar exclusividade em `tests/test_icons.py` e `docs/guia-de-icones.md`.
+- [x] 5.1 Remover emojis de títulos/parágrafos/rodapé desnecessários e atualizar guia/dicionário; validar exclusividade em `tests/test_icons.py` e `docs/guia-de-icones.md`.
 
 ## 6. Resolver capas por ISBN
 
