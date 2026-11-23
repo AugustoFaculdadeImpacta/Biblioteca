@@ -102,6 +102,8 @@ def test_every_button_and_link_uses_the_shared_action_helpers():
             "home-category-chip",
             "home-view-more",
             "catalog-card-link",
+            "appearance-font-button",
+            "appearance-switch",
             "auth-tab",
             }
             or class_names.startswith("auth-tab ")

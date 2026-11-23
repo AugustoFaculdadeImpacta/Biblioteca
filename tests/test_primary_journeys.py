@@ -226,9 +226,8 @@ def test_home_sections_use_catalog_data_and_explicit_empty_error_states(
     monkeypatch,
 ):
     homepage = repr(frontend.index())
-    assert "Estante de livros" in homepage
-    assert "Novidades no acervo" in homepage
-    assert "Sobre a biblioteca" not in homepage
+    assert "home-book-section" in homepage
+    assert "home-about-section" in homepage
     assert homepage.count("home-view-more") == 3
     assert "Ver mais" in homepage
     assert "Carregando o acervo" in homepage
@@ -335,7 +334,6 @@ def test_home_estante_novidades_and_category_counts_use_public_catalog():
             assert by_name["Literatura"]["quantidade"] == 5
             assert by_name["CiÊncias"]["quantidade"] == 7
             assert by_name["Sem títulos"]["quantidade"] == 0
-            assert by_name["CiÊncias"]["emoji"] == "🔬"
 
     asyncio.run(verify())
 

@@ -457,7 +457,6 @@ class State(rx.State):
                 {
                     "id": category_id,
                     "nome": category_name,
-                    "emoji": _category_pill_emoji(category_name),
                     "quantidade": len(titles),
                     "titulos": titles[:6],
                 }
@@ -3188,24 +3187,6 @@ def _reservation_status_label(status: str) -> str:
     }.get(status, status)
 
 
-def _category_pill_emoji(category_name: str) -> str:
-    return {
-        "literatura": "🎭",
-        "literatura estrangeira": "🎭",
-        "ciências": "🔬",
-        "ciencias": "🔬",
-        "história": "🏛️",
-        "historia": "🏛️",
-        "geografia": "🌍",
-        "matemática": "➗",
-        "matematica": "➗",
-        "infantil": "🧸",
-        "didáticos": "📐",
-        "didaticos": "📐",
-        "biografias": "👤",
-    }.get(_catalog_search_key(category_name), "📖")
-
-
 def public_catalog_category_option(
     category: rx.Var[dict[str, Any]],
 ) -> rx.Component:
@@ -3214,8 +3195,7 @@ def public_catalog_category_option(
 
 def home_category_chip(category: rx.Var[dict[str, Any]]) -> rx.Component:
     return rx.link(
-        rx.el.span(category["emoji"], aria_hidden="true"),
-        rx.text(" ", category["nome"], " (", category["quantidade"], ")"),
+        rx.text(category["nome"], " (", category["quantidade"], ")"),
         href="/catalogo",
         class_name="home-category-chip",
     )
@@ -3230,12 +3210,20 @@ def home_book_section(
 ) -> rx.Component:
     return rx.el.section(
         rx.el.div(
-            rx.vstack(
-                rx.heading(heading, size="5"),
-                rx.text(subtitle, class_name="home-section-subtitle"),
-                align="start",
-                spacing="1",
-                class_name="home-section-copy",
+            rx.el.div(
+                rx.vstack(
+                    rx.heading(heading, size="5"),
+                    rx.text(subtitle, class_name="home-section-subtitle"),
+                    align="start",
+                    spacing="1",
+                    class_name="home-section-copy",
+                ),
+                rx.link(
+                    "Ver mais",
+                    href="/catalogo",
+                    class_name="home-view-more",
+                ),
+                class_name="home-section-heading",
             ),
             rx.cond(
                 State.public_catalog_has_error,
@@ -3270,11 +3258,6 @@ def home_book_section(
                     class_name="signup-feedback signup-feedback-error",
                 ),
                 rx.fragment(),
-            ),
-            rx.link(
-                "Ver mais",
-                href="/catalogo",
-                class_name="home-view-more",
             ),
             class_name="home-book-section-content",
         ),
@@ -3355,7 +3338,7 @@ def home_profile_summary() -> rx.Component:
 def home_reservation_steps() -> rx.Component:
     return rx.el.section(
         rx.el.div(
-            rx.heading("🙋 Como reservar", size="5"),
+            rx.heading("Como reservar", size="5"),
             rx.text(
                 "Escolha um livro, faça a solicitação e retire na biblioteca."
             ),
@@ -3368,6 +3351,14 @@ def home_reservation_steps() -> rx.Component:
             class_name="home-reservation-steps",
         ),
         class_name="content-section home-reservation-section",
+    )
+
+
+def home_stat_card(value: rx.Var[int], label: str) -> rx.Component:
+    return rx.el.div(
+        rx.el.strong(value, class_name="hero-stat-value"),
+        rx.text(label, class_name="hero-stat-label"),
+        class_name="hero-stat-card",
     )
 
 
@@ -3457,10 +3448,9 @@ def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
             class_name="catalog-card-meta-row",
         ),
         rx.link(
-            conteudo_acao("detalhes"),
+            "Ver detalhes",
             href=title["href"],
             class_name="catalog-card-link",
-            **atributos_acao("detalhes"),
         ),
         rx.cond(
             State.is_librarian,
@@ -3573,7 +3563,7 @@ def public_catalog() -> rx.Component:
                 ),
                 rx.el.div(
                     rx.foreach(
-                        State.public_catalog_categories,
+                        State.home_category_shelves,
                         home_category_chip,
                     ),
                     class_name="home-category-rail catalog-category-rail",
@@ -4159,79 +4149,80 @@ def index() -> rx.Component:
             rx.el.section(
                 rx.el.div(
                     rx.vstack(
+                        rx.el.span(
+                            "Biblioteca contemporânea e acolhedora",
+                            class_name="eyebrow",
+                        ),
                         rx.heading(
-                            "Bem-vindo à Biblioteca escolar",
+                            "Descubra o próximo livro que vai mudar seu dia.",
                             size="7",
                         ),
+                        rx.text(
+                            "Explore o acervo, acompanhe empréstimos e reservas "
+                            "e aproveite uma biblioteca que combina tradição e "
+                            "praticidade.",
+                            class_name="hero-copy",
+                        ),
                         align="start",
-                        spacing="2",
+                        spacing="3",
                         class_name="hero-copy-wrap",
                     ),
-                    rx.el.form(
-                        rx.el.input(
-                            id="home-catalog-search",
-                            name="q",
-                            type="search",
-                            placeholder="Buscar livros…",
-                            value=State.public_catalog_search,
-                            on_change=State.set_public_catalog_search,
-                            aria_label="Buscar livros no catálogo",
-                            class_name="campo home-search-input",
+                    rx.cond(
+                        State.public_catalog_pending,
+                        rx.text(
+                            "Carregando indicadores do acervo...",
+                            role="status",
+                            class_name="home-stat-status",
                         ),
-                        rx.el.button(
-                            conteudo_acao("buscar"),
-                            type="submit",
-                            **atributos_acao("buscar"),
-                            class_name="home-search-submit",
+                        rx.cond(
+                            State.public_catalog_has_error,
+                            rx.text(
+                                "Indicadores do acervo indisponíveis.",
+                                role="status",
+                                class_name="home-stat-status",
+                            ),
+                            rx.el.aside(
+                                rx.el.div(
+                                    home_stat_card(
+                                        State.home_total_titles,
+                                        "Títulos",
+                                    ),
+                                    home_stat_card(
+                                        State.home_available_copies,
+                                        "Exemplares disponíveis",
+                                    ),
+                                    home_stat_card(
+                                        State.home_category_count,
+                                        "Categorias",
+                                    ),
+                                    class_name="hero-stat-grid",
+                                ),
+                                aria_label="Estatísticas do catálogo público",
+                                class_name="hero-stat-panel",
+                            ),
                         ),
-                        id="form-busca-home",
-                        on_submit=State.submit_global_search,
-                        class_name="home-search-form",
                     ),
                     class_name="hero-layout",
                 ),
                 id="conteudo-home",
                 class_name="content-section home-hero",
             ),
-            rx.el.section(
-                rx.cond(
-                    State.public_catalog_pending,
-                    rx.text("Carregando estatísticas do acervo...", role="status"),
-                    rx.cond(
-                        State.public_catalog_has_error,
-                        rx.text(
-                            "Estatísticas do acervo indisponíveis.",
-                            role="status",
-                        ),
-                        rx.text(
-                            State.home_total_titles,
-                            " títulos · ",
-                            State.home_available_copies,
-                            " exemplares disponíveis · ",
-                            State.home_category_count,
-                            " categorias",
-                        ),
-                    ),
-                ),
-                aria_label="Estatísticas do catálogo público",
-                class_name="content-section home-stat-band",
-            ),
             home_profile_summary(),
             home_book_section(
-                heading="📚 Estante de livros",
+                heading="📚 Livros em destaque",
                 subtitle="Explore títulos do acervo disponíveis para leitura.",
                 books=State.home_featured_titles,
                 section_id="estante-home",
             ),
             home_book_section(
-                heading="🆕 Novidades no acervo",
+                heading="Novidades no acervo",
                 subtitle="Títulos adicionados mais recentemente ao catálogo.",
                 books=State.home_new_arrivals,
                 section_id="novidades-home",
             ),
             rx.el.section(
                 rx.el.div(
-                    rx.heading("🏷️ Categorias", size="5"),
+                    rx.heading("Categorias", size="5"),
                     rx.text(
                         "Explore os títulos por assunto.",
                         class_name="home-section-subtitle",
@@ -4251,6 +4242,15 @@ def index() -> rx.Component:
                 class_name="content-section home-category-section",
             ),
             home_reservation_steps(),
+            rx.el.section(
+                rx.heading("Sobre a biblioteca", size="5"),
+                rx.text(
+                    "Um espaço de leitura, pesquisa e descoberta, com um acervo "
+                    "para apoiar a aprendizagem de toda a comunidade escolar."
+                ),
+                id="sobre-biblioteca",
+                class_name="content-section home-about-section",
+            ),
             class_name="main-content",
         ),
         site_footer(),
@@ -6737,59 +6737,84 @@ app = rx.App(
         },
         ".home-hero": {
             "width": "100%",
-            "max_width": "75rem",
+            "max_width": "72rem",
             "margin": "0 auto 1.5rem",
-            "padding": "0.75rem",
+            "padding": "1.5rem",
             "border": "1px solid var(--line)",
-            "border_radius": "1.2rem",
-            "background": "linear-gradient(120deg, var(--brand-700), var(--brand-500))",
+            "border_radius": "1rem",
+            "background_color": "var(--bg-panel)",
             "box_shadow": "var(--shadow-soft)",
         },
         ".hero-layout": {
             "display": "grid",
-            "grid_template_columns": "minmax(0, 1fr) auto",
+            "grid_template_columns": "minmax(0, 1fr) minmax(14rem, 0.42fr)",
             "align_items": "center",
             "width": "100%",
             "gap": "1.5rem",
-            "padding": "1.5rem",
-            "border_radius": "0.9rem",
-            "background_color": "var(--bg-panel)",
+            "min_width": "0",
         },
         ".hero-copy-wrap": {
             "min_width": "0",
+            "width": "100%",
+        },
+        ".eyebrow": {
+            "display": "inline-flex",
+            "padding": "0.25rem 0.6rem",
+            "border_radius": "999px",
+            "background_color": "var(--bg-soft)",
+            "color": "var(--slate-700)",
+            "font_size": "0.75rem",
+            "font_weight": "700",
+            "text_transform": "uppercase",
+            "letter_spacing": "0.08em",
         },
         ".hero-copy": {
             "color": "var(--slate-700)",
             "font_size": "1.05rem",
-            "max_width": "100%",
+            "max_width": "40rem",
         },
-        ".home-search-form": {
-            "display": "grid",
-            "grid_template_columns": "minmax(0, 1fr) auto",
-            "align_items": "center",
-            "gap": "0.5rem",
-            "width": "min(100%, 30rem)",
-            "padding": "0.4rem",
+        ".hero-stat-panel": {
+            "width": "100%",
+            "min_width": "0",
+        },
+        ".hero-stat-grid": {
+            "display": "flex",
+            "flex_direction": "column",
+            "gap": "0.65rem",
+            "width": "100%",
+            "min_width": "0",
+        },
+        ".hero-stat-card": {
+            "display": "flex",
+            "flex_direction": "column",
+            "justify_content": "center",
+            "gap": "0.1rem",
+            "width": "100%",
+            "min_width": "0",
+            "padding": "0.75rem 1rem",
             "border": "1px solid var(--line)",
-            "border_radius": "0.8rem",
+            "border_radius": "0.75rem",
             "background_color": "var(--bg-soft)",
         },
-        ".home-search-input": {
-            "height": "auto",
-            "min_height": "3rem",
-            "border": "none",
-            "background": "transparent",
-            "font_size": "1rem",
+        ".hero-stat-value": {
+            "color": "var(--brand-700)",
+            "font_family": "Georgia, 'Times New Roman', serif",
+            "font_size": "1.75rem",
+            "line_height": "1.1",
         },
-        ".home-search-submit": {
-            "min_height": "3rem",
-            "padding": "0.5rem 1rem",
-            "border": "1px solid var(--button-primary-border)",
-            "border_radius": "0.6rem",
-            "background_color": "var(--button-primary-bg)",
-            "color": "var(--button-primary-text)",
-            "font_weight": "700",
-            "cursor": "pointer",
+        ".hero-stat-label": {
+            "color": "var(--slate-700)",
+            "font_size": "0.7rem",
+            "letter_spacing": "0.08em",
+            "text_transform": "uppercase",
+        },
+        ".home-stat-status": {
+            "width": "100%",
+            "padding": "1rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.75rem",
+            "background_color": "var(--bg-soft)",
+            "color": "var(--slate-700)",
         },
         ".primary-cta, .secondary-cta, .feature-card": {
             "display": "inline-flex",
@@ -6825,22 +6850,6 @@ app = rx.App(
             "width": "100%",
             "max_width": "72rem",
             "margin": "0 auto 1.5rem",
-        },
-        ".home-stat-band": {
-            "display": "flex",
-            "flex_direction": "row",
-            "flex_wrap": "wrap",
-            "position": "static",
-            "align_items": "center",
-            "justify_content": "center",
-            "gap": "0.35rem",
-            "width": "100%",
-            "padding": "1rem",
-            "border_radius": "0.75rem",
-            "background_color": "var(--brand-700)",
-            "color": "var(--button-primary-text)",
-            "font_weight": "700",
-            "text_align": "center",
         },
         ".home-profile-summary": {
             "gap": "0.75rem",
@@ -6880,6 +6889,20 @@ app = rx.App(
         ".home-book-section": {
             "gap": "1rem",
             "margin_bottom": "1.5rem",
+            "padding": "1.25rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "1rem",
+            "background_color": "var(--bg-panel)",
+            "box_shadow": "var(--shadow-soft)",
+        },
+        ".home-section-heading": {
+            "display": "flex",
+            "flex_wrap": "wrap",
+            "align_items": "center",
+            "justify_content": "space-between",
+            "gap": "1rem",
+            "width": "100%",
+            "min_width": "0",
         },
         ".home-book-section-content": {
             "display": "flex",
@@ -6890,8 +6913,9 @@ app = rx.App(
             "min_width": "0",
         },
         ".home-book-grid": {
-            "grid_template_columns": "repeat(auto-fill, minmax(min(100%, 10rem), 12.5rem))",
+            "grid_template_columns": "repeat(auto-fill, minmax(190px, 220px))",
             "align_items": "stretch",
+            "justify_content": "start",
             "width": "100%",
         },
         ".home-empty-state": {
@@ -6902,25 +6926,48 @@ app = rx.App(
             "color": "var(--slate-700)",
         },
         ".home-view-more": {
-            "display": "flex",
+            "display": "inline-flex",
+            "flex": "0 0 auto",
             "align_items": "center",
             "justify_content": "center",
-            "width": "100%",
+            "align_self": "center",
             "min_height": "2.75rem",
-            "padding": "0.65rem 1rem",
-            "border_radius": "0.7rem",
-            "background_color": "var(--button-primary-bg)",
-            "color": "var(--button-primary-text)",
-            "font_weight": "700",
+            "padding": "0.45rem 0.8rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.55rem",
+            "background_color": "transparent",
+            "color": "var(--text)",
+            "font_weight": "600",
             "text_decoration": "none",
+        },
+        ".home-view-more:hover": {
+            "background_color": "var(--bg-soft)",
+            "color": "var(--text)",
         },
         ".home-category-section": {
             "gap": "0.75rem",
             "margin_bottom": "1.5rem",
+            "padding": "1.25rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "1rem",
+            "background_color": "var(--bg-panel)",
+            "box_shadow": "var(--shadow-soft)",
         },
         ".home-reservation-section": {
             "gap": "0.75rem",
             "margin_bottom": "1.5rem",
+            "padding": "1.25rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "1rem",
+            "background_color": "var(--bg-panel)",
+            "box_shadow": "var(--shadow-soft)",
+        },
+        ".home-about-section": {
+            "padding": "1.25rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "1rem",
+            "background_color": "var(--bg-panel)",
+            "box_shadow": "var(--shadow-soft)",
         },
         ".home-reservation-steps": {
             "display": "grid",
@@ -7028,9 +7075,10 @@ app = rx.App(
         },
         ".catalog-grid": {
             "display": "grid",
-            "grid_template_columns": "repeat(auto-fill, minmax(min(100%, 10rem), 12.5rem))",
+            "grid_template_columns": "repeat(auto-fill, minmax(190px, 220px))",
             "gap": "1.1rem",
             "width": "100%",
+            "justify_content": "start",
         },
         ".home-category-rail": {
             "display": "flex",
@@ -7049,8 +7097,8 @@ app = rx.App(
             "padding": "0.5rem 0.9rem",
             "border": "1px solid var(--line)",
             "border_radius": "999px",
-            "background_color": "var(--bg-panel)",
-            "color": "var(--text)",
+            "background_color": "var(--bg-soft)",
+            "color": "var(--slate-700)",
             "font_weight": "700",
             "text_decoration": "none",
         },
@@ -7314,9 +7362,10 @@ app = rx.App(
             "display": "inline-flex",
             "align_self": "flex-start",
             "padding": "0.25rem 0.5rem",
+            "border": "1px solid var(--line)",
             "border_radius": "999px",
-            "background_color": "var(--brand-100)",
-            "color": "var(--brand-text)",
+            "background_color": "var(--bg-soft)",
+            "color": "var(--slate-700)",
             "font_size": "0.75rem",
             "font_weight": "700",
         },
@@ -7376,14 +7425,16 @@ app = rx.App(
             "align_items": "center",
             "min_height": "2.75rem",
             "padding": "0.45rem 0.75rem",
+            "border": "1px solid var(--line)",
             "border_radius": "0.5rem",
-            "background_color": "var(--brand-100)",
-            "color": "var(--brand-text)",
-            "font_weight": "700",
+            "background_color": "transparent",
+            "color": "var(--text)",
+            "font_weight": "600",
             "text_decoration": "none",
         },
         ".catalog-card-link:hover": {
             "background_color": "var(--bg-soft)",
+            "color": "var(--text)",
         },
         ".catalog-description": {
             "max_width": "100%",
@@ -7837,11 +7888,6 @@ app = rx.App(
                 "transition_duration": "0.01ms !important",
             },
         },
-        "@media screen and (min-width: 48.01rem) and (max-width: 64rem)": {
-            ".home-book-grid": {
-                "grid_template_columns": "repeat(4, minmax(0, 1fr))",
-            },
-        },
         "@media screen and (max-width: 48rem)": {
             "a": {
                 "display": "inline-flex",
@@ -7880,12 +7926,6 @@ app = rx.App(
             ".hero-copy-wrap": {
                 "width": "100%",
                 "max_width": "100%",
-            },
-            ".home-search-form": {
-                "width": "100%",
-            },
-            ".home-book-grid": {
-                "grid_template_columns": "repeat(3, minmax(0, 1fr))",
             },
             ".home-reservation-steps": {
                 "grid_template_columns": "minmax(0, 1fr)",
@@ -7987,11 +8027,6 @@ app = rx.App(
             },
             ".admin-title-edit-form, .librarian-form": {
                 "padding": "0.75rem",
-            },
-        },
-        "@media screen and (max-width: 30rem)": {
-            ".home-book-grid": {
-                "grid_template_columns": "repeat(2, minmax(0, 1fr))",
             },
         },
     },

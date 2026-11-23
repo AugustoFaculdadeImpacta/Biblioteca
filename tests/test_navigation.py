@@ -75,13 +75,15 @@ def _readable(component: rx.Component) -> str:
 
 
 def test_homepage_is_storefront_and_authenticated_sessions_go_to_catalog():
-    homepage = repr(frontend.index())
+    homepage = _readable(frontend.index())
     assert "Entrar" in homepage
     assert "Cadastrar-se" in homepage
-    assert "home-catalog-search" in homepage
+    assert "site-header-search" in homepage
+    assert "home-catalog-search" not in homepage
     assert "login-email" not in homepage
     assert "login-senha" not in homepage
-    assert "form-busca-home" in homepage
+    assert "form-busca-home" not in homepage
+    assert "📚 Livros em destaque" in homepage
     assert "/cadastro" in homepage
 
     async def verify():
@@ -135,9 +137,9 @@ def test_authenticated_users_redirect_from_auth_pages_to_profile_home():
 def test_home_has_no_login_or_signup_form_and_keeps_profile_menu():
     page = frontend.index()
     homepage = _readable(page)
-    assert "form-busca-home" in homepage
-    assert "Buscar livros" in homepage
-    assert "home-catalog-search" in homepage
+    assert "site-header-search" in homepage
+    assert "form-busca-home" not in homepage
+    assert "home-catalog-search" not in homepage
     assert "type:\"password\"" not in homepage
     assert "login-email" not in homepage
     assert "login-senha" not in homepage
@@ -146,7 +148,7 @@ def test_home_has_no_login_or_signup_form_and_keeps_profile_menu():
     assert "hero-quick-links" not in homepage
 
 
-def test_home_hero_has_search_without_profile_actions_for_all_profiles():
+def test_home_hero_matches_model_without_search_or_profile_actions():
     hero = next(
         component
         for component in _components(frontend.index())
@@ -155,14 +157,16 @@ def test_home_hero_has_search_without_profile_actions_for_all_profiles():
     hero_text = _readable(hero)
     components = list(_components(hero))
 
-    assert "Bem-vindo à Biblioteca escolar" in hero_text
-    assert "home-catalog-search" in hero_text
-    assert "form-busca-home" in hero_text
-    assert "hero-stat-grid" not in hero_text
+    assert "Biblioteca contemporânea e acolhedora" in hero_text
+    assert "Descubra o próximo livro que vai mudar seu dia." in hero_text
+    assert "Explore o acervo, acompanhe empréstimos e reservas" in hero_text
+    assert "hero-stat-grid" in hero_text
+    assert "home-catalog-search" not in hero_text
+    assert "form-busca-home" not in hero_text
     assert "Ver catálogo" not in hero_text
     assert "Entrar" not in hero_text
     assert "Cadastrar-se" not in hero_text
-    assert "home-search-submit" in repr(hero)
+    assert "home-search-submit" not in repr(hero)
     assert not any(
         component.alias == "ReactRouterLink"
         or type(component).__name__ in {"Textarea", "Select"}
@@ -222,7 +226,7 @@ def test_home_statistics_are_derived_from_public_catalog():
     asyncio.run(verify_statistics())
 
 
-def test_home_keeps_featured_and_about_without_hero_shortcuts():
+def test_home_keeps_sections_and_reintroduces_about():
     page = frontend.index()
     homepage = _readable(page)
     hero = next(
@@ -231,18 +235,31 @@ def test_home_keeps_featured_and_about_without_hero_shortcuts():
         if component.id == "conteudo-home"
     )
 
-    assert "Sobre a biblioteca" not in homepage
-    assert "📚 Estante de livros" in homepage
-    assert "🆕 Novidades no acervo" in homepage
-    assert "🏷️ Categorias" in homepage
-    assert "🙋 Como reservar" in homepage
+    assert "Sobre a biblioteca" in homepage
+    assert "📚 Livros em destaque" in homepage
+    assert "Novidades no acervo" in homepage
+    assert "Categorias" in homepage
+    assert "Como reservar" in homepage
     assert "Ver mais" in homepage
-    assert "home-stat-band" in homepage
+    assert "hero-stat-grid" in homepage
+    assert "home-stat-band" not in homepage
     assert "hero-quick-links" not in homepage
     assert "/reservas" not in repr(hero)
     assert "/admin/acervo" not in repr(hero)
     assert "/admin/reservas" not in repr(hero)
     assert "/admin/bibliotecarios" not in repr(hero)
+
+
+def test_category_chips_show_counts_without_decorative_emojis():
+    chip = repr(
+        frontend.home_category_chip(
+            rx.Var.create({"id": 3, "nome": "Literatura", "quantidade": 0})
+        )
+    )
+
+    assert "quantidade" in chip
+    assert "()" not in chip
+    assert "🎭" not in chip
 
 
 def test_home_omits_popularity_without_loan_counts():
@@ -477,12 +494,14 @@ def test_student_navigation_has_accessible_labels_focus_and_mobile_layout():
 def test_site_header_brand_and_footer_links_preserve_profile_access():
     header = _readable(frontend.site_header())
     footer = _readable(frontend.site_footer())
-    homepage = repr(frontend.index())
+    homepage = _readable(frontend.index())
     style = frontend.app.style
 
     assert "Biblioteca escolar" in header
     assert "Leitura, encontro e conhecimento" not in header
-    assert homepage.index("brand-link") < homepage.index("Bem-vindo")
+    assert homepage.index("brand-link") < homepage.index(
+        "Descubra o próximo livro"
+    )
     assert "Acessibilidade" in header
     assert "/admin/acervo" in header
     assert "/admin/reservas" in header
@@ -553,7 +572,7 @@ def test_footer_uses_library_name_without_repeating_home_about():
     homepage = _readable(frontend.index())
 
     assert footer.count("Biblioteca escolar") == 1
-    assert "Sobre a biblioteca" not in homepage
+    assert homepage.count("Sobre a biblioteca") == 1
     assert "Sobre a biblioteca" not in footer
 
 

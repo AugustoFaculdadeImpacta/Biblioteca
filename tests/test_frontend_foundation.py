@@ -56,8 +56,10 @@ def test_index_renders_navigable_application_shell():
     assert "Início" not in repr(page)
     assert "Modo escuro" in repr(page)
     assert "#conteudo-home" in repr(page.children[0].children)
-    assert "home-catalog-search" in repr(page)
-    assert "form-busca-home" in repr(page)
+    assert "site-header-search" in repr(page)
+    assert "home-catalog-search" not in repr(page)
+    assert "form-busca-home" not in repr(page)
+    assert "hero-stat-grid" in repr(page)
     assert getattr(button, "disabled", None) is None
     assert not any(component.id == "conteudo-login" for component in components)
     assert not any(
@@ -142,8 +144,10 @@ def test_dark_and_high_contrast_tokens_meet_wcag_aa():
 
 
 def test_catalog_cover_grid_has_bounded_card_size():
-    assert "10rem" in app.style[".catalog-grid"]["grid_template_columns"]
-    assert "12.5rem" in app.style[".catalog-grid"]["grid_template_columns"]
+    assert app.style[".catalog-grid"]["grid_template_columns"] == (
+        "repeat(auto-fill, minmax(190px, 220px))"
+    )
+    assert app.style[".catalog-grid"]["justify_content"] == "start"
     assert app.style[".admin-catalog-grid"]["display"] == "flex"
     assert app.style[".admin-catalog-grid"]["flex_direction"] == "column"
     assert app.style[".catalog-card-cover"]["aspect_ratio"] == "2 / 3"

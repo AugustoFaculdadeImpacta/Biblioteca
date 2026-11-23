@@ -38,20 +38,23 @@ def test_header_contract_is_stable_without_action_classes():
     assert header["top"] == "0"
     assert header["z_index"] == "50"
     assert header["display"] == "grid"
-    assert header["grid_template_columns"] == "auto minmax(18rem, 1fr) minmax(12rem, 22rem) auto"
+    assert header["grid_template_columns"] == (
+        "auto minmax(0, 1fr) minmax(10rem, 17rem) auto"
+    )
     assert header["grid_template_areas"] == '"logo nav busca acoes"'
     assert header["align_items"] == "center"
     assert header["min_height"] == "4rem"
-    assert header["padding"] == "0 1rem"
+    assert header["padding"] == "0.75rem 1rem"
     assert header["background_color"] == "var(--bg-panel)"
-    assert header["border_bottom"] == "1px solid var(--line)"
+    assert header["border"] == "1px solid var(--line)"
+    assert header["border_radius"] == "1rem"
 
-    assert brand["font_size"] == "1.25rem"
-    assert "sans-serif" in brand["font_family"]
+    assert brand["font_size"] == "1.35rem"
+    assert "Georgia" in brand["font_family"]
     assert brand["white_space"] == "nowrap"
     assert brand["background"] == "transparent"
     assert brand["border"] == "none"
-    assert brand["color"] == "var(--text)"
+    assert brand["color"] == "var(--brand-text)"
     assert "brand-link-label" in repr(frontend.site_header())
 
     assert nav["flex_wrap"] == "nowrap"
@@ -70,9 +73,11 @@ def test_header_contract_is_stable_without_action_classes():
 
     mobile = style["@media screen and (max-width: 48rem)"]
     assert mobile[".site-menu-toggle"]["display"] == "none"
-    assert mobile[".brand-link"]["min_width"] == "2.75rem"
-    assert mobile[".brand-link-label"]["display"] == "none"
-    assert mobile[".site-header"]["grid_template_areas"] == '"logo acoes" "nav nav" "busca busca"'
+    assert mobile[".brand-link"]["justify_content"] == "flex-start"
+    assert mobile[".brand-link-label"]["display"] == "inline"
+    assert mobile[".site-header"]["grid_template_areas"] == (
+        '"logo" "nav" "busca" "acoes"'
+    )
     assert style[
         ".site-header-actions > .profile-menu, .site-header-actions > .accessibility-menu"
     ]["flex"] == "0 0 auto"
@@ -110,7 +115,7 @@ def test_page_container_layout_is_stable():
     assert style[".content-section"]["width"] == "100%"
     assert style[".content-section"]["max_width"] == "75rem"
     assert style[".catalog-grid"]["grid_template_columns"] == (
-        "repeat(auto-fill, minmax(min(100%, 10rem), 12.5rem))"
+        "repeat(auto-fill, minmax(190px, 220px))"
     )
     assert style[".librarian-list"]["display"] == "flex"
     assert style[".librarian-list"]["flex_direction"] == "column"
@@ -129,16 +134,16 @@ def test_delivery_layout_has_category_rails_and_product_detail():
 
     assert "home-category-rail" in home
     assert "home-book-grid" in home
-    assert "Sobre a biblioteca" not in home
-    assert "Bem-vindo" in home
-    assert "Estante de livros" in home
+    assert "Sobre a biblioteca" in home
+    assert "home-book-section" in home
     assert "Novidades no acervo" in home
     assert "Categorias" in home
     assert "Como reservar" in home
     assert "Escolha" in home
     assert "Reserve" in home
     assert "Retire" in home
-    assert "home-stat-band" in home
+    assert "home-stat-band" not in home
+    assert "hero-stat-grid" in home
     assert "catalog-category-rail" in catalog
     assert "catalog-detail-card" in detail
     assert "Reservar" in detail
@@ -151,21 +156,24 @@ def test_delivery_layout_has_category_rails_and_product_detail():
     assert style[".home-category-rail"]["overflow_x"] == "auto"
     assert style[".home-category-rail"]["flex_wrap"] == "nowrap"
     assert style[".home-category-rail"]["margin_top"] == "1rem"
-    assert style[".home-stat-band"]["display"] == "flex"
-    assert style[".home-stat-band"]["position"] == "static"
     assert style[".hero-layout"]["display"] == "grid"
     assert style[".hero-layout"]["align_items"] == "center"
-    assert style[".hero-layout"]["grid_template_columns"] == "minmax(0, 1fr) auto"
+    assert style[".hero-layout"]["grid_template_columns"] == (
+        "minmax(0, 1fr) minmax(14rem, 0.42fr)"
+    )
     assert style[".hero-layout"]["gap"] == "1.5rem"
-    assert style[".hero-layout"]["padding"] == "1.5rem"
+    assert style[".home-hero"]["padding"] == "1.5rem"
+    assert style[".hero-stat-grid"]["flex_direction"] == "column"
+    assert style[".hero-stat-value"]["color"] == "var(--brand-700)"
     assert style["@media screen and (max-width: 48rem)"][".hero-layout"][
         "grid_template_columns"
     ] == "minmax(0, 1fr)"
     assert style[".content-section"]["margin"] == "0 auto 1.5rem"
     assert style["*"]["min_width"] == "0"
     assert style[".home-book-grid"]["grid_template_columns"] == (
-        "repeat(auto-fill, minmax(min(100%, 10rem), 12.5rem))"
+        "repeat(auto-fill, minmax(190px, 220px))"
     )
+    assert style[".home-book-grid"]["justify_content"] == "start"
     assert style[".catalog-detail-card"]["grid_template_columns"] == (
         "minmax(12rem, 18rem) minmax(0, 1fr)"
     )
@@ -178,16 +186,21 @@ def test_home_flow_containers_have_no_fixed_height_or_positioning():
         ".hero-layout",
         ".hero-copy-wrap",
         ".hero-copy",
-        ".home-stat-band",
+        ".hero-stat-panel",
+        ".hero-stat-grid",
+        ".hero-stat-card",
+        ".home-stat-status",
         ".home-profile-summary",
         ".home-summary-metrics",
         ".home-book-section",
+        ".home-book-section-content",
         ".home-book-grid",
         ".home-category-section",
         ".home-category-rail",
         ".home-category-chip",
         ".home-reservation-section",
         ".home-reservation-steps",
+        ".home-about-section",
     )
 
     for seletor in seletores:
@@ -200,7 +213,7 @@ def test_home_flow_containers_have_no_fixed_height_or_positioning():
         for nome in ("margin", "margin_top", "margin_right", "margin_bottom", "margin_left"):
             valor = str(regra.get(nome, ""))
             assert not re.search(r"-\d", valor), (seletor, nome, valor)
-    assert ".hero-stat-grid" not in style
+    assert ".home-stat-band" not in style
     assert ".home-category-shelf" not in style
 
 
