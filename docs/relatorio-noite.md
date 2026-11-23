@@ -219,6 +219,71 @@ As fases funcionais avançaram parcialmente. A tentativa de seed remoto foi inte
   frontend e a interação de login demo foram verificados antes de encerrar os
   processos Reflex próprios.
 
+## Atualização v6 — 2026-11-23
+
+### Estado inicial
+
+- Branch novo: `trabalho-autopilot-layout-livraria-v6`.
+- A Change `layout-estavel-v5` já estava arquivada e foi usada como base.
+- Antes desta rodada havia duas Changes abertas: `execucao-reflex-windows` e
+  `validacao-remota-xano`.
+
+### Evidências concluídas
+
+- [x] Dry-run do seed: 30 títulos planejados, nenhuma escrita.
+- [x] Testes locais de seed, ISBN/checksum, capas e layout.
+- [x] Cabeçalho único sem hambúrguer, com grid desktop e três linhas móveis.
+- [x] `reflex compile --dry`: passou.
+- [x] `pytest --ignore=evaluation`: 310 testes passaram.
+- [x] Script `scripts/verificar.ps1` executa compile dry e pytest em sequência.
+- [x] Xano CLI confirmou workspace `151966`, branch `v1` e `allow_push=false`.
+- [x] Pull somente de definições realizado para pasta temporária fora do
+  repositório; nenhum `--records`, `--sync`, `--delete` ou `--truncate`.
+
+### Seed
+
+- Variáveis `XANO_SEED_EMAIL` e `XANO_SEED_PASSWORD` ausentes: nenhuma
+  aplicação remota realizada.
+- As 30 entradas usam oito categorias aprovadas, descrições próprias,
+  editora, edição e ISBN-13 com checksum válido.
+- Open Library não confirmou os ISBN/capas nesta máquina por 404 ou falha de
+  rede; a lista continua marcada como não verificada externamente.
+
+### Robô de layout
+
+- Edge foi encontrado e lançado em headless na porta 9333.
+- API demo e Reflex foram iniciados, aquecidos e encerrados.
+- O robô excedeu o prazo sem produzir tabela completa ou capturas PNG.
+- Resultado: não verificado visualmente.
+- Nenhuma violação visual foi ocultada ou convertida em PASSOU.
+
+### Fluxos funcionais
+
+- Visitante buscando e entrando no login: não coberto pelo passe incompleto.
+- Estudante reservando e acompanhando pedido: não coberto.
+- Bibliotecário aceitando pedido: não coberto.
+- Bibliotecário cadastrando/desativando livro: não coberto.
+- Admin alternando visões e criando bibliotecário: não coberto.
+
+### OpenSpec
+
+- `execucao-reflex-windows` arquivada em
+  `openspec/changes/archive/2026-11-23-execucao-reflex-windows`.
+- `validacao-remota-xano` arquivada em
+  `openspec/changes/archive/2026-11-23-validacao-remota-xano` com
+  `--skip-specs`; tarefas operacionais ficaram em
+  `docs/checklist-publicacao-xano.md`.
+- A Change `layout-livraria-v6` permanece em andamento até a conclusão da
+  verificação visual e dos fluxos.
+
+### Usuário ainda precisa fazer
+
+- Configurar credenciais somente no processo do seed, se houver autorização
+  para aplicação remota.
+- Confirmar o workspace, o ambiente, o backup e a publicação no painel Xano.
+- Executar novamente o robô até produzir relatório completo ou a plataforma
+  integrada confirmar a falha visual.
+
 ## Continuação autônoma — 2026-11-16, rodada seguinte
 
 ### Passo A — jornada real de estudante

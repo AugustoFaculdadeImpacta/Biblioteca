@@ -20,18 +20,18 @@
 
 ## 4. Robô e fluxos
 
-- [ ] 4.1 Criar o script local de layout no Edge por DTP.
+- [x] 4.1 Criar o script local de layout no Edge por DTP.
 - [ ] 4.2 Cobrir as nove rotas, quatro perfis, três larguras e dois temas.
 - [ ] 4.3 Cobrir os fluxos funcionais da API demo.
 
 ## 5. Verificação
 
 - [ ] 5.1 Corrigir violações em até seis iterações.
-- [ ] 5.2 Executar compile e pytest sequencialmente.
-- [ ] 5.3 Gerar relatório final e evidências.
+- [x] 5.2 Executar compile e pytest sequencialmente.
+- [x] 5.3 Gerar relatório final e evidências.
 
 ## 6. Fechar mudanças abertas
 
-- [ ] 6.1 Concluir a tarefa 1.3 da Change de execução Windows com script sequencial.
-- [ ] 6.2 Preparar checklist do Xano e arquivar a validação remota sem publicação.
+- [x] 6.1 Concluir a tarefa 1.3 da Change de execução Windows com script sequencial.
+- [x] 6.2 Preparar checklist do Xano e arquivar a validação remota sem publicação.
 - [ ] 6.3 Validar specs estritas, gerar relatório, commitar e publicar no Git.
