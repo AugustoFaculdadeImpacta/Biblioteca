@@ -10,7 +10,7 @@
 
 ## 3. Aplicar padrão app de delivery
 
-- [ ] 3.1 Reorganizar home, catálogo, detalhe, reservas, Acervo e Contas em pílulas, listas e abas; validar estrutura em `tests/test_layout_v5.py`.
+- [x] 3.1 Reorganizar home, catálogo, detalhe, reservas, Acervo e Contas em pílulas, listas e abas; validar estrutura em `tests/test_layout_v5.py`.
 
 ## 4. Simplificar autenticação
 
