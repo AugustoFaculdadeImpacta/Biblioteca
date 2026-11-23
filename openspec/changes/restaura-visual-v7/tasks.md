@@ -6,7 +6,7 @@
 
 ## 2. Home e cartões
 
-- [ ] 2.1 Restaurar o hero e as seções da home sem perder dados dinâmicos, resumo por perfil, novidades, categorias ou passos de reserva; reintroduzir Sobre, corrigir contagens das pílulas e atualizar os contratos CSS antigos. Verificar com `.\.venv\Scripts\python.exe -m pytest tests/test_layout_v5.py tests/test_primary_journeys.py tests/test_catalog.py` e registrar a saída do robô visual na tarefa de verificação.
+- [x] 2.1 Restaurar o hero e as seções da home sem perder dados dinâmicos, resumo por perfil, novidades, categorias ou passos de reserva; reintroduzir Sobre, corrigir contagens das pílulas e atualizar os contratos CSS antigos. Evidências: commit `d70d812`; `.\.venv\Scripts\python.exe -m pytest tests/test_layout_v5.py tests/test_primary_journeys.py tests/test_catalog.py tests/test_navigation.py tests/test_frontend_foundation.py tests/test_icons.py` (124 aprovados). Aparência implementada, aguarda conferência do usuário; matriz visual será registrada em 5.1.
 
 ## 3. Dados compartilhados de exemplo
 
