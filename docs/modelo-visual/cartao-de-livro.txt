@@ -1,0 +1,184 @@
+REFERÊNCIA HISTÓRICA — SOMENTE LEITURA
+Commit do modelo: 2afca9385ebc3a7fc52131f3f37f16f23e62518a
+Origem: biblioteca_mais_nova/biblioteca_mais_nova.py
+Não importar no aplicativo; excerto extraído do snapshot indicado.
+
+def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
+    title_name = title["titulo"].to(str)
+    category_text = title["categorias"].to(str)
+    available_count = title["exemplares_disponiveis"].to(int)
+    cover_variant = title["cover_variant"].to(int)
+    cover_class = _catalog_cover_class(cover_variant)
+    return rx.el.article(
+        rx.el.div(
+            rx.cond(
+                title["capa_url"].to(str) != "",
+                rx.el.img(
+                    src=title["capa_url"],
+                    alt=f"Capa de «{title_name}»",
+                    loading="lazy",
+                    class_name="catalog-card-cover-image",
+                ),
+                rx.cond(
+                    title["capa_gerada"].to(str) != "",
+                    rx.el.img(
+                        src=title["capa_gerada"],
+                        alt=f"Capa de «{title_name}»",
+                        loading="lazy",
+                        class_name="catalog-card-cover-image",
+                    ),
+                    rx.el.div(
+                        rx.el.span(
+                            title["cover_initial"],
+                            class_name="catalog-cover-initial",
+                        ),
+                        class_name=cover_class,
+                        aria_hidden="true",
+                    ),
+                ),
+            ),
+            rx.el.span(
+                rx.cond(
+                    category_text != "",
+                    category_text,
+                    "Livro",
+                ),
+                class_name="catalog-tag",
+            ),
+            class_name="catalog-card-visual",
+        ),
+        rx.el.h2(title_name, class_name="catalog-card-heading"),
+        rx.text("Autoria: ", title["autores"]),
+        rx.el.div(
+            rx.cond(
+                available_count > 0,
+                rx.el.span(
+                    rx.el.span("🟢", aria_hidden="true"),
+                    rx.text(" Disponível"),
+                    class_name="status-pill status-pill-success",
+                ),
+                rx.el.span(
+                    rx.el.span("🔴", aria_hidden="true"),
+                    rx.text(" Indisponível"),
+                    class_name="status-pill status-pill-muted",
+                ),
+            ),
+            rx.text(
+                "Exemplares disponíveis: ",
+                available_count,
+                class_name="catalog-card-meta",
+            ),
+            class_name="catalog-card-meta-row",
+        ),
+        rx.link("Ver detalhes", href=title["href"], class_name="catalog-card-link"),
+        rx.cond(
+            State.is_librarian,
+            rx.link(
+                rx.el.span("✏️", aria_hidden="true"),
+                rx.text(" Editar este título"),
+                href="/admin/acervo?titulo=" + title["id"].to(str),
+                class_name="catalog-card-link",
+            ),
+            rx.fragment(),
+        ),
+        class_name="catalog-card",
+    )
+
+        ".catalog-grid": {
+            "display": "grid",
+            "grid_template_columns": "repeat(auto-fill, minmax(min(100%, 11.25rem), 15rem))",
+            "gap": "1.1rem",
+            "width": "100%",
+        },
+
+        ".catalog-card, .catalog-detail-card": {
+            "display": "flex",
+            "flex_direction": "column",
+            "align_items": "flex-start",
+            "gap": "0.75rem",
+            "min_width": "0",
+            "padding": "1.25rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.9rem",
+            "background_color": "var(--bg-panel)",
+            "box_shadow": "0 0.35rem 1rem rgba(24, 43, 73, 0.06)",
+            "transition": "border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease",
+        },
+
+        ".catalog-card-visual": {
+            "display": "flex",
+            "flex_direction": "column",
+            "width": "100%",
+            "gap": "0.6rem",
+        },
+
+        ".catalog-card-cover": {
+            "display": "flex",
+            "align_items": "center",
+            "justify_content": "center",
+            "width": "100%",
+            "min_height": "11rem",
+            "aspect_ratio": "0.72",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.8rem",
+            "background_color": "var(--brand-900)",
+            "color": "#ffffff",
+        },
+
+        ".catalog-card-cover-image": {
+            "display": "block",
+            "width": "100%",
+            "min_height": "11rem",
+            "aspect_ratio": "0.72",
+            "border_radius": "0.8rem",
+            "object_fit": "cover",
+            "transition": "transform 150ms ease",
+        },
+
+        ".catalog-card-heading, .catalog-detail-heading": {
+            "overflow_wrap": "anywhere",
+            "margin": "0",
+            "line_height": "1.3",
+        },
+
+        ".catalog-card p": {
+            "margin": "0",
+            "color": "var(--slate-700)",
+            "font_size": "0.95rem",
+        },
+
+        ".catalog-card-meta-row": {
+            "display": "flex",
+            "align_items": "center",
+            "justify_content": "space-between",
+            "gap": "0.75rem",
+            "width": "100%",
+            "flex_wrap": "wrap",
+        },
+
+        ".catalog-card-meta": {
+            "color": "var(--slate-700)",
+        },
+
+        ".catalog-card-link": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "min_height": "2.75rem",
+            "padding": "0.45rem 0.75rem",
+            "border_radius": "0.5rem",
+            "background_color": "var(--brand-100)",
+            "color": "var(--brand-text)",
+            "font_weight": "700",
+            "text_decoration": "none",
+        },
+
+        ".catalog-tag": {
+            "display": "inline-flex",
+            "align_self": "flex-start",
+            "padding": "0.25rem 0.5rem",
+            "border_radius": "999px",
+            "background_color": "var(--brand-100)",
+            "color": "var(--brand-text)",
+            "font_size": "0.75rem",
+            "font_weight": "700",
+        },

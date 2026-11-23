@@ -1,0 +1,169 @@
+REFERÊNCIA HISTÓRICA — SOMENTE LEITURA
+Commit do modelo: 2afca9385ebc3a7fc52131f3f37f16f23e62518a
+Origem: biblioteca_mais_nova/biblioteca_mais_nova.py
+Não importar no aplicativo; excerto extraído do snapshot indicado.
+
+def site_primary_nav() -> rx.Component:
+    return rx.el.nav(
+        rx.link(
+            rx.el.span("🔎", aria_hidden="true"),
+            rx.text(" Catálogo"),
+            href="/catalogo",
+        ),
+        rx.cond(
+            State.active_navigation_role == "Estudante",
+            rx.link(
+                rx.el.span("🔖", aria_hidden="true"),
+                rx.text(" Reservas"),
+                href="/reservas",
+            ),
+            rx.fragment(),
+        ),
+        rx.cond(
+            State.active_navigation_role == "Bibliotecária",
+            rx.fragment(
+                rx.link(
+                    rx.el.span("🗂️", aria_hidden="true"),
+                    rx.text(" Acervo"),
+                    href="/admin/acervo",
+                ),
+                rx.link(
+                    rx.el.span("🔖", aria_hidden="true"),
+                    rx.text(" Reservas"),
+                    href="/admin/reservas",
+                ),
+            ),
+            rx.cond(
+                State.active_navigation_role == "Admin",
+                    rx.link(
+                        rx.el.span("👥", aria_hidden="true"),
+                        rx.text(" Contas"),
+                        href="/admin/bibliotecarios",
+                    ),
+                rx.fragment(),
+            ),
+        ),
+        aria_label="Navegação principal",
+        class_name="site-primary-nav",
+    )
+
+def site_header() -> rx.Component:
+    brand = rx.link(
+        rx.el.span("📚", aria_hidden="true"),
+        rx.text(" Biblioteca escolar"),
+        href="/",
+        class_name="brand-link",
+    )
+    mobile_profile_actions = rx.el.div(
+        admin_view_status(),
+        profile_menu(),
+        class_name="site-header-actions",
+    )
+    return rx.el.header(
+        brand,
+        rx.button(
+            rx.el.span(
+                rx.el.span(class_name="menu-hamburger-line"),
+                rx.el.span(class_name="menu-hamburger-line"),
+                rx.el.span(class_name="menu-hamburger-line"),
+                aria_hidden="true",
+                class_name="menu-hamburger-icon",
+            ),
+            type="button",
+            aria_label=rx.cond(
+                State.mobile_navigation_open,
+                "Fechar menu",
+                "Abrir menu",
+            ),
+            aria_expanded=State.mobile_navigation_open,
+            aria_controls="navegacao-movel",
+            on_click=State.toggle_mobile_navigation,
+            class_name="site-menu-toggle",
+        ),
+        rx.el.div(
+            site_primary_nav(),
+            rx.el.div(
+                admin_view_status(),
+                profile_menu(),
+                class_name="site-header-actions",
+            ),
+            class_name="site-header-desktop",
+        ),
+        rx.el.div(
+            site_primary_nav(),
+            mobile_profile_actions,
+            id="navegacao-movel",
+            aria_hidden=~State.mobile_navigation_open,
+            class_name=rx.cond(
+                State.mobile_navigation_open,
+                "site-header-mobile-panel is-open",
+                "site-header-mobile-panel",
+            ),
+        ),
+        class_name="site-header",
+    )
+
+        ".site-header": {
+            "display": "flex",
+            "align_items": "center",
+            "gap": "1rem",
+            "max_width": "72rem",
+            "margin": "0 auto",
+            "padding": "1rem 1.2rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "1rem",
+            "background_color": "var(--bg-panel)",
+            "box_shadow": "var(--shadow-soft)",
+        },
+
+        ".brand-link": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "white_space": "nowrap",
+            "color": "var(--brand-text)",
+            "font_weight": "800",
+            "text_decoration": "none",
+            "font_family": "Georgia, 'Times New Roman', serif",
+            "font_size": "1.4rem",
+        },
+
+        ".site-header-desktop": {
+            "display": "grid",
+            "grid_template_columns": "minmax(0, 1fr) auto",
+            "align_items": "center",
+            "gap": "1rem",
+            "width": "100%",
+            "min_width": "0",
+        },
+
+        ".site-primary-nav": {
+            "display": "flex",
+            "flex_wrap": "wrap",
+            "align_items": "center",
+            "justify_content": "center",
+            "gap": "0.35rem",
+            "min_width": "0",
+            "max_width": "100%",
+        },
+
+        ".site-primary-nav a": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "min_height": "2.75rem",
+            "padding": "0.45rem 0.75rem",
+            "border_radius": "0.5rem",
+            "color": "var(--brand-700)",
+            "font_weight": "600",
+            "cursor": "pointer",
+            "text_decoration": "none",
+            "overflow_wrap": "anywhere",
+        },
+
+        ".site-header-actions": {
+            "display": "flex",
+            "flex_wrap": "wrap",
+            "align_items": "center",
+            "justify_content": "flex-end",
+            "gap": "0.5rem",
+            "min_width": "0",
+        },

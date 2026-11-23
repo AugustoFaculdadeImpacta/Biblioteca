@@ -1,0 +1,237 @@
+REFERÊNCIA HISTÓRICA — SOMENTE LEITURA
+Commit do modelo: 2afca9385ebc3a7fc52131f3f37f16f23e62518a
+Origem: biblioteca_mais_nova/biblioteca_mais_nova.py
+Não importar no aplicativo; excerto extraído do snapshot indicado.
+
+def profile_appearance_controls() -> rx.Component:
+    return rx.el.div(
+        rx.el.div(
+            rx.el.span("🔠", aria_hidden="true"),
+            rx.text(" Tamanho da fonte"),
+            class_name="profile-menu-identity",
+        ),
+        rx.el.div(
+            rx.button(
+                "A−",
+                type="button",
+                aria_label="Diminuir fonte",
+                data_appearance_action="font-decrease",
+                class_name="profile-menu-item",
+            ),
+            rx.button(
+                rx.el.span("100%", data_appearance_font_value="true"),
+                type="button",
+                aria_label="Tamanho atual da fonte",
+                data_appearance_action="font-reset",
+                class_name="profile-menu-item",
+            ),
+            rx.button(
+                "A+",
+                type="button",
+                aria_label="Aumentar fonte",
+                data_appearance_action="font-increase",
+                class_name="profile-menu-item",
+            ),
+            class_name="profile-menu-controls",
+        ),
+        rx.button(
+            rx.el.span("🌗", aria_hidden="true"),
+            rx.text(" Ativar alto contraste"),
+            type="button",
+            aria_pressed=False,
+            data_appearance_action="high-contrast",
+            class_name="profile-menu-item",
+        ),
+        rx.button(
+            rx.el.span("🎞️", aria_hidden="true"),
+            rx.text(" Reduzir movimento"),
+            type="button",
+            aria_pressed=False,
+            data_appearance_action="reduce-motion",
+            class_name="profile-menu-item",
+        ),
+        rx.el.button(
+            rx.el.span("🌙", aria_hidden="true", data_appearance_theme_emoji="true"),
+            rx.text("Modo escuro", data_appearance_theme_label="true"),
+            type="button",
+            role="switch",
+            aria_checked=False,
+            data_appearance_action="theme",
+            class_name="profile-menu-item",
+        ),
+        class_name="profile-appearance-controls",
+    )
+
+def profile_menu() -> rx.Component:
+    return rx.fragment(
+        rx.el.details(
+            rx.el.summary(
+                rx.el.span("👤", aria_hidden="true"),
+                rx.text(" Perfil"),
+                aria_label="Abrir menu Perfil",
+                class_name="profile-menu-trigger",
+            ),
+            rx.el.div(
+                rx.cond(
+                    State.is_authenticated,
+                    rx.fragment(
+                        rx.el.div(
+                            State.greeting_name,
+                            class_name="profile-menu-identity",
+                        ),
+                        rx.el.div(
+                            State.session_email,
+                            class_name="profile-menu-identity",
+                        ),
+                        rx.el.div(
+                            State.session_role_label,
+                            class_name="profile-menu-identity",
+                        ),
+                        profile_appearance_controls(),
+                        rx.cond(
+                            State.can_manage_librarians,
+                            rx.fragment(
+                                rx.el.div(
+                                    "Modo de visualização",
+                                    class_name="profile-menu-identity",
+                                ),
+                                rx.el.button(
+                                    rx.cond(
+                                        State.admin_view_mode == "",
+                                        "✓ Admin",
+                                        "Admin",
+                                    ),
+                                    type="button",
+                                    role="radio",
+                                    aria_checked=State.admin_view_mode == "",
+                                    on_click=State.reset_admin_view_mode,
+                                    class_name="profile-menu-item",
+                                ),
+                                rx.el.button(
+                                    rx.cond(
+                                        State.admin_view_mode == "bibliotecaria",
+                                        "✓ Bibliotecária",
+                                        "Bibliotecária",
+                                    ),
+                                    type="button",
+                                    role="radio",
+                                    aria_checked=(
+                                        State.admin_view_mode == "bibliotecaria"
+                                    ),
+                                    on_click=State.set_admin_view_mode(
+                                        "bibliotecaria"
+                                    ),
+                                    class_name="profile-menu-item",
+                                ),
+                                rx.el.button(
+                                    rx.cond(
+                                        State.admin_view_mode == "estudante",
+                                        "✓ Estudante",
+                                        "Estudante",
+                                    ),
+                                    type="button",
+                                    role="radio",
+                                    aria_checked=(
+                                        State.admin_view_mode == "estudante"
+                                    ),
+                                    on_click=State.set_admin_view_mode(
+                                        "estudante"
+                                    ),
+                                    class_name="profile-menu-item",
+                                ),
+                            ),
+                            rx.fragment(),
+                        ),
+                        rx.button(
+                            rx.el.span("🚪", aria_hidden="true"),
+                            rx.text(" Sair"),
+                            type="button",
+                            on_click=State.logout,
+                            class_name="profile-menu-item",
+                        ),
+                    ),
+                    rx.fragment(
+                        rx.link(
+                            rx.el.span("🔑", aria_hidden="true"),
+                            rx.text(" Entrar"),
+                            href="/login",
+                            class_name="profile-menu-item",
+                        ),
+                        rx.link(
+                            rx.el.span("📝", aria_hidden="true"),
+                            rx.text(" Cadastrar-se"),
+                            href="/cadastro",
+                            class_name="profile-menu-item",
+                        ),
+                        profile_appearance_controls(),
+                    ),
+                ),
+                class_name="profile-menu-content",
+            ),
+            class_name="profile-menu",
+        ),
+    )
+
+        ".profile-menu": {
+            "position": "relative",
+        },
+
+        ".profile-menu-trigger": {
+            "display": "inline-flex",
+            "align_items": "center",
+            "justify_content": "center",
+            "min_height": "2.75rem",
+            "padding": "0.45rem 0.9rem",
+            "border": "1px solid var(--brand-700)",
+            "border_radius": "0.55rem",
+            "background_color": "var(--brand-900)",
+            "color": "#ffffff",
+            "font_weight": "700",
+            "list_style": "none",
+            "cursor": "pointer",
+        },
+
+        ".profile-menu-content": {
+            "position": "absolute",
+            "top": "calc(100% + 0.4rem)",
+            "right": "0",
+            "z_index": "20",
+            "display": "grid",
+            "gap": "0.2rem",
+            "min_width": "13rem",
+            "max_width": "min(20rem, calc(100vw - 1rem))",
+            "padding": "0.4rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.75rem",
+            "background_color": "var(--bg-panel)",
+            "box_shadow": "var(--shadow-soft)",
+        },
+
+        ".profile-menu-item": {
+            "display": "flex",
+            "align_items": "center",
+            "width": "100%",
+            "min_height": "2.75rem",
+            "padding": "0.45rem 0.65rem",
+            "border": "1px solid var(--button-subtle-border)",
+            "border_radius": "0.4rem",
+            "background_color": "var(--button-subtle-bg)",
+            "color": "var(--button-subtle-text)",
+            "font": "inherit",
+            "text_align": "left",
+            "overflow_wrap": "anywhere",
+            "text_decoration": "none",
+            "cursor": "pointer",
+        },
+
+        ".profile-menu-controls": {
+            "display": "grid",
+            "grid_template_columns": "repeat(3, minmax(0, 1fr))",
+            "gap": "0.2rem",
+        },
+
+        ".profile-menu-identity": {
+            "padding": "0.45rem 0.65rem",
+            "color": "var(--slate-700)",
+            "overflow_wrap": "anywhere",
+        },
