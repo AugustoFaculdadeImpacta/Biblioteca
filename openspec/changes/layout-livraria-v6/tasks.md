@@ -60,7 +60,7 @@
 
 - [x] 10.1 Atualizar relatório com tabela completa do último passe e itens não verificados.
 - [ ] 10.2 Executar `scripts/verificar.ps1` sequencialmente e `openspec.cmd validate --specs --strict`.
-- [ ] 10.3 Comitar cada tarefa concluída e publicar a branch `trabalho-autopilot`.
+- [x] 10.3 Comitar cada tarefa concluída e publicar a branch `trabalho-autopilot`.
 
 ### Evidências e pendências da execução 2026-11-23
 
@@ -84,6 +84,8 @@
   falhas. A execução de `scripts/verificar.ps1` foi bloqueada pela política do
   PowerShell antes de iniciar; sem contornar a política, foram executados
   manualmente e em sequência os mesmos comandos de compile e pytest.
+- 10.3: commits publicados em `trabalho-autopilot` até `fcb342b`; a checklist
+  registra o fechamento desta rodada.
 
 Violações e limites restantes do último passe:
 
