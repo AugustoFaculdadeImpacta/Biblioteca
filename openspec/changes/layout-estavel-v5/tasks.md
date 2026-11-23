@@ -14,7 +14,7 @@
 
 ## 4. Simplificar autenticação
 
-- [ ] 4.1 Remover navegação extra de login/cadastro e usar duas abas com cartão central; validar em `tests/test_login.py` e `tests/test_signup.py`.
+- [x] 4.1 Remover navegação extra de login/cadastro e usar duas abas com cartão central; validar em `tests/test_login.py` e `tests/test_signup.py`.
 
 ## 5. Padronizar emojis
 
