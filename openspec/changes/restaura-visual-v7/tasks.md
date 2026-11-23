@@ -18,7 +18,7 @@
 
 ## 5. Integração e evidências
 
-- [ ] 5.1 Executar verificações locais sem paralelizar compile e pytest; rodar uma única vez a matriz visual visitante em `/`, `/catalogo` e `/login`, 1366/360 px e temas claro/escuro, limitada a 15 minutos; registrar resultados e lacunas em `docs/relatorio-noite.md`. Validar os deltas e specs com `openspec.cmd validate --strict`.
+- [x] 5.1 Executar verificações locais sem paralelizar compile e pytest; rodar uma única vez a matriz visual visitante em `/`, `/catalogo` e `/login`, 1366/360 px e temas claro/escuro, limitada a 15 minutos; registrar resultados e lacunas em `docs/relatorio-noite.md`. Validar os deltas e specs com `openspec.cmd validate --strict`. Evidências: commit `a9075dd`; `scripts/verificar.ps1` bloqueado pela política, seguido de compile Reflex (`--dry`) aprovado e pytest sequencial (322 aprovados); `openspec.cmd validate "restaura-visual-v7" --strict` e `openspec.cmd validate --specs --strict` (9 specs aprovadas); uma rodada do robô (10/12 passaram; as duas larguras da home escura falharam na hidratação), tabelada em `docs/verificacao-layout.md` e `docs/relatorio-noite.md`.
 
 ## Workflow follow-up
 
