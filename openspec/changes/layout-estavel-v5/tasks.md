@@ -6,7 +6,7 @@
 
 ## 2. Estabilizar layouts
 
-- [ ] 2.1 Aplicar contêiner 1200 px, largura operacional, cartões estreitos só em login/cadastro e grades auto-fill; validar estrutura em `tests/test_layout_v5.py`.
+- [x] 2.1 Aplicar contêiner 1200 px, largura operacional, cartões estreitos só em login/cadastro e grades auto-fill; validar estrutura em `tests/test_layout_v5.py`.
 
 ## 3. Aplicar padrão app de delivery
 

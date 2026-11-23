@@ -827,6 +827,7 @@ O backlog em `openspec/changes/validacao-remota-xano/tasks.md` agora mantém abe
 - A conferência visual continua pendente com o usuário; não foram usados navegador nem capturas de tela.
 - ## Continuação — Change layout-estavel-v5
 - | 1.1 — Barra superior estável | `03a15e33b0517876090cb6a2120b2ad26d61c86c` | `test_header_contract_is_stable_without_action_classes`, `test_header_nav_and_footer_tokens_meet_text_contrast`, testes atualizados em `test_navigation.py` e testes dos breakpoints para 48 rem; compilação Reflex aprovada; suíte completa: 303 passaram | Feito, aguarda conferência do usuário |
+- | 2.1 — Contêineres estáveis | `71cb4eab39f6b0f7da4925649984ab16955da168` | `test_page_container_layout_is_stable`, testes de grades e listas atualizados em `test_layout_v5.py`, `test_catalog.py`, `test_frontend_foundation.py` e `test_user_admin.py`; compilação Reflex aprovada; suíte completa: 304 passaram | Feito, aguarda conferência do usuário |
 - Após `e242de459f5a5ee68357aeb7f3266e0ab178862b`, `.\.venv\Scripts\python.exe -m reflex compile --dry`: aprovado.
 - Após `e242de459f5a5ee68357aeb7f3266e0ab178862b`, `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`: 289 passaram.
 - Após `655ae877029ff4ce118cb941b6d761f089badf7e`, `.\.venv\Scripts\python.exe -m reflex compile --dry`: aprovado.
