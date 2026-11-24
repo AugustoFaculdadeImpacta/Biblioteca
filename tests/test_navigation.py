@@ -491,6 +491,44 @@ def test_student_navigation_has_accessible_labels_focus_and_mobile_layout():
     assert mobile[".app-shell"]["padding"] == "0.5rem"
 
 
+def test_header_highlight_covers_outer_control_without_clipping_or_shrinking():
+    style = frontend.app.style
+    controls = style[
+        ".site-header .brand-link, .site-header .site-nav-link, "
+        ".site-header .profile-menu-trigger, "
+        ".site-header .accessibility-menu-trigger"
+    ]
+    hover = style[
+        ".site-header .brand-link:hover, .site-header .site-nav-link:hover, "
+        ".site-header .profile-menu-trigger:hover, "
+        ".site-header .accessibility-menu-trigger:hover"
+    ]
+    inner = style[
+        ".site-header .emoji-acao, .site-header .rotulo-acao, "
+        ".site-header .site-nav-link > span"
+    ]
+
+    assert controls["display"] == "inline-flex"
+    assert controls["align_items"] == "center"
+    assert controls["gap"] == "0.4rem"
+    assert controls["padding"] == "0.5rem 0.85rem"
+    assert controls["flex"] == "0 0 auto"
+    assert controls["white_space"] == "nowrap"
+    assert controls["overflow"] == "visible"
+    assert not {"width", "max_width"} & controls.keys()
+    assert hover["background_color"] == "var(--bg-soft)"
+    assert inner["background_color"] == "transparent"
+    assert inner["margin"] == "0"
+    assert style[".site-primary-nav"]["overflow_x"] == "auto"
+    assert style[".brand-link"].get("min_width") != "0"
+    assert style[".brand-link"]["border_radius"] == "999px"
+    assert style[".site-primary-nav a"]["border_radius"] == "999px"
+    assert style[".profile-menu-trigger, .accessibility-menu-trigger"][
+        "border_radius"
+    ] == "0.55rem"
+    assert style[":focus-visible"]["outline_offset"] == "3px"
+
+
 def test_site_header_brand_and_footer_links_preserve_profile_access():
     header = _readable(frontend.site_header())
     footer = _readable(frontend.site_footer())
