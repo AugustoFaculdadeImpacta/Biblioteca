@@ -2647,6 +2647,48 @@ _APPEARANCE_SCRIPT = r"""
 (() => {
   if (window.__bibliotecaAppearanceInstalled) return;
   window.__bibliotecaAppearanceInstalled = true;
+  const hideFailedCover = (image) => {
+    if (!image.complete || image.naturalWidth !== 0 ||
+        !image.getAttribute("src")) return;
+    image.style.display = "none";
+    image.closest(".catalog-cover-stack")
+      ?.classList.add("catalog-cover-real-failed");
+  };
+  const scanCoverImages = (root) => {
+    if (root instanceof HTMLImageElement) hideFailedCover(root);
+    if (!root || typeof root.querySelectorAll !== "function") return;
+    root.querySelectorAll("img.catalog-real-cover-image")
+      .forEach(hideFailedCover);
+  };
+  document.addEventListener("error", (event) => {
+    const image = event.target;
+    if (image instanceof HTMLImageElement &&
+        image.classList.contains("catalog-real-cover-image")) {
+      hideFailedCover(image);
+    }
+  }, true);
+  const coverObserver = new MutationObserver((records) => {
+    records.forEach((record) => {
+      record.addedNodes.forEach(scanCoverImages);
+      if (record.type === "attributes") scanCoverImages(record.target);
+    });
+  });
+  coverObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["class", "src"],
+    childList: true,
+    subtree: true
+  });
+  const scanExistingCoverImages = () => scanCoverImages(document);
+  if (document.readyState === "loading") {
+    document.addEventListener(
+      "DOMContentLoaded",
+      scanExistingCoverImages,
+      { once: true }
+    );
+  } else {
+    scanExistingCoverImages();
+  }
   const key = "biblioteca-aparencia";
   const legacyKeys = [
     "biblioteca-acessibilidade-fonte",
@@ -3584,20 +3626,52 @@ def home_stat_card(value: rx.Var[int], label: str) -> rx.Component:
 def _catalog_cover_class(cover_variant: rx.Var[int]) -> rx.Var[str]:
     return rx.cond(
         cover_variant == 0,
-        "catalog-card-cover catalog-cover-0",
+        "catalog-card-cover catalog-cover-stack catalog-cover-0",
         rx.cond(
             cover_variant == 1,
-            "catalog-card-cover catalog-cover-1",
+            "catalog-card-cover catalog-cover-stack catalog-cover-1",
             rx.cond(
                 cover_variant == 2,
-                "catalog-card-cover catalog-cover-2",
+                "catalog-card-cover catalog-cover-stack catalog-cover-2",
                 rx.cond(
                     cover_variant == 3,
-                    "catalog-card-cover catalog-cover-3",
-                    "catalog-card-cover catalog-cover-4",
+                    "catalog-card-cover catalog-cover-stack catalog-cover-3",
+                    "catalog-card-cover catalog-cover-stack catalog-cover-4",
                 ),
             ),
         ),
+    )
+
+
+def catalog_cover_layers(
+    titulo: rx.Var[str],
+    capa_gerada: rx.Var[str],
+    capa_real: rx.Var[str],
+    *,
+    container_class: str | rx.Var[str],
+    real_class: str,
+) -> rx.Component:
+    return rx.el.div(
+        rx.el.img(
+            src=capa_gerada,
+            alt="",
+            aria_hidden=True,
+            class_name="catalog-cover-generated",
+        ),
+        rx.cond(
+            capa_real.to(str) != "",
+            rx.el.img(
+                src=capa_real,
+                alt="",
+                aria_hidden=True,
+                loading="lazy",
+                class_name=f"{real_class} catalog-real-cover-image",
+            ),
+            rx.fragment(),
+        ),
+        role="img",
+        aria_label=f"Capa de «{titulo}»",
+        class_name=container_class,
     )
 
 
@@ -3609,31 +3683,16 @@ def public_catalog_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
     cover_class = _catalog_cover_class(cover_variant)
     return rx.el.article(
         rx.el.div(
-            rx.cond(
-                title["capa_url"].to(str) != "",
-                rx.el.img(
-                    src=title["capa_url"],
-                    alt=f"Capa de «{title_name}»",
-                    loading="lazy",
-                    class_name="catalog-card-cover-image",
-                ),
+            catalog_cover_layers(
+                title_name,
+                title["capa_gerada"].to(str),
                 rx.cond(
-                    title["capa_real"].to(str) != "",
-                    rx.el.img(
-                        src=title["capa_real"],
-                        alt=f"Capa de «{title_name}»",
-                        loading="lazy",
-                        class_name="catalog-card-cover-image",
-                    ),
-                    rx.el.div(
-                        rx.el.span(
-                            title["cover_initial"],
-                            class_name="catalog-cover-initial",
-                        ),
-                        class_name=cover_class,
-                        aria_hidden="true",
-                    ),
+                    title["capa_url"].to(str) != "",
+                    title["capa_url"].to(str),
+                    title["capa_real"].to(str),
                 ),
+                container_class=cover_class,
+                real_class="catalog-card-cover-image",
             ),
             rx.el.span(
                 rx.cond(
@@ -3939,40 +3998,18 @@ def public_catalog_detail() -> rx.Component:
                 rx.cond(
                     State.has_public_catalog_detail,
                     rx.el.article(
-                        rx.el.div(
+                        catalog_cover_layers(
+                            State.public_catalog_detail["titulo"].to(str),
+                            State.public_catalog_detail["capa_gerada"].to(str),
                             rx.cond(
                                 State.public_catalog_detail["capa_url"] != "",
-                                rx.el.img(
-                                    src=State.public_catalog_detail["capa_url"],
-                                    alt="Capa de «" + State.public_catalog_detail["titulo"].to(str) + "»",
-                                    loading="lazy",
-                                    class_name="catalog-detail-cover-image",
-                                ),
-                                rx.cond(
-                                    State.public_catalog_detail["capa_gerada"] != "",
-                                    rx.el.img(
-                                        src=State.public_catalog_detail["capa_gerada"],
-                                        alt="Capa de «" + State.public_catalog_detail["titulo"].to(str) + "»",
-                                        loading="lazy",
-                                        class_name="catalog-detail-cover-image",
-                                    ),
-                                    rx.el.div(
-                                        rx.el.span(
-                                            State.public_catalog_detail[
-                                                "cover_initial"
-                                            ],
-                                            class_name="catalog-cover-initial",
-                                        ),
-                                        class_name=_catalog_cover_class(
-                                            State.public_catalog_detail[
-                                                "cover_variant"
-                                            ].to(int)
-                                        ),
-                                        aria_hidden="true",
-                                    ),
-                                ),
+                                State.public_catalog_detail["capa_url"].to(str),
+                                State.public_catalog_detail["capa_real"].to(str),
                             ),
-                            class_name="catalog-detail-visual",
+                            container_class=(
+                                "catalog-cover-stack catalog-detail-visual"
+                            ),
+                            real_class="catalog-detail-cover-image",
                         ),
                         rx.el.h2(
                             State.public_catalog_detail["titulo"],
@@ -4825,31 +4862,12 @@ def admin_copy_row(copy: rx.Var[dict[str, Any]]) -> rx.Component:
 def admin_title_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
     return rx.el.article(
         rx.el.div(
-            rx.el.div(
-                rx.cond(
-                    title["capa_url"].to(str) != "",
-                    rx.el.img(
-                        src=title["capa_url"],
-                        alt=f"Capa de «{title['titulo']}»",
-                        loading="lazy",
-                        class_name="admin-catalog-cover-image",
-                    ),
-                    rx.cond(
-                        title["capa_gerada"].to(str) != "",
-                        rx.el.img(
-                            src=title["capa_gerada"],
-                            alt=f"Capa de «{title['titulo']}»",
-                            loading="lazy",
-                            class_name="admin-catalog-cover-image",
-                        ),
-                        rx.el.div(
-                            title["titulo"],
-                            class_name="admin-catalog-cover-fallback",
-                            aria_hidden="true",
-                        ),
-                    ),
-                ),
-                class_name="admin-title-cover",
+            catalog_cover_layers(
+                title["titulo"].to(str),
+                title["capa_gerada"].to(str),
+                title["capa_url"].to(str),
+                container_class="admin-title-cover catalog-cover-stack",
+                real_class="admin-catalog-cover-image",
             ),
             rx.el.div(
                 rx.heading(title["titulo"], size="4"),
@@ -7528,7 +7546,12 @@ app = rx.App(
             "width": "100%",
         },
         ".admin-title-cover": {
+            "display": "grid",
             "width": "72px",
+            "aspect_ratio": "2 / 3",
+            "overflow": "hidden",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.45rem",
         },
         ".admin-catalog-cover-image, .admin-catalog-cover-fallback": {
             "width": "72px",
@@ -7641,40 +7664,43 @@ app = rx.App(
             "gap": "0.6rem",
         },
         ".catalog-card-cover": {
-            "display": "flex",
-            "align_items": "center",
-            "justify_content": "center",
+            "display": "grid",
             "width": "100%",
             "aspect_ratio": "2 / 3",
+            "overflow": "hidden",
             "border": "1px solid var(--line)",
             "border_radius": "0.8rem",
             "background_color": "var(--brand-900)",
             "color": "#ffffff",
         },
-        ".catalog-card-cover-image": {
+        ".catalog-cover-stack": {
+            "display": "grid",
+            "overflow": "hidden",
+        },
+        ".catalog-cover-generated, .catalog-real-cover-image": {
             "display": "block",
+            "grid_area": "1 / 1",
             "width": "100%",
             "aspect_ratio": "2 / 3",
-            "border_radius": "0.8rem",
+            "border_radius": "inherit",
             "object_fit": "cover",
+        },
+        ".catalog-card-cover-image": {
             "transition": "transform 150ms ease",
         },
-        ".catalog-card-cover:hover .catalog-card-cover-image": {
+        ".catalog-card-cover:hover .catalog-real-cover-image": {
             "transform": "scale(1.03)",
         },
         ".catalog-detail-visual": {
+            "display": "grid",
             "width": "100%",
             "max_width": "22rem",
-        },
-        ".catalog-detail-visual .catalog-card-cover": {
-            "aspect_ratio": "2 / 3",
-        },
-        ".catalog-detail-cover-image": {
-            "display": "block",
-            "width": "100%",
             "aspect_ratio": "2 / 3",
             "border_radius": "0.8rem",
-            "object_fit": "cover",
+            "border": "1px solid var(--line)",
+        },
+        ".catalog-cover-real-failed .catalog-real-cover-image": {
+            "display": "none",
         },
         ".catalog-cover-0": {
             "background_color": "var(--brand-900)",

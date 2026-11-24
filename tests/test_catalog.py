@@ -498,8 +498,89 @@ def test_catalog_card_handles_cover_url_and_css_fallback():
 
     listing = repr(frontend.public_catalog())
     assert "catalog-card-cover-image" in listing
-    assert "catalog-card-cover catalog-cover-0" in listing
+    assert "catalog-card-cover catalog-cover-stack" in listing
     assert "Categorias: " not in listing
+
+
+def test_cover_layers_keep_generated_art_and_hide_failed_real_images():
+    pages = (
+        frontend.public_catalog(),
+        frontend.public_catalog_detail(),
+        frontend.catalog_admin(),
+    )
+    for component in pages:
+        page = repr(component)
+        assert "catalog-cover-generated" in page
+        assert "catalog-real-cover-image" in page
+        assert page.index("catalog-cover-generated") < page.index(
+            "catalog-real-cover-image"
+        )
+        cover_containers = [
+            item
+            for item in _components(component)
+            if isinstance(item.custom_attrs.get("aria-label"), str)
+            and item.custom_attrs["aria-label"].startswith("Capa de «")
+        ]
+        generated_images = [
+            item
+            for item in _components(component)
+            if isinstance(item.class_name, str)
+            and item.class_name == "catalog-cover-generated"
+        ]
+        assert cover_containers
+        assert all(
+            getattr(container.role, "_var_value", None) == "img"
+            for container in cover_containers
+        )
+        assert generated_images
+        assert all(
+            getattr(image.alt, "_var_value", None) == ""
+            and getattr(
+                image.custom_attrs.get("aria-hidden"),
+                "_var_value",
+                image.custom_attrs.get("aria-hidden"),
+            )
+            is True
+            for image in generated_images
+        )
+
+    real_images = [
+        item
+        for component in pages
+        for item in _components(component)
+        if isinstance(item.class_name, str)
+        and "catalog-real-cover-image" in item.class_name
+    ]
+    assert real_images
+    assert all(
+        getattr(image.alt, "_var_value", None) == ""
+        and getattr(
+            image.custom_attrs.get("aria-hidden"),
+            "_var_value",
+            image.custom_attrs.get("aria-hidden"),
+        )
+        is True
+        for image in real_images
+    )
+
+    script = frontend._APPEARANCE_SCRIPT
+    assert 'document.addEventListener("error"' in script
+    assert 'image.classList.contains("catalog-real-cover-image")' in script
+    assert "image.complete" in script
+    assert "image.naturalWidth !== 0" in script
+    assert 'image.style.display = "none"' in script
+    assert 'classList.add("catalog-cover-real-failed")' in script
+    assert "coverObserver.observe(document.documentElement" in script
+    assert "scanExistingCoverImages" in script
+
+    style = frontend.app.style
+    assert style[".catalog-cover-stack"]["display"] == "grid"
+    assert style[
+        ".catalog-cover-generated, .catalog-real-cover-image"
+    ]["grid_area"] == "1 / 1"
+    assert style[
+        ".catalog-cover-real-failed .catalog-real-cover-image"
+    ]["display"] == "none"
 
 
 def test_catalog_controls_and_card_states_are_responsive():
@@ -747,7 +828,7 @@ def test_title_detail_shows_description_fallback_and_cover(monkeypatch):
     detail = repr(frontend.public_catalog_detail())
     assert "catalog-detail-cover-image" in detail
     assert "catalog-detail-visual" in detail
-    assert "catalog-card-cover catalog-cover-" in detail
+    assert "catalog-cover-stack catalog-detail-visual" in detail
     assert "catalog-description" in detail
 
 
