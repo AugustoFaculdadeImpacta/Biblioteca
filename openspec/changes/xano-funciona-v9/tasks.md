@@ -7,8 +7,10 @@
 
 ## 2. Escritas sem repetição
 
-- [ ] 2.1 Tratar respostas POST/PATCH 2xx ilegíveis sem repetir a escrita, atualizar as listas e só confirmar a reserva após a releitura encontrá-la; testar sucesso, ausência de confirmação, erro, transporte e ausência de retry.
-- [ ] 2.2 Bloquear nova submissão em Reservar durante a tentativa e até a confirmação pela releitura; manter o bloqueio quando a escrita for incerta e testar liberação somente após confirmação.
+- [x] 2.1 Tratar respostas POST/PATCH 2xx ilegíveis sem repetir a escrita, atualizar as listas e só confirmar a reserva após a releitura encontrá-la; testar sucesso, ausência de confirmação, erro, transporte e ausência de retry.
+  - Evidência: commit `26e7601`; `pytest tests\test_student_area.py tests\test_circulation.py tests\test_catalog.py tests\test_admin_catalog.py tests\test_user_admin.py tests\test_staff_reservations.py tests\test_signup.py tests\test_xano_client.py tests\test_frontend_foundation.py -q` — 231 passed; `reflex compile --dry` — sucesso.
+- [x] 2.2 Bloquear nova submissão em Reservar durante a tentativa e até a confirmação pela releitura; manter o bloqueio quando a escrita for incerta e testar liberação somente após confirmação.
+  - Evidência: commit `26e7601`; testes de confirmação e bloqueio incluídos na suíte focada — 231 passed; `reflex compile --dry` — sucesso.
 
 ## 3. Resumo da home
 
