@@ -1,5 +1,7 @@
 """Operações de catálogo conforme os endpoints locais do Xano."""
 
+import copy
+import time
 from typing import NotRequired, TypedDict
 from urllib.parse import urlsplit
 
@@ -110,6 +112,38 @@ class CatalogValidationError(ValueError):
     """Entrada de catálogo inválida para exibição."""
 
 
+_PUBLIC_CACHE_TTL_SECONDS = 60.0
+_PUBLIC_CACHE: dict[str, tuple[float, object]] = {}
+
+
+def invalidar_cache_catalogo_publico() -> None:
+    """Remove catálogo e categorias públicas após uma escrita administrativa."""
+    _PUBLIC_CACHE.clear()
+
+
+def limpar_cache_catalogo_publico() -> None:
+    """Uso exclusivo em testes para isolar o estado em memória."""
+    invalidar_cache_catalogo_publico()
+
+
+def _cache_read(key: str) -> object | None:
+    cached = _PUBLIC_CACHE.get(key)
+    if cached is None:
+        return None
+    expires_at, value = cached
+    if expires_at <= time.monotonic():
+        _PUBLIC_CACHE.pop(key, None)
+        return None
+    return copy.deepcopy(value)
+
+
+def _cache_write(key: str, value: object) -> None:
+    _PUBLIC_CACHE[key] = (
+        time.monotonic() + _PUBLIC_CACHE_TTL_SECONDS,
+        copy.deepcopy(value),
+    )
+
+
 def _validate_cover_url(value: str) -> None:
     try:
         parsed = urlsplit(value)
@@ -172,6 +206,9 @@ async def list_categories(
     *,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> list[Category]:
+    cached = _cache_read("categorias") if transport is None else None
+    if isinstance(cached, list):
+        return copy.deepcopy(cached)
     client = XanoClient.from_environment(transport=transport)
     response = await client.request("GET", "/catalogo/categorias")
     categories = _response_json(response)
@@ -187,6 +224,8 @@ async def list_categories(
         ):
             raise _response_error()
         parsed.append({"id": category["id"], "nome": category["nome"]})
+    if transport is None:
+        _cache_write("categorias", parsed)
     return parsed
 
 
@@ -277,6 +316,9 @@ async def list_public_titles(
     *,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> list[PublicCatalogEntry]:
+    cached = _cache_read("titulos_publicos") if transport is None else None
+    if isinstance(cached, list):
+        return copy.deepcopy(cached)
     client = XanoClient.from_environment(transport=transport)
     response = await client.request("GET", "/catalogo/titulos")
     titles = _response_json(response)
@@ -294,6 +336,8 @@ async def list_public_titles(
             if active is False:
                 continue
         public_titles.append(_parse_public_catalog_entry(title))
+    if transport is None:
+        _cache_write("titulos_publicos", public_titles)
     return public_titles
 
 
@@ -397,6 +441,7 @@ async def update_title(
         or title["id"] != title_id
     ):
         raise _response_error()
+    invalidar_cache_catalogo_publico()
     return {"id": title_id}
 
 
@@ -416,6 +461,7 @@ async def create_title(
     title = _response_json(response)
     if not isinstance(title, dict) or type(title.get("id")) is not int:
         raise _response_error()
+    invalidar_cache_catalogo_publico()
     return {"id": title["id"]}
 
 
@@ -443,6 +489,7 @@ async def associate_category(
         or association.get("categoria_id") != category_id
     ):
         raise _response_error()
+    invalidar_cache_catalogo_publico()
     return {
         "id": association["id"],
         "titulo_id": title_id,
@@ -496,6 +543,7 @@ async def create_copy(
         or not copy["codigo_tombo"]
     ):
         raise _response_error()
+    invalidar_cache_catalogo_publico()
     return {
         "id": copy["id"],
         "titulo_id": title_id,

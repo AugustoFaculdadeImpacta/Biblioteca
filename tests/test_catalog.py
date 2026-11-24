@@ -17,10 +17,54 @@ from biblioteca_mais_nova.catalog import (
     create_copy,
     create_title,
     get_public_title,
+    limpar_cache_catalogo_publico,
     list_categories,
     list_public_titles,
 )
 from biblioteca_mais_nova.xano_client import XanoRequestError, XanoResponseError
+
+
+def test_public_catalog_cache_reuses_titles_and_categories_for_60_seconds(monkeypatch):
+    limpar_cache_catalogo_publico()
+    clock = [100.0]
+
+    monkeypatch.setattr(
+        "biblioteca_mais_nova.catalog.time.monotonic",
+        lambda: clock[0],
+    )
+    import biblioteca_mais_nova.catalog as catalog
+
+    catalog._cache_write(
+        "titulos_publicos",
+        [{"titulo": {"id": 81}, "exemplares_disponiveis": 2}],
+    )
+    catalog._cache_write(
+        "categorias",
+        [{"id": 7, "nome": "Literatura"}],
+    )
+
+    assert catalog._cache_read("titulos_publicos") is not None
+    assert catalog._cache_read("categorias") is not None
+
+    clock[0] = 161.0
+    assert catalog._cache_read("titulos_publicos") is None
+    assert catalog._cache_read("categorias") is None
+    limpar_cache_catalogo_publico()
+
+
+def test_public_catalog_cache_is_invalidated_by_administrative_write(monkeypatch):
+    limpar_cache_catalogo_publico()
+    import biblioteca_mais_nova.catalog as catalog
+
+    catalog._cache_write("titulos_publicos", [{"titulo": {"id": 81}}])
+    catalog._cache_write("categorias", [{"id": 7, "nome": "Literatura"}])
+    assert catalog._cache_read("titulos_publicos") is not None
+
+    catalog.invalidar_cache_catalogo_publico()
+
+    assert catalog._cache_read("titulos_publicos") is None
+    assert catalog._cache_read("categorias") is None
+    limpar_cache_catalogo_publico()
 
 
 def _components(component: rx.Component):

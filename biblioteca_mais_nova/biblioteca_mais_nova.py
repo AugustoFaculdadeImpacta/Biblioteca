@@ -49,6 +49,7 @@ from biblioteca_mais_nova.catalog import (
     list_categories,
     list_public_titles,
     update_title,
+    invalidar_cache_catalogo_publico,
 )
 from biblioteca_mais_nova.seed_data import TITULOS as TITULOS_EXEMPLO
 from biblioteca_mais_nova.circulation import (
@@ -187,6 +188,8 @@ class State(rx.State):
     public_catalog_message: str = ""
     public_catalog_has_error: bool = False
     public_catalog_pending: bool = True
+    home_titles_has_error: bool = False
+    home_categories_has_error: bool = False
     public_catalog_search: str = ""
     public_catalog_category_id: str = ""
     public_catalog_only_available: bool = False
@@ -887,19 +890,51 @@ class State(rx.State):
         self.public_catalog_pending = True
         self.public_catalog_message = ""
         self.public_catalog_has_error = False
+        self.home_titles_has_error = False
+        self.home_categories_has_error = False
+        titles: list[dict[str, Any]] | None = None
+        categories: list[dict[str, Any]] | None = None
+        title_error: Exception | None = None
+        category_error: Exception | None = None
         try:
             titles = await list_public_titles()
+        except (XanoConfigurationError, XanoRequestError, XanoResponseError) as error:
+            title_error = error
+            self.home_titles_has_error = True
+        try:
             categories = await list_categories()
         except (XanoConfigurationError, XanoRequestError, XanoResponseError) as error:
-            self.public_catalog_message = catalog_error_message(error)
-            self.public_catalog_has_error = True
-            self.public_catalog_pending = False
-            return
+            category_error = error
+            self.home_categories_has_error = True
 
-        self.public_catalog_entries = titles
-        self.public_catalog_categories = categories
+        if titles is not None:
+            self.public_catalog_entries = titles
+        if categories is not None:
+            self.public_catalog_categories = categories
+        if title_error is not None or category_error is not None:
+            first_error = title_error or category_error
+            self.public_catalog_message = catalog_error_message(first_error)
+            self.public_catalog_has_error = True
+        else:
+            self.public_catalog_message = ""
+            self.public_catalog_has_error = False
         self.public_catalog_pending = False
-        return State.resolve_public_catalog_covers
+        if titles is not None:
+            return State.resolve_public_catalog_covers
+
+    @rx.event
+    async def retry_public_catalog(self):
+        invalidar_cache_catalogo_publico()
+        await self.load_public_catalog()
+
+    @rx.event
+    async def retry_public_catalog_detail(self):
+        invalidar_cache_catalogo_publico()
+        await self.load_public_catalog_detail()
+
+    @rx.event
+    async def retry_student_library(self):
+        await self.load_student_library()
 
     @rx.event(background=True)
     async def resolve_public_catalog_covers(self):
@@ -1144,8 +1179,9 @@ class State(rx.State):
             if isinstance(error, XanoResponseError) and error.status_code == 401:
                 self._clear_session_token()
                 self.student_library_requires_login = True
-            self.student_library_pending = False
             return
+        finally:
+            self.student_library_pending = False
 
         title_names = {
             entry["titulo"]["id"]: entry["titulo"]["titulo"] for entry in titles
@@ -1213,7 +1249,6 @@ class State(rx.State):
             }
             for reservation in reservations
         ]
-        self.student_library_pending = False
 
     @rx.event
     def redirect_student_library(self):
@@ -3769,6 +3804,60 @@ def home_stat_card(value: rx.Var[int], label: str) -> rx.Component:
     )
 
 
+def home_indicators() -> rx.Component:
+    return rx.el.div(
+        rx.cond(
+            State.home_titles_has_error,
+            rx.el.div(
+                rx.el.strong("—", class_name="hero-stat-value"),
+                rx.text("Títulos", class_name="hero-stat-label"),
+                rx.button(
+                    "Tentar de novo",
+                    type="button",
+                    on_click=State.retry_public_catalog,
+                    class_name="nav-logout",
+                ),
+                class_name="hero-stat-card",
+            ),
+            home_stat_card(State.home_total_titles, "Títulos"),
+        ),
+        rx.cond(
+            State.home_titles_has_error,
+            rx.el.div(
+                rx.el.strong("—", class_name="hero-stat-value"),
+                rx.text("Exemplares disponíveis", class_name="hero-stat-label"),
+                rx.button(
+                    "Tentar de novo",
+                    type="button",
+                    on_click=State.retry_public_catalog,
+                    class_name="nav-logout",
+                ),
+                class_name="hero-stat-card",
+            ),
+            home_stat_card(
+                State.home_available_copies,
+                "Exemplares disponíveis",
+            ),
+        ),
+        rx.cond(
+            State.home_categories_has_error,
+            rx.el.div(
+                rx.el.strong("—", class_name="hero-stat-value"),
+                rx.text("Categorias", class_name="hero-stat-label"),
+                rx.button(
+                    "Tentar de novo",
+                    type="button",
+                    on_click=State.retry_public_catalog,
+                    class_name="nav-logout",
+                ),
+                class_name="hero-stat-card",
+            ),
+            home_stat_card(State.home_category_count, "Categorias"),
+        ),
+        class_name="hero-stat-grid",
+    )
+
+
 def _catalog_cover_class(cover_variant: rx.Var[int]) -> rx.Var[str]:
     return rx.cond(
         cover_variant == 0,
@@ -4076,6 +4165,16 @@ def public_catalog() -> rx.Component:
                     rx.fragment(),
                 ),
                 rx.cond(
+                    State.public_catalog_has_error,
+                    rx.button(
+                        "Tentar de novo",
+                        type="button",
+                        on_click=State.retry_public_catalog,
+                        class_name="nav-logout",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
                     (~State.public_catalog_pending)
                     & (State.public_catalog_message == "")
                     & (State.filtered_public_catalog.length() == 0),
@@ -4130,6 +4229,16 @@ def public_catalog_detail() -> rx.Component:
                         role="alert",
                         aria_live="polite",
                         class_name="signup-feedback signup-feedback-error",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.public_catalog_detail_has_error,
+                    rx.button(
+                        "Tentar de novo",
+                        type="button",
+                        on_click=State.retry_public_catalog_detail,
+                        class_name="nav-logout",
                     ),
                     rx.fragment(),
                 ),
@@ -4466,7 +4575,12 @@ def student_reservations() -> rx.Component:
                                 href="/login",
                                 **atributos_acao("entrar"),
                             ),
-                            rx.fragment(),
+                            rx.button(
+                                "Tentar de novo",
+                                type="button",
+                                on_click=State.retry_student_library,
+                                class_name="nav-logout",
+                            ),
                         ),
                         role="alert",
                         aria_live="polite",
@@ -4584,21 +4698,7 @@ def index() -> rx.Component:
                                 class_name="home-stat-status",
                             ),
                             rx.el.aside(
-                                rx.el.div(
-                                    home_stat_card(
-                                        State.home_total_titles,
-                                        "Títulos",
-                                    ),
-                                    home_stat_card(
-                                        State.home_available_copies,
-                                        "Exemplares disponíveis",
-                                    ),
-                                    home_stat_card(
-                                        State.home_category_count,
-                                        "Categorias",
-                                    ),
-                                    class_name="hero-stat-grid",
-                                ),
+                                home_indicators(),
                                 aria_label="Estatísticas do catálogo público",
                                 class_name="hero-stat-panel",
                             ),

@@ -292,6 +292,36 @@ def test_home_sections_use_catalog_data_and_explicit_empty_error_states(
     asyncio.run(verify())
 
 
+def test_home_separates_title_and_category_failures(monkeypatch):
+    async def failed_categories():
+        raise XanoResponseError(503)
+
+    async def public_titles():
+        return [_title_entry(81)]
+
+    monkeypatch.setattr(frontend, "list_public_titles", public_titles)
+    monkeypatch.setattr(frontend, "list_categories", failed_categories)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(
+                ident=f"home-partial-{uuid4()}",
+                cls=rx.State,
+            )
+        ) as root:
+            state = await root.get_state(frontend.State)
+            await state.load_home()
+
+            assert state.public_catalog_pending is False
+            assert state.public_catalog_has_error is True
+            assert state.home_titles_has_error is False
+            assert state.home_categories_has_error is True
+            assert state.home_featured_titles
+            assert "Tentar de novo" in repr(frontend.index())
+
+    asyncio.run(verify())
+
+
 def test_home_estante_novidades_and_category_counts_use_public_catalog():
     async def verify():
         async with frontend.app.modify_state(

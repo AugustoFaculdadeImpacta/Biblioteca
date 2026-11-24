@@ -30,6 +30,23 @@ Rotas instrumentadas:
 Chamadas feitas por carregadores aninhados são contabilizadas no carregamento
 externo, evitando resumos duplicados para uma única navegação.
 
+## Auditoria de chamadas por rota
+
+| Rota | Leituras feitas na abertura | Dados pessoais | Reuso/cancelamento |
+| --- | --- | --- | --- |
+| `/` | catálogo público e categorias; consulta pessoal apenas para estudante autenticado ou dados operacionais somente de visão bibliotecária | Empréstimos, pedidos e reservas somente com sessão própria | catálogo/categorias reutilizados por 60 s; indicadores independentes |
+| `/catalogo` | catálogo público e categorias | Nenhum | catálogo/categorias reutilizados por 60 s |
+| `/catalogo/<id>` | título público e categorias | Nenhum | categorias reutilizadas por 60 s; pendência termina em `finally` |
+| `/reservas` | empréstimos, pedidos e reservas próprios; catálogo para nomes | Somente com token de estudante ou admin em visão estudante | sem cache autenticado; falha encerra `pending` |
+| `/admin/acervo` | categorias e acervo administrativo | Somente com sessão administrativa/bibliotecária | categorias públicas reutilizadas por 60 s; acervo autenticado não é cacheado |
+| `/admin/bibliotecarios` | contas bibliotecárias | Somente com sessão admin | sem cache autenticado |
+| `/admin/reservas` | fila administrativa, reservas, empréstimos e acervo | Somente com sessão bibliotecária/admin | acervo autenticado não é cacheado; pendência encerrada em `finally` |
+
+Uma mutação administrativa de título, categoria ou exemplar invalida os caches
+públicos antes da próxima leitura. Navegar entre rotas públicas reutiliza
+catálogo e categorias durante até 60 segundos no processo. Dados pessoais,
+autorizados por token ou perfil, nunca entram nesse cache compartilhado.
+
 ## Concorrência e repetição
 
 O cliente limita a três as chamadas Xano simultâneas por processo/event loop.
