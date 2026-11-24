@@ -177,6 +177,8 @@ class State(rx.State):
     example_seed_errors: int = 0
     example_seed_message: str = ""
     example_seed_has_error: bool = False
+    example_seed_resume_index: int = 1
+    example_seed_can_resume: bool = False
     _session_token: str = ""
     _session_profile: str = ""
     _session_name: str = ""
@@ -2082,6 +2084,14 @@ class State(rx.State):
         self.example_seed_confirming = False
 
     @rx.event
+    async def continue_example_books_import(self):
+        if not self._is_admin():
+            return self._redirect_non_admin()
+        if not self.example_seed_can_resume or self.example_seed_pending:
+            return
+        await self.confirm_example_books_import()
+
+    @rx.event
     async def confirm_example_books_import(self):
         if not self._is_admin():
             return self._redirect_non_admin()
@@ -2092,10 +2102,16 @@ class State(rx.State):
 
         self.example_seed_confirming = False
         self.example_seed_pending = True
-        self.example_seed_progress = 0
+        start_index = (
+            self.example_seed_resume_index
+            if self.example_seed_can_resume
+            else 1
+        )
+        self.example_seed_progress = start_index - 1
         self.example_seed_created = 0
         self.example_seed_ignored = 0
         self.example_seed_errors = 0
+        self.example_seed_can_resume = False
         self.example_seed_message = ""
         self.example_seed_has_error = False
         self.example_seed_preview_ready = False
@@ -2122,7 +2138,10 @@ class State(rx.State):
                 self.example_seed_preview_ready = True
                 existing_pairs = plan["pares_existentes"]
                 category_ids = plan["ids_categoria"]
-                for index, book in enumerate(TITULOS_EXEMPLO, start=1):
+                for index, book in enumerate(
+                    TITULOS_EXEMPLO,
+                    start=start_index,
+                ):
                     pair = _example_book_key(book["titulo"], book["autores"])
                     if pair in existing_pairs:
                         self.example_seed_ignored += 1
@@ -2149,27 +2168,71 @@ class State(rx.State):
                                 "descricao": book["descricao"],
                             }
                         )
-                        title = await create_title(
-                            payload,
-                            self._session_token,
-                        )
+                        title = None
+                        step_error: Exception | None = None
+                        for attempt in range(3):
+                            try:
+                                entries = await list_admin_catalog(
+                                    self._session_token
+                                )
+                                reconciled = _example_book_plan(
+                                    entries,
+                                    categories,
+                                    [book],
+                                )
+                                if reconciled["existentes"] == 1:
+                                    self.example_seed_ignored += 1
+                                    existing_pairs.add(pair)
+                                    title = {"id": 0}
+                                    break
+                                title = await create_title(
+                                    payload,
+                                    self._session_token,
+                                )
+                                break
+                            except (
+                                XanoTimeoutError,
+                                XanoRequestError,
+                                XanoResponseError,
+                            ) as error:
+                                step_error = error
+                                if isinstance(error, XanoResponseError) and (
+                                    error.status_code not in {429, 502, 503, 504}
+                                ):
+                                    break
+                                if attempt < 2:
+                                    await asyncio.sleep(1.5)
+                        if title is None:
+                            if step_error is not None:
+                                raise step_error
+                            raise XanoRequestError(
+                                "Não foi possível confirmar a gravação."
+                            )
+                        if title["id"] == 0:
+                            continue
                         self.example_seed_created += 1
                         existing_pairs.add(pair)
+                        await asyncio.sleep(1.5)
                         await associate_category(
                             title["id"],
                             category_id,
                             self._session_token,
                         )
+                        await asyncio.sleep(1.5)
                         for _ in range(book["exemplares"]):
                             await create_copy(title["id"], self._session_token)
+                            await asyncio.sleep(1.5)
                     except (
                         CatalogValidationError,
                         XanoConfigurationError,
                         XanoRequestError,
                         XanoResponseError,
+                        XanoTimeoutError,
                     ) as error:
                         self.example_seed_errors = 1
                         self.example_seed_progress = index
+                        self.example_seed_resume_index = index
+                        self.example_seed_can_resume = True
                         failure_message = catalog_error_message(error)
                         break
                     else:
@@ -5576,6 +5639,17 @@ def example_books_import_section() -> rx.Component:
                         "signup-feedback signup-feedback-error",
                         "signup-feedback signup-feedback-success",
                     ),
+                ),
+                rx.fragment(),
+            ),
+            rx.cond(
+                State.example_seed_can_resume,
+                rx.button(
+                    "Continuar importação",
+                    type="button",
+                    on_click=State.continue_example_books_import,
+                    disabled=State.example_seed_pending,
+                    class_name="focus-demo-button",
                 ),
                 rx.fragment(),
             ),

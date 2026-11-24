@@ -16,7 +16,11 @@ from biblioteca_mais_nova.catalog import (
     list_public_titles,
     update_title,
 )
-from biblioteca_mais_nova.xano_client import XanoRequestError, XanoResponseError
+from biblioteca_mais_nova.xano_client import (
+    XanoRequestError,
+    XanoResponseError,
+    XanoTimeoutError,
+)
 
 
 def _entry(active=True):
@@ -734,12 +738,88 @@ def test_example_books_import_stops_at_first_server_error_without_secrets(
             state.request_example_books_import()
             await state.confirm_example_books_import()
 
-            assert len(create_calls) == 1
+            assert len(create_calls) == 3
             assert state.example_seed_progress == 1
+            assert state.example_seed_resume_index == 1
+            assert state.example_seed_can_resume is True
             assert state.example_seed_errors == 1
             assert "1 erro" in state.example_seed_message
             assert "sensitive-session-value" not in state.example_seed_message
             assert "503" not in state.example_seed_message
+
+    asyncio.run(verify())
+
+
+def test_example_books_import_reloads_before_retry_and_continues_without_duplicates(
+    monkeypatch,
+):
+    books = [
+        _example_book("Livro Um", "Autora Um", "Literatura"),
+    ]
+    monkeypatch.setattr(frontend, "TITULOS_EXEMPLO", books)
+    sleeps = []
+    entries = []
+    create_calls = []
+
+    async def skip_sleep(delay):
+        sleeps.append(delay)
+
+    async def admin_catalog(token):
+        return list(entries)
+
+    async def categories():
+        return [{"id": 7, "nome": "Literatura"}]
+
+    async def create_title(payload, token):
+        create_calls.append(payload)
+        if len(create_calls) == 1:
+            raise XanoTimeoutError("tempo esgotado")
+        entry = _entry()
+        entry["titulo"]["titulo"] = payload["titulo"]
+        entry["titulo"]["autores"] = payload["autores"]
+        entries.append(entry)
+        return {"id": 101}
+
+    async def associate_category(title_id, category_id, token):
+        return {
+            "id": 1,
+            "titulo_id": title_id,
+            "categoria_id": category_id,
+        }
+
+    async def create_copy(title_id, token):
+        return {
+            "id": 501,
+            "titulo_id": title_id,
+            "estado": "disponivel",
+            "codigo_tombo": "EX-000501",
+        }
+
+    monkeypatch.setattr(frontend.asyncio, "sleep", skip_sleep)
+    monkeypatch.setattr(frontend, "list_admin_catalog", admin_catalog)
+    monkeypatch.setattr(frontend, "list_categories", categories)
+    monkeypatch.setattr(frontend, "create_title", create_title)
+    monkeypatch.setattr(frontend, "associate_category", associate_category)
+    monkeypatch.setattr(frontend, "create_copy", create_copy)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(
+                ident=f"example-import-retry-{uuid4()}",
+                cls=rx.State,
+            )
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-admin", "admin")
+            await state.confirm_example_books_import()
+
+            assert len(create_calls) == 2
+            assert state.example_seed_created == 1
+            assert state.example_seed_errors == 0
+            assert 1.5 in sleeps
+
+            await state.continue_example_books_import()
+            assert len(create_calls) == 2
 
     asyncio.run(verify())
 
