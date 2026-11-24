@@ -1,5 +1,6 @@
 """Estrutura inicial da interface da Biblioteca."""
 
+import asyncio
 import unicodedata
 import os
 from urllib.parse import quote
@@ -10,7 +11,11 @@ from typing import Any, Awaitable, Callable
 import reflex as rx
 
 from biblioteca_mais_nova.covers import gerar_capa_svg
-from biblioteca_mais_nova.capas_isbn import resolver_capa_url
+from biblioteca_mais_nova.capas_isbn import (
+    normalizar_texto,
+    resolver_capa_por_titulo,
+    resolver_capa_url,
+)
 from biblioteca_mais_nova.icons import (
     atributos_acao,
     conteudo_acao,
@@ -177,6 +182,7 @@ class State(rx.State):
     _catalog_copy_uncertain: bool = False
     public_catalog_entries: list[dict[str, Any]] = []
     public_catalog_categories: list[dict[str, Any]] = []
+    public_catalog_cover_resolutions: dict[str, str] = {}
     public_catalog_message: str = ""
     public_catalog_has_error: bool = False
     public_catalog_pending: bool = True
@@ -374,18 +380,27 @@ class State(rx.State):
                 category_text,
                 title["titulo"],
             )
+            cover_key = _capa_busca_key(
+                title["titulo"],
+                title["autores"],
+            )
+            capa_real = (
+                resolver_capa_url(
+                    capa_resolvida=self.public_catalog_cover_resolutions[
+                        cover_key
+                    ],
+                    isbn=title.get("isbn"),
+                )
+                if cover_key in self.public_catalog_cover_resolutions
+                else ""
+            )
             visible.append(
                 {
                     "id": title["id"],
                     "titulo": title["titulo"],
                     "autores": title["autores"],
                     "capa_url": title.get("capa_url") or "",
-                    "capa_real": resolver_capa_url(
-                        capa_url=title.get("capa_url"),
-                        isbn=title.get("isbn"),
-                        titulo=title["titulo"],
-                        autoria=title["autores"],
-                    ),
+                    "capa_real": capa_real,
                     "capa_gerada": gerar_capa_svg(
                         title["titulo"], title["autores"], category_text
                     ),
@@ -407,6 +422,7 @@ class State(rx.State):
         cards = _home_catalog_cards(
             self.public_catalog_entries,
             self.public_catalog_categories,
+            self.public_catalog_cover_resolutions,
         )
         return sorted(
             cards,
@@ -418,6 +434,7 @@ class State(rx.State):
         cards = _home_catalog_cards(
             self.public_catalog_entries,
             self.public_catalog_categories,
+            self.public_catalog_cover_resolutions,
         )
         return sorted(
             cards,
@@ -530,6 +547,10 @@ class State(rx.State):
                 association["categoria_id"]
                 for association in entry["categorias"]
             )
+            cover_key = _capa_busca_key(
+                title["titulo"],
+                title["autores"],
+            )
             display_entry: AdminCatalogDisplayEntry = {
                 "id": title["id"],
                 "titulo": title["titulo"],
@@ -540,6 +561,16 @@ class State(rx.State):
                 "ano_publicacao": str(title.get("ano_publicacao") or ""),
                 "descricao": title.get("descricao") or "",
                 "capa_url": title.get("capa_url") or "",
+                "capa_real": (
+                    resolver_capa_url(
+                        capa_resolvida=self.public_catalog_cover_resolutions[
+                            cover_key
+                        ],
+                        isbn=title.get("isbn"),
+                    )
+                    if cover_key in self.public_catalog_cover_resolutions
+                    else ""
+                ),
                 "capa_gerada": gerar_capa_svg(
                     title["titulo"],
                     title["autores"],
@@ -844,6 +875,9 @@ class State(rx.State):
             await self.load_student_library()
         elif self._is_librarian():
             await self._refresh_circulation_data()
+        if self.public_catalog_has_error:
+            return None
+        return State.resolve_public_catalog_covers
 
     @rx.event
     async def load_public_catalog(self):
@@ -862,6 +896,84 @@ class State(rx.State):
         self.public_catalog_entries = titles
         self.public_catalog_categories = categories
         self.public_catalog_pending = False
+        return State.resolve_public_catalog_covers
+
+    @rx.event(background=True)
+    async def resolve_public_catalog_covers(self):
+        async with self:
+            requests: dict[str, tuple[str, str]] = {}
+
+            def adicionar(
+                titulo: object,
+                autoria: object,
+                capa_url: object,
+            ) -> None:
+                titulo_texto = str(titulo or "").strip()
+                autoria_texto = str(autoria or "")
+                if (
+                    not titulo_texto
+                    or str(capa_url or "").strip().startswith("https://")
+                ):
+                    return
+                chave = _capa_busca_key(titulo_texto, autoria_texto)
+                if (
+                    not self.public_catalog_cover_resolutions.get(chave)
+                    and chave not in requests
+                ):
+                    requests[chave] = (titulo_texto, autoria_texto)
+
+            for entry in self.public_catalog_entries:
+                title = entry["titulo"]
+                adicionar(
+                    title["titulo"],
+                    title["autores"],
+                    title.get("capa_url"),
+                )
+
+            for entry in self.admin_catalog_entries:
+                title = entry["titulo"]
+                adicionar(
+                    title["titulo"],
+                    title["autores"],
+                    title.get("capa_url"),
+                )
+
+            detail = self.public_catalog_detail
+            if detail:
+                adicionar(
+                    detail["titulo"],
+                    detail["autores"],
+                    detail.get("capa_url"),
+                )
+
+        itens = list(requests.items())
+        for inicio in range(0, len(itens), 3):
+            lote = itens[inicio : inicio + 3]
+            resultados = await asyncio.gather(
+                *(
+                    resolver_capa_por_titulo(titulo, autoria)
+                    for _, (titulo, autoria) in lote
+                )
+            )
+            async with self:
+                for (chave, _), capa_encontrada in zip(lote, resultados):
+                    self.public_catalog_cover_resolutions[chave] = (
+                        capa_encontrada
+                    )
+                    detail = self.public_catalog_detail
+                    if (
+                        detail
+                        and not detail.get("capa_url")
+                        and _capa_busca_key(
+                            detail["titulo"],
+                            detail["autores"],
+                        )
+                        == chave
+                    ):
+                        detail["capa_real"] = resolver_capa_url(
+                            capa_resolvida=capa_encontrada,
+                            isbn=detail.get("isbn"),
+                        )
 
     @rx.event
     async def load_public_catalog_detail(self):
@@ -910,16 +1022,24 @@ class State(rx.State):
             category_text,
             entry["titulo"]["titulo"],
         )
+        cover_key = _capa_busca_key(
+            entry["titulo"]["titulo"],
+            entry["titulo"]["autores"],
+        )
         self.public_catalog_detail = {
             "id": entry["titulo"]["id"],
             "titulo": entry["titulo"]["titulo"],
             "autores": entry["titulo"]["autores"],
             "capa_url": entry["titulo"].get("capa_url") or "",
-            "capa_real": resolver_capa_url(
-                capa_url=entry["titulo"].get("capa_url"),
-                isbn=entry["titulo"].get("isbn"),
-                titulo=entry["titulo"]["titulo"],
-                autoria=entry["titulo"]["autores"],
+            "capa_real": (
+                resolver_capa_url(
+                    capa_resolvida=self.public_catalog_cover_resolutions[
+                        cover_key
+                    ],
+                    isbn=entry["titulo"].get("isbn"),
+                )
+                if cover_key in self.public_catalog_cover_resolutions
+                else ""
             ),
             "capa_gerada": gerar_capa_svg(
                 entry["titulo"]["titulo"],
@@ -945,6 +1065,7 @@ class State(rx.State):
             "exemplares_disponiveis": entry["exemplares_disponiveis"],
         }
         self.public_catalog_detail_pending = False
+        return State.resolve_public_catalog_covers
 
     @rx.event
     async def request_catalog_title(self, title_id: int):
@@ -1714,6 +1835,7 @@ class State(rx.State):
         await self._load_catalog_categories()
         if not self.catalog_has_error:
             await self._refresh_admin_catalog()
+            return State.resolve_public_catalog_covers
 
     async def _refresh_admin_catalog(self):
         self.admin_catalog_pending = True
@@ -3251,6 +3373,15 @@ def _catalog_search_key(value: str) -> str:
     )
 
 
+def _capa_busca_key(titulo: object, autoria: object) -> str:
+    titulo_normalizado = " ".join(normalizar_texto(titulo).split())
+    primeira_autoria = str(autoria or "").split(";")[0]
+    autoria_normalizada = " ".join(
+        normalizar_texto(primeira_autoria).split()
+    )
+    return f"{titulo_normalizado}\x1f{autoria_normalizada}"
+
+
 def _example_book_key(title: str, authors: str) -> tuple[str, str]:
     return (
         _catalog_search_key(" ".join(title.split())),
@@ -3323,7 +3454,9 @@ def _catalog_cover_identity(category_text: str, title_name: str) -> tuple[str, i
 def _home_catalog_cards(
     entries: list[dict[str, Any]],
     categories: list[dict[str, Any]],
+    cover_lookups: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
+    cover_lookups = cover_lookups or {}
     category_names = {
         category["id"]: category["nome"]
         for category in categories
@@ -3346,6 +3479,15 @@ def _home_catalog_cards(
             category_text,
             title["titulo"],
         )
+        cover_key = _capa_busca_key(title["titulo"], title["autores"])
+        capa_real = (
+            resolver_capa_url(
+                capa_resolvida=cover_lookups[cover_key],
+                isbn=title.get("isbn"),
+            )
+            if cover_key in cover_lookups
+            else ""
+        )
         cards.append(
             {
                 "id": title["id"],
@@ -3353,12 +3495,7 @@ def _home_catalog_cards(
                 "autores": title["autores"],
                 "created_at": title.get("created_at"),
                 "capa_url": title.get("capa_url") or "",
-                "capa_real": resolver_capa_url(
-                    capa_url=title.get("capa_url"),
-                    isbn=title.get("isbn"),
-                    titulo=title["titulo"],
-                    autoria=title["autores"],
-                ),
+                "capa_real": capa_real,
                 "capa_gerada": gerar_capa_svg(
                     title["titulo"],
                     title["autores"],
@@ -4865,7 +5002,11 @@ def admin_title_card(title: rx.Var[dict[str, Any]]) -> rx.Component:
             catalog_cover_layers(
                 title["titulo"].to(str),
                 title["capa_gerada"].to(str),
-                title["capa_url"].to(str),
+                rx.cond(
+                    title["capa_url"].to(str) != "",
+                    title["capa_url"].to(str),
+                    title["capa_real"].to(str),
+                ),
                 container_class="admin-title-cover catalog-cover-stack",
                 real_class="admin-catalog-cover-image",
             ),

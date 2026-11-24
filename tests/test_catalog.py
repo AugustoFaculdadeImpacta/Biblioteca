@@ -410,11 +410,12 @@ def test_public_catalog_state_loads_data_without_exposing_session(monkeypatch):
         ) as root:
             state = await root.get_state(frontend.State)
             state._store_session("token-privado-de-teste", "estudante")
-            await state.load_public_catalog()
+            tarefa_em_segundo_plano = await state.load_public_catalog()
             serialized_state = json.dumps(state.dict(), default=str)
             assert state.public_catalog_pending is False
             assert len(state.filtered_public_catalog) == 1
             assert state.filtered_public_catalog[0]["categorias"] == "Literatura"
+            assert tarefa_em_segundo_plano is not None
             assert "token-privado-de-teste" not in serialized_state
             assert "_session_token" not in serialized_state
 
@@ -434,6 +435,7 @@ def test_catalog_card_derives_cover_fallback_from_category_and_title():
                         "id": 81,
                         "titulo": "A Ilha",
                         "autores": "Ana",
+                        "isbn": "9788535902778",
                         "ativo": True,
                     },
                     "categorias": [{"categoria_id": 3}],
@@ -446,6 +448,7 @@ def test_catalog_card_derives_cover_fallback_from_category_and_title():
             assert categorized["cover_variant"] == (
                 frontend._catalog_cover_identity("Literatura", "A Ilha")[1]
             )
+            assert categorized["capa_real"] == ""
 
             state.public_catalog_categories = []
             state.public_catalog_entries[0]["categorias"] = []
@@ -457,6 +460,47 @@ def test_catalog_card_derives_cover_fallback_from_category_and_title():
             )
 
     asyncio.run(verify_card_data())
+
+
+def test_catalog_keeps_generated_cover_until_background_lookup_resolves():
+    title = {
+        "id": 91,
+        "titulo": "Livro sem capa",
+        "autores": "Ana",
+        "isbn": "9788535902778",
+    }
+    entry = {
+        "titulo": title,
+        "categorias": [],
+        "exemplares_disponiveis": 1,
+    }
+
+    before_lookup = frontend._home_catalog_cards([entry], [], {})[0]
+    assert before_lookup["capa_real"] == ""
+    assert before_lookup["capa_gerada"].startswith(
+        "data:image/svg+xml;charset=utf-8,"
+    )
+
+    capa_resolvida = "https://covers.openlibrary.org/b/id/91-L.jpg"
+    cover_key = frontend._capa_busca_key(
+        title["titulo"],
+        title["autores"],
+    )
+    after_failed_lookup = frontend._home_catalog_cards(
+        [entry],
+        [],
+        {cover_key: ""},
+    )[0]
+    assert after_failed_lookup["capa_real"] == (
+        "https://covers.openlibrary.org/b/isbn/9788535902778-L.jpg?default=false"
+    )
+
+    after_lookup = frontend._home_catalog_cards(
+        [entry],
+        [],
+        {cover_key: capa_resolvida},
+    )[0]
+    assert after_lookup["capa_real"] == capa_resolvida
 
 
 def test_catalog_card_handles_cover_url_and_css_fallback():

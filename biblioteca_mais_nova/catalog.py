@@ -98,6 +98,7 @@ class AdminCatalogDisplayEntry(TypedDict):
     ano_publicacao: str
     descricao: str
     capa_url: str
+    capa_real: NotRequired[str]
     capa_gerada: NotRequired[str]
     ativo: bool
     categorias: str

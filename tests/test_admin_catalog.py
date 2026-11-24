@@ -411,12 +411,19 @@ def test_catalog_admin_page_loads_full_inventory_and_keeps_token_private(
             state = await root.get_state(frontend.State)
             state._store_session("segredo-de-teste", "bibliotecario")
 
-            await state.load_catalog_page()
+            tarefa_em_segundo_plano = await state.load_catalog_page()
+            state.public_catalog_cover_resolutions[
+                frontend._capa_busca_key("Livro", "Autoria")
+            ] = "https://covers.openlibrary.org/b/id/81-L.jpg"
 
             assert state.admin_catalog_pending is False
             assert state.admin_catalog_has_error is False
             assert state.admin_catalog_display_entries[0]["ativo"] is False
             assert state.admin_catalog_display_entries[0]["categorias"] == "Literatura"
+            assert state.admin_catalog_display_entries[0]["capa_real"] == (
+                "https://covers.openlibrary.org/b/id/81-L.jpg"
+            )
+            assert tarefa_em_segundo_plano is not None
             assert len(state.admin_catalog_display_entries[0]["exemplares"]) == 2
             serialized = json.dumps(state.dict(), default=str)
             assert "segredo-de-teste" not in serialized
@@ -459,6 +466,7 @@ def test_acervo_has_one_edit_panel():
                 "ano_publicacao": "",
                 "descricao": "",
                 "capa_url": "",
+                "capa_real": "",
                 "capa_gerada": "",
                 "ativo": True,
                 "categorias": "Literatura",

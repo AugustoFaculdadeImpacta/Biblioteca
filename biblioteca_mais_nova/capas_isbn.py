@@ -2,8 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
+from difflib import SequenceMatcher
+import os
 import re
+import threading
+import time
 import unicodedata
+import weakref
+
+import httpx
 
 
 def normalizar_texto(valor: object) -> str:
@@ -59,20 +67,167 @@ def isbn_local(titulo: object, autoria: object) -> str:
 
 def open_library_capa_url(isbn: object) -> str:
     isbn_limpo = normalizar_isbn(isbn)
-    if len(isbn_limpo) != 13:
+    if len(isbn_limpo) != 13 or not isbn_limpo.isdecimal():
+        return ""
+    soma = sum(
+        int(digito) * (1 if indice % 2 == 0 else 3)
+        for indice, digito in enumerate(isbn_limpo[:12])
+    )
+    if (10 - soma % 10) % 10 != int(isbn_limpo[-1]):
         return ""
     return f"https://covers.openlibrary.org/b/isbn/{isbn_limpo}-L.jpg?default=false"
+
+
+_CACHE_SUCESSO_SEGUNDOS = 24 * 60 * 60
+_CACHE_FALHA_SEGUNDOS = 10 * 60
+_CACHE_CAPAS: dict[tuple[str, str], tuple[float, str]] = {}
+_CACHE_LOCK = threading.RLock()
+_LIMITADORES: weakref.WeakKeyDictionary[
+    asyncio.AbstractEventLoop,
+    tuple[asyncio.Semaphore, dict[tuple[str, str], asyncio.Lock]],
+] = weakref.WeakKeyDictionary()
+_LIMITADORES_LOCK = threading.Lock()
+
+
+def _cache_capas_obter(chave: tuple[str, str]) -> str | None:
+    with _CACHE_LOCK:
+        entrada = _CACHE_CAPAS.get(chave)
+        if entrada is None:
+            return None
+        vencimento, url = entrada
+        if vencimento <= time.monotonic():
+            del _CACHE_CAPAS[chave]
+            return None
+        return url
+
+
+def _cache_capas_salvar(chave: tuple[str, str], url: str) -> None:
+    duracao = _CACHE_SUCESSO_SEGUNDOS if url else _CACHE_FALHA_SEGUNDOS
+    with _CACHE_LOCK:
+        _CACHE_CAPAS[chave] = (time.monotonic() + duracao, url)
+
+
+def _limite_e_trava_da_consulta(
+    chave: tuple[str, str],
+) -> tuple[asyncio.Semaphore, asyncio.Lock]:
+    loop = asyncio.get_running_loop()
+    with _LIMITADORES_LOCK:
+        controles = _LIMITADORES.get(loop)
+        if controles is None:
+            controles = (asyncio.Semaphore(3), {})
+            _LIMITADORES[loop] = controles
+        semaforo, travas = controles
+        return semaforo, travas.setdefault(chave, asyncio.Lock())
+
+
+def _melhor_capa(
+    resposta: object,
+    titulo_normalizado: str,
+) -> str:
+    if not isinstance(resposta, dict):
+        return ""
+    documentos = resposta.get("docs")
+    if not isinstance(documentos, list):
+        return ""
+
+    melhor_id = 0
+    melhor_similaridade = -1.0
+    for documento in documentos:
+        if not isinstance(documento, dict):
+            continue
+        titulo = " ".join(normalizar_texto(documento.get("title")).split())
+        capa_id = documento.get("cover_i")
+        if (
+            not titulo
+            or isinstance(capa_id, bool)
+            or not isinstance(capa_id, (int, str))
+            or isinstance(capa_id, str) and not capa_id.isdecimal()
+        ):
+            continue
+        capa_id_numero = int(capa_id)
+        if capa_id_numero <= 0:
+            continue
+        similaridade = SequenceMatcher(
+            None,
+            titulo_normalizado,
+            titulo,
+        ).ratio()
+        if similaridade > melhor_similaridade:
+            melhor_id = capa_id_numero
+            melhor_similaridade = similaridade
+
+    if melhor_id == 0:
+        return ""
+    return f"https://covers.openlibrary.org/b/id/{melhor_id}-L.jpg"
+
+
+async def resolver_capa_por_titulo(
+    titulo: object,
+    autoria: object,
+    *,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> str:
+    if os.getenv("BIBLIOTECA_SEM_REDE") == "1":
+        return ""
+    titulo_original = str(titulo or "").strip()
+    titulo_normalizado = " ".join(normalizar_texto(titulo_original).split())
+    primeira_autoria = str(autoria or "").split(";")[0].strip()
+    autoria_normalizada = " ".join(
+        normalizar_texto(primeira_autoria).split()
+    )
+    if not titulo_normalizado:
+        return ""
+
+    chave = (titulo_normalizado, autoria_normalizada)
+    em_cache = _cache_capas_obter(chave)
+    if em_cache is not None:
+        return em_cache
+
+    semaforo, trava = _limite_e_trava_da_consulta(chave)
+    async with trava:
+        em_cache = _cache_capas_obter(chave)
+        if em_cache is not None:
+            return em_cache
+        async with semaforo:
+            try:
+                async with httpx.AsyncClient(
+                    timeout=3.0,
+                    headers={"User-Agent": "Biblioteca escolar/1.0"},
+                    transport=transport,
+                ) as cliente:
+                    resposta = await cliente.get(
+                        "https://openlibrary.org/search.json",
+                        params={
+                            "title": titulo_original,
+                            "author": primeira_autoria,
+                            "fields": "cover_i,title",
+                            "limit": 3,
+                        },
+                    )
+                    resposta.raise_for_status()
+                    resultado = _melhor_capa(
+                        resposta.json(),
+                        titulo_normalizado,
+                    )
+            except (httpx.HTTPError, ValueError):
+                resultado = ""
+
+            _cache_capas_salvar(chave, resultado)
+            return resultado
 
 
 def resolver_capa_url(
     *,
     capa_url: object = None,
+    capa_resolvida: object = None,
     isbn: object = None,
-    titulo: object = None,
-    autoria: object = None,
 ) -> str:
-    capa_https = str(capa_url or "").strip()
-    if capa_https.startswith("https://"):
-        return capa_https
-    isbn_real = normalizar_isbn(isbn) or isbn_local(titulo, autoria)
-    return open_library_capa_url(isbn_real)
+    capa_xano = str(capa_url or "").strip()
+    if capa_xano.startswith("https://"):
+        return capa_xano
+    if os.getenv("BIBLIOTECA_SEM_REDE") == "1":
+        return ""
+    capa_real = str(capa_resolvida or "").strip()
+    if capa_real.startswith("https://"):
+        return capa_real
+    return open_library_capa_url(isbn)

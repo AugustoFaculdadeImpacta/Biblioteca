@@ -1,11 +1,16 @@
+import asyncio
 from urllib.parse import unquote
 from xml.etree import ElementTree
 
+import httpx
+
+import biblioteca_mais_nova.capas_isbn as capas_isbn
 from biblioteca_mais_nova.covers import gerar_capa_svg
 from biblioteca_mais_nova.capas_isbn import (
     isbn_local,
     normalizar_isbn,
     open_library_capa_url,
+    resolver_capa_por_titulo,
     resolver_capa_url,
 )
 from scripts.seed_catalogo_real import TITULOS
@@ -126,15 +131,205 @@ def test_isbn_cover_priority_and_normalization():
     assert open_library_capa_url("978-85-359-0277-8").endswith(
         "9788535902778-L.jpg?default=false"
     )
+    assert open_library_capa_url("9788535902779") == ""
     assert resolver_capa_url(
         capa_url="https://cdn.example.test/capa.jpg",
+        capa_resolvida="https://covers.openlibrary.org/b/id/1-L.jpg",
         isbn="9788535902778",
     ) == "https://cdn.example.test/capa.jpg"
     assert resolver_capa_url(
+        capa_resolvida="https://covers.openlibrary.org/b/id/1-L.jpg",
         isbn="9788535902778",
-        titulo="Dom Casmurro",
-        autoria="Machado de Assis",
+    ) == "https://covers.openlibrary.org/b/id/1-L.jpg"
+    assert resolver_capa_url(
+        isbn="9788535902778",
     ).startswith("https://covers.openlibrary.org/")
+    assert resolver_capa_url() == ""
+
+
+def _limpar_cache_capas():
+    with capas_isbn._CACHE_LOCK:
+        capas_isbn._CACHE_CAPAS.clear()
+
+
+def test_open_library_cover_search_uses_best_title_and_first_author(monkeypatch):
+    _limpar_cache_capas()
+    requests = []
+    timeouts = []
+    cliente_original = httpx.AsyncClient
+
+    def cliente_com_timeout(*args, **kwargs):
+        timeouts.append(kwargs["timeout"])
+        return cliente_original(*args, **kwargs)
+
+    monkeypatch.setattr(capas_isbn.httpx, "AsyncClient", cliente_com_timeout)
+
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "docs": [
+                    {"title": "Dom Casmurro alternativo", "cover_i": 100},
+                    {"title": "Outro romance", "cover_i": 200},
+                    {"title": "Dom Casmurro", "cover_i": 300},
+                ]
+            },
+            request=request,
+        )
+
+    result = asyncio.run(
+        resolver_capa_por_titulo(
+            "Dom Casmurro",
+            "Machado de Assis; outro autor",
+            transport=httpx.MockTransport(handle),
+        )
+    )
+
+    assert result == "https://covers.openlibrary.org/b/id/300-L.jpg"
+    assert len(requests) == 1
+    assert requests[0].url.params["title"] == "Dom Casmurro"
+    assert requests[0].url.params["author"] == "Machado de Assis"
+    assert requests[0].url.params["fields"] == "cover_i,title"
+    assert requests[0].url.params["limit"] == "3"
+    assert requests[0].headers["user-agent"] == "Biblioteca escolar/1.0"
+    assert timeouts == [3.0]
+
+
+def test_open_library_cover_success_is_cached_for_24_hours_by_normalized_title_and_author(
+    monkeypatch,
+):
+    _limpar_cache_capas()
+    agora = [0.0]
+    monkeypatch.setattr(capas_isbn.time, "monotonic", lambda: agora[0])
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={"docs": [{"title": "Ação", "cover_i": 41 + len(requests)}]},
+            request=request,
+        )
+
+    transport = httpx.MockTransport(handle)
+
+    async def resolve_both():
+        first = await resolver_capa_por_titulo("Ação", "Ana Silva", transport=transport)
+        second = await resolver_capa_por_titulo(
+            "AÇÃO",
+            "ANA SILVA",
+            transport=transport,
+        )
+        agora[0] = 24 * 60 * 60 + 1
+        expired = await resolver_capa_por_titulo(
+            "Ação",
+            "Ana Silva",
+            transport=transport,
+        )
+        return first, second, expired
+
+    first, second, expired = asyncio.run(resolve_both())
+    assert first == second == "https://covers.openlibrary.org/b/id/42-L.jpg"
+    assert expired == "https://covers.openlibrary.org/b/id/43-L.jpg"
+    assert len(requests) == 2
+
+
+def test_open_library_cover_failure_is_silent_and_cached_for_ten_minutes(
+    monkeypatch,
+):
+    _limpar_cache_capas()
+    agora = [0.0]
+    monkeypatch.setattr(capas_isbn.time, "monotonic", lambda: agora[0])
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        if len(requests) == 1:
+            raise httpx.ConnectError("offline", request=request)
+        return httpx.Response(
+            200,
+            json={"docs": [{"title": "Livro", "cover_i": 17}]},
+            request=request,
+        )
+
+    transport = httpx.MockTransport(handle)
+
+    async def resolve_three_times():
+        failed_once = await resolver_capa_por_titulo(
+            "Livro", "Autoria", transport=transport
+        )
+        failed_cached = await resolver_capa_por_titulo(
+            "Livro", "Autoria", transport=transport
+        )
+        agora[0] = 601.0
+        retried = await resolver_capa_por_titulo(
+            "Livro", "Autoria", transport=transport
+        )
+        return failed_once, failed_cached, retried
+
+    first, second, third = asyncio.run(resolve_three_times())
+    assert first == second == ""
+    assert third == "https://covers.openlibrary.org/b/id/17-L.jpg"
+    assert len(requests) == 2
+
+
+def test_open_library_cover_search_limits_concurrent_requests_to_three():
+    _limpar_cache_capas()
+    active = 0
+    maximum_active = 0
+
+    class TrackingTransport(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            nonlocal active, maximum_active
+            active += 1
+            maximum_active = max(maximum_active, active)
+            await asyncio.sleep(0.02)
+            active -= 1
+            return httpx.Response(
+                200,
+                json={"docs": []},
+                request=request,
+            )
+
+    async def resolve_many():
+        return await asyncio.gather(
+            *(
+                resolver_capa_por_titulo(
+                    f"Livro {index}",
+                    "Autoria",
+                    transport=TrackingTransport(),
+                )
+                for index in range(8)
+            )
+        )
+
+    assert asyncio.run(resolve_many()) == [""] * 8
+    assert 1 < maximum_active <= 3
+
+
+def test_open_library_cover_search_is_skipped_when_network_is_disabled(
+    monkeypatch,
+):
+    _limpar_cache_capas()
+    monkeypatch.setenv("BIBLIOTECA_SEM_REDE", "1")
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(200, json={"docs": []}, request=request)
+
+    result = asyncio.run(
+        resolver_capa_por_titulo(
+            "Livro",
+            "Autoria",
+            transport=httpx.MockTransport(handle),
+        )
+    )
+
+    assert result == ""
+    assert requests == []
+    assert resolver_capa_url(isbn="9788535902778") == ""
 
 
 def test_local_isbn_index_falls_back_by_normalized_title_and_author():
