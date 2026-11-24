@@ -7,7 +7,7 @@
 ## 2. Capas públicas
 
 - [x] 2.1 Manter a capa SVG gerada como camada inferior acessível, ocultar imagens reais que falhem por um único script no head e testar cartões/detalhes e a varredura de imagens já falhadas; `pytest tests/test_catalog.py tests/test_covers.py -q` passou (37 testes), e `node --check` validou o script; implementação no commit `bec7045`.
-- [ ] 2.2 Resolver capas Open Library no servidor por título e primeira autoria, com cache, timeout, limite de concorrência, modo sem rede e execução posterior ao primeiro render; testar resultado mais parecido, cache, falha silenciosa, prioridade e concorrência com transporte simulado usando `pytest tests/test_covers.py tests/test_catalog.py`.
+- [x] 2.2 Resolver capas Open Library no servidor por título e primeira autoria, com cache, timeout, limite de concorrência, modo sem rede e execução posterior ao primeiro render; `pytest tests/test_covers.py tests/test_catalog.py tests/test_admin_catalog.py tests/test_primary_journeys.py -q` passou (84 testes); implementação no commit `1c320cb`.
 
 ## 3. Cliente Xano resiliente
 
