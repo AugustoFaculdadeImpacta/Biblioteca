@@ -169,8 +169,8 @@ Cada cartão MUST apresentar a categoria uma única vez como etiqueta e manter c
 - **THEN** as categorias aparecem na etiqueta sem uma segunda linha repetindo “Categorias:”
 
 #### Scenario: Capa remota disponível ou ausente
-- **WHEN** cartão possui `capa_url` HTTPS ou não possui capa
-- **THEN** a imagem usa texto alternativo acessível quando presente e, na ausência, é exibida a capa CSS derivada de categoria e título
+- **WHEN** cartão possui `capa_url` HTTPS ou não possui capa real
+- **THEN** um contêiner com papel de imagem anuncia “Capa de «título»”, a imagem interna não repete o texto alternativo e uma falha da imagem real nunca mostra ícone quebrado
 
 ### Requirement: Ação no detalhe respeita o perfil efetivo
 O detalhe MUST oferecer a ação de reserva ao estudante autenticado, orientar visitantes ao login e ocultar a ação de estudante para bibliotecário e admin.
@@ -310,35 +310,31 @@ A API simulada MUST oferecer um catálogo de demonstração com metadados biblio
 - **THEN** ele usa contratos existentes de catálogo, lê endereço/token do ambiente de execução, inicia sem escritas e não é executado durante esta Change
 
 ### Requirement: Catálogo usa capas SVG geradas
-O sistema MUST usar uma capa SVG determinística antes do fallback CSS quando não há `capa_url` HTTPS válido, mantendo contraste legível no título sem depender do tema da interface.
+O sistema MUST manter a capa SVG determinística como base sempre visível sob fontes reais, respeitando a ordem de prioridade e o contraste legível sem depender do tema.
 
 #### Scenario: Capa gerada para título sem imagem remota
-- **WHEN** título não possui `capa_url` válido
+- **WHEN** título não possui `capa_url`, capa resolvida ou ISBN informado utilizável
 - **THEN** a interface apresenta capa determinística baseada em título, autoria e categoria, com proporção 2:3 e texto alternativo
 
 #### Scenario: Mesma capa em todas as apresentações
 - **WHEN** título aparece na home, catálogo, detalhe ou Acervo
-- **THEN** usa a prioridade URL HTTPS, capa gerada e fallback CSS
+- **THEN** a capa gerada permanece por baixo da imagem real e o fallback visual é consistente
 
 #### Scenario: Contraste do título na capa
 - **WHEN** uma capa gerada exibe o título sobre a faixa colorida
 - **THEN** escolhe texto claro ou escuro para obter contraste mínimo de 4,5:1 sobre a cor efetiva da faixa, sem variar por tema
 
 #### Scenario: ISBN normalizado
-- **WHEN** título possui ISBN
-- **THEN** a URL usa ISBN-13 sem pontuação e solicita a capa grande da Open Library
+- **WHEN** título possui ISBN-13 válido e a busca por título/autoria não resolve capa
+- **THEN** usa ISBN normalizado como fonte alternativa da imagem real mantendo a capa gerada por baixo
 
 #### Scenario: Falha da imagem real
 - **WHEN** a imagem externa não carrega
-- **THEN** o elemento real some e a capa gerada permanece visível
+- **THEN** ela desaparece sem ícone quebrado ou texto alternativo visível, e a capa gerada permanece visível
 
 #### Scenario: ISBN normalizado
-- **WHEN** título possui ISBN
-- **THEN** a URL usa ISBN-13 sem pontuação e solicita a capa grande da Open Library
-
-#### Scenario: Falha da imagem real
-- **WHEN** a imagem externa não carrega
-- **THEN** o elemento real some e a capa gerada permanece visível
+- **WHEN** título possui ISBN-13 válido
+- **THEN** o fallback usa somente o ISBN do registro, sem consultar um índice local de ISBN
 
 ### Requirement: Acervo usa lista compacta e edição única
 A interface MUST apresentar o Acervo em lista vertical responsiva, com busca e apenas os painéis de edição ou exemplares selecionados abertos.
@@ -499,7 +495,7 @@ O conjunto de livros de exemplo MUST conter 30 títulos distintos com autoria, I
 - **THEN** são solicitados os dois ou três exemplares definidos para aquele título
 
 ### Requirement: Admin importa livros de exemplo pelo Acervo
-A interface MUST oferecer ao admin real uma prévia somente leitura e uma importação confirmada dos livros de exemplo, usando apenas categorias existentes e preservando os registros atuais.
+A interface MUST oferecer ao admin real prévia somente leitura e importação confirmada dos livros de exemplo, preservando registros e permitindo retomar após falhas transitórias.
 
 #### Scenario: Acesso restrito
 - **WHEN** visitante, estudante ou bibliotecário abre o Acervo
@@ -519,16 +515,50 @@ A interface MUST oferecer ao admin real uma prévia somente leitura e uma import
 
 #### Scenario: Confirmação e importação sequencial
 - **WHEN** admin real confirma “Adicionar agora”
-- **THEN** a interface cria cada título, associação e exemplar sequencialmente com a sessão do admin, mostra o progresso de 1 a 30 e recarrega o catálogo ao terminar
+- **THEN** a operação ocorre em segundo plano, informa o progresso de 1 a 30, espera 1,5 s entre gravações e mantém a página interativa
+
+#### Scenario: Repetir etapa após resultado incerto
+- **WHEN** uma etapa de gravação falha por 429, 5xx, timeout ou conexão
+- **THEN** a interface relê o catálogo antes de tentar novamente a mesma etapa, evita duplicatas e limita a três repetições
+
+#### Scenario: Retomar importação
+- **WHEN** importação parou após falha transitória
+- **THEN** admin real pode selecionar “Continuar importação” e a execução relê o catálogo para pular gravações concluídas e prosseguir com as pendentes
+
+#### Scenario: Parada após falhas repetidas
+- **WHEN** a etapa continua falhando após três repetições
+- **THEN** a operação para, exibe resumo de criados, ignorados e erros e oferece retomada sem reiniciar gravações já confirmadas
 
 #### Scenario: Repetir importação
 - **WHEN** admin real executa novamente a importação após os títulos terem sido criados
 - **THEN** pares de título e autoria que já existem, ignorando caixa e acentos, não são criados novamente
 
 #### Scenario: Interromper em erro inesperado
-- **WHEN** uma operação retorna 401, 403, 5xx, resposta inválida ou tempo esgotado
-- **THEN** a importação para no primeiro erro, informa os totais criados, ignorados e com erro e não repete automaticamente escritas confirmadas
+- **WHEN** uma etapa continua falhando após três repetições limitadas ou encontra erro permanente
+- **THEN** a operação para, exibe resumo de criados, ignorados e erros e oferece “Continuar importação” sem repetir gravações já confirmadas
 
 #### Scenario: Segredos permanecem privados
 - **WHEN** a prévia ou importação falha
 - **THEN** mensagens e logs não mostram token, senha, e-mail ou cabeçalho de autorização
+
+### Requirement: Admin real testa a comunicação pública do Acervo
+O Acervo MUST oferecer ao admin real uma ação somente de leitura para medir cinco chamadas públicas ao Xano em sequência.
+
+#### Scenario: Teste autorizado
+- **WHEN** admin real seleciona “🩺 Testar conexão”
+- **THEN** o sistema executa cinco leituras públicas sequenciais e mostra quantas passaram, a mais lenta em milissegundos e o primeiro código de erro
+
+#### Scenario: Dica para limite de chamadas
+- **WHEN** uma das leituras recebe HTTP 429
+- **THEN** o resultado inclui “se aparecer 429, o plano do Xano está limitando as chamadas”
+
+#### Scenario: Acesso sem privilégio
+- **WHEN** visitante, estudante ou bibliotecário abre o Acervo
+- **THEN** a ação de teste não é exibida e nenhuma leitura de diagnóstico é iniciada
+
+### Requirement: Lista de exemplo mantém os títulos literários requeridos
+Os dados compartilhados dos livros de exemplo MUST preservar a lista existente sem alteração nesta Change.
+
+#### Scenario: Obras brasileiras permanecem no seed
+- **WHEN** os dados de exemplo são validados
+- **THEN** continuam presentes “Dom Casmurro” e “Memórias Póstumas de Brás Cubas”

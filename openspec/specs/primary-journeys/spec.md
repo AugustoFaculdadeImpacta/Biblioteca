@@ -50,9 +50,13 @@ A página inicial MUST apresentar estatísticas calculadas exclusivamente dos da
 - **WHEN** o catálogo público e as categorias são carregados com sucesso
 - **THEN** a home apresenta total de títulos ativos, total de exemplares disponíveis e total de categorias a partir desses resultados
 
+#### Scenario: Falha isolada de indicador
+- **WHEN** a leitura de um indicador falha
+- **THEN** somente aquele indicador apresenta “—” e um link “Tentar de novo”, enquanto os demais resultados válidos permanecem visíveis
+
 #### Scenario: Catálogo vazio ou em erro
 - **WHEN** o catálogo está carregando, vazio ou indisponível
-- **THEN** a home apresenta o estado correspondente sem fabricar contagens ou indicar sucesso
+- **THEN** a home apresenta o estado correspondente sem fabricar contagens; falha de leitura afeta somente os indicadores dependentes e mantém resultados independentes
 
 #### Scenario: Visitante na home
 - **WHEN** visitante abre a página inicial

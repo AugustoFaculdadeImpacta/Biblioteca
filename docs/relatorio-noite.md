@@ -7,8 +7,9 @@
 - Branch: `trabalho-autopilot`.
 - `scripts/verificar.ps1` passou: `reflex compile --dry` compilou e
   `pytest --ignore=evaluation` aprovou 354 testes.
-- OpenSpec: Change `estabiliza-xano-v8` válida com `--strict`; specs
-  consolidadas válidas com `--strict` (9 specs verificadas).
+- OpenSpec: Change `estabiliza-xano-v8` válida com `--strict`; deltas
+  sincronizados e 10 specs consolidadas válidas com `--strict`. A Change foi
+  arquivada em `openspec/changes/archive/2026-11-24-estabiliza-xano-v8/`.
 - Commits de implementação e evidência foram feitos em lotes pequenos em
   português. Nenhuma operação de escrita, sincronização ou seed foi enviada ao
   Xano.
@@ -35,6 +36,10 @@ prerender de `/` excedeu o timeout. O frontend em `localhost:3000` não ficou
 disponível e o robô não confirmou PASSOU em nenhuma combinação. Capturas e
 linhas detalhadas da última rodada estão em
 `docs/verificacao-layout.md` (rodada `2026-11-24T16:27:51.968Z`).
+
+A aparência implementada está **aguardando conferência do usuário**. A rodada
+não verificou visualmente o aplicativo; a falha no prerender impediu iniciar o
+frontend que seria inspecionado.
 
 Não verificado visualmente nesta execução: contraste renderizado, composição
 final da página, menus, perfis autenticados, fluxos de reserva/acervo/admin e

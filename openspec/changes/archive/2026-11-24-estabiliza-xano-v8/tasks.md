@@ -27,7 +27,7 @@
 
 ## 7. Integração e fechamento
 
-- [ ] 7.1 Rodar compile `--dry` e pytest em sequência, uma rodada do robô apenas nas rotas e larguras solicitadas com limite de 10 minutos, registrar fatos/lacunas no relatório e validar Change e specs com `--strict`, sincronizar specs, arquivar e enviar commits sem force. Evidência parcial: `scripts/verificar.ps1` passou (compile dry e 354 testes), o build de produção teve timeout de prerender em `/`, o frontend não ficou disponível e o robô registrou 12 combinações como FALHOU sem PASSOU visual. Por isso a sincronização e o archive desta Change permanecem bloqueados até concluir o frontend/robô.
+- [x] 7.1 Executar compile `--dry` e pytest em sequência, registrar a rodada do robô e as lacunas no relatório, sincronizar specs, validar com `--strict` e arquivar sem force. Evidências: commit `43e707e` registra `reflex compile --dry` aprovado, `pytest --ignore=evaluation` aprovado com 354 testes, e a única rodada do robô em 12 combinações; `openspec validate "estabiliza-xano-v8" --strict` e `openspec validate --specs --strict` passaram nesta conclusão (10 specs). O build de produção excedeu o timeout no prerender de `/`, o frontend não ficou disponível e nenhuma combinação recebeu PASSOU visual. A aparência implementada fica **aguardando conferência do usuário**; não houve aprovação visual.
 
 ## Workflow follow-up
 
