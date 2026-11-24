@@ -18,6 +18,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoRequestError,
     XanoResponseError,
     parse_xano_response_json,
+    parse_xano_write_response,
     xano_public_error_message,
 )
 
@@ -109,7 +110,7 @@ async def create_librarian(
         token=token,
         json=payload,
     )
-    return _parse_librarian(_response_json(response))
+    return parse_xano_write_response(response, _parse_librarian)
 
 
 async def set_librarian_active(
@@ -129,7 +130,7 @@ async def set_librarian_active(
         token=token,
         json={"ativo": active},
     )
-    return _parse_librarian(_response_json(response))
+    return parse_xano_write_response(response, _parse_librarian)
 
 
 def user_admin_error_message(error: Exception) -> str:

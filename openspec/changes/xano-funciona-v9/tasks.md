@@ -7,8 +7,8 @@
 
 ## 2. Escritas sem repetição
 
-- [ ] 2.1 Tratar respostas POST/PATCH 2xx ilegíveis como sucesso com aviso e atualizar as listas correspondentes sem repetir a escrita; testar status 2xx, erro, transporte e ausência de retry.
-- [ ] 2.2 Bloquear novo clique em Reservar durante a tentativa e até a atualização das listas; testar liberação somente após o recarregamento.
+- [ ] 2.1 Tratar respostas POST/PATCH 2xx ilegíveis sem repetir a escrita, atualizar as listas e só confirmar a reserva após a releitura encontrá-la; testar sucesso, ausência de confirmação, erro, transporte e ausência de retry.
+- [ ] 2.2 Bloquear nova submissão em Reservar durante a tentativa e até a confirmação pela releitura; manter o bloqueio quando a escrita for incerta e testar liberação somente após confirmação.
 
 ## 3. Resumo da home
 

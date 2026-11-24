@@ -20,7 +20,10 @@ from biblioteca_mais_nova.circulation import (
     register_request_pickup,
     register_reservation_pickup,
 )
-from biblioteca_mais_nova.xano_client import XanoRequestError
+from biblioteca_mais_nova.xano_client import (
+    XanoRequestError,
+    XanoWriteSucceededWithUnreadableResponse,
+)
 
 
 def _loan(*, returned: str | None = None) -> dict[str, object]:
@@ -292,7 +295,7 @@ def test_circulation_client_rejects_invalid_action_response(monkeypatch):
         )
     )
 
-    with pytest.raises(XanoRequestError):
+    with pytest.raises(XanoWriteSucceededWithUnreadableResponse):
         asyncio.run(
             offer_next_reservation(
                 12,
@@ -355,6 +358,42 @@ def test_circulation_page_loads_lists_and_marks_overdue_loans(monkeypatch):
             serialized = json.dumps(state.dict(), default=str)
             assert "token-falso" not in serialized
             assert "_session_token" not in serialized
+
+    asyncio.run(verify())
+
+
+def test_circulation_unreadable_success_refreshes_lists_without_retry(monkeypatch):
+    writes = []
+    refreshes = []
+
+    async def unreadable_pickup(request_id, token):
+        writes.append((request_id, token))
+        raise XanoWriteSucceededWithUnreadableResponse()
+
+    async def empty_records(token):
+        refreshes.append(token)
+        return []
+
+    monkeypatch.setattr(frontend, "register_request_pickup", unreadable_pickup)
+    monkeypatch.setattr(frontend, "list_admin_requests", empty_records)
+    monkeypatch.setattr(frontend, "list_admin_reservations", empty_records)
+    monkeypatch.setattr(frontend, "list_admin_loans", empty_records)
+    monkeypatch.setattr(frontend, "list_admin_catalog", empty_records)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"circulation-write-warning-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-bibliotecario", "bibliotecario")
+
+            await state.circulation_pickup_request(7)
+
+            assert writes == [(7, "token-bibliotecario")]
+            assert refreshes == ["token-bibliotecario"] * 4
+            assert state.circulation_pending is False
+            assert state.circulation_has_error is False
+            assert "Não foi possível ler a resposta" in state.circulation_message
 
     asyncio.run(verify())
 

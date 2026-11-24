@@ -22,6 +22,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoRequestError,
     XanoResponseError,
     XanoTimeoutError,
+    XanoWriteSucceededWithUnreadableResponse,
 )
 
 
@@ -339,22 +340,37 @@ def test_request_service_sends_only_title_id_to_openapi_post(monkeypatch):
     assert requests[0].headers["Authorization"] == "Bearer token-de-teste"
 
 
-def test_request_service_rejects_mismatched_title_and_invalid_json(monkeypatch):
+def test_request_service_reports_unreadable_success_without_retry(monkeypatch):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
-    mismatched = httpx.MockTransport(
-        lambda request: httpx.Response(
+    requests = []
+
+    def mismatched_handler(request):
+        requests.append(request)
+        return httpx.Response(
             201,
-            json={"id": 33, "usuario_id": 9, "titulo_id": 15, "estado": "pendente"},
+            json={
+                "id": 33,
+                "usuario_id": 9,
+                "titulo_id": 15,
+                "estado": "pendente",
+            },
         )
-    )
-    with pytest.raises(XanoRequestError):
+
+    mismatched = httpx.MockTransport(mismatched_handler)
+    with pytest.raises(XanoWriteSucceededWithUnreadableResponse):
         asyncio.run(request_title_loan(14, "token", transport=mismatched))
 
-    invalid_json = httpx.MockTransport(
-        lambda request: httpx.Response(201, content=b"not-json")
-    )
-    with pytest.raises(XanoInvalidResponseError):
+    requests.clear()
+
+    def invalid_json_handler(request):
+        requests.append(request)
+        return httpx.Response(201, content=b"not-json")
+
+    invalid_json = httpx.MockTransport(invalid_json_handler)
+    with pytest.raises(XanoWriteSucceededWithUnreadableResponse):
         asyncio.run(request_title_loan(14, "token", transport=invalid_json))
+    assert len(requests) == 1
+    assert requests[0].method == "POST"
 
 
 def test_student_library_formats_timezone_and_detects_only_active_overdue_loans():
@@ -656,6 +672,180 @@ def test_student_request_does_not_retry_uncertain_result(monkeypatch):
     asyncio.run(verify())
 
 
+def test_student_request_treats_unreadable_success_as_success_and_refreshes(
+    monkeypatch,
+):
+    writes = []
+
+    async def unreadable_write(title_id, token):
+        writes.append((title_id, token))
+        raise XanoWriteSucceededWithUnreadableResponse()
+
+    async def empty_records(_token):
+        return []
+
+    async def matching_request(_token):
+        return [
+            {
+                "id": 9,
+                "usuario_id": 7,
+                "titulo_id": 14,
+                "estado": "pendente",
+            }
+        ]
+
+    async def public_titles():
+        return []
+
+    monkeypatch.setattr(frontend, "request_title_loan", unreadable_write)
+    monkeypatch.setattr(frontend, "list_my_loans", empty_records)
+    monkeypatch.setattr(frontend, "list_my_requests", matching_request)
+    monkeypatch.setattr(frontend, "list_my_reservations", empty_records)
+    monkeypatch.setattr(frontend, "list_public_titles", public_titles)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"student-write-warning-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-estudante", "estudante")
+            state.public_catalog_detail = {"id": 14}
+
+            await state.request_catalog_title(14)
+
+            assert writes == [(14, "token-estudante")]
+            assert state.student_request_message == (
+                "Sua solicitação foi registrada. A equipe da biblioteca "
+                "confirmará a retirada."
+            )
+            assert state.student_request_has_error is False
+            assert state.student_library_pending is False
+            assert state.student_request_pending is False
+
+    asyncio.run(verify())
+
+
+def test_student_request_stays_locked_until_refresh_confirms_unreadable_write(
+    monkeypatch,
+):
+    writes = []
+    request_reads = 0
+
+    async def unreadable_write(title_id, token):
+        writes.append((title_id, token))
+        raise XanoWriteSucceededWithUnreadableResponse()
+
+    async def empty_records(_token):
+        return []
+
+    async def requests(_token):
+        nonlocal request_reads
+        request_reads += 1
+        if request_reads == 1:
+            return []
+        return [
+            {
+                "id": 9,
+                "usuario_id": 7,
+                "titulo_id": 14,
+                "estado": "pendente",
+            }
+        ]
+
+    async def public_titles():
+        return []
+
+    monkeypatch.setattr(frontend, "request_title_loan", unreadable_write)
+    monkeypatch.setattr(frontend, "list_my_loans", empty_records)
+    monkeypatch.setattr(frontend, "list_my_requests", requests)
+    monkeypatch.setattr(frontend, "list_my_reservations", empty_records)
+    monkeypatch.setattr(frontend, "list_public_titles", public_titles)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"student-request-confirm-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-estudante", "estudante")
+            state.public_catalog_detail = {"id": 14}
+
+            await state.request_catalog_title(14)
+
+            assert writes == [(14, "token-estudante")]
+            assert state.student_request_pending is True
+            assert state.student_request_has_error is True
+            assert state.student_request_message == (
+                "Não foi possível confirmar a solicitação. "
+                "Confira Reservas antes de tentar novamente."
+            )
+
+            await state.request_catalog_title(14)
+            assert writes == [(14, "token-estudante")]
+
+            await state.retry_student_library()
+            assert state.student_request_pending is False
+            assert state.student_request_has_error is False
+            assert state.student_request_message == (
+                "Sua solicitação foi registrada. A equipe da biblioteca "
+                "confirmará a retirada."
+            )
+
+    asyncio.run(verify())
+
+
+def test_student_request_remains_locked_until_failed_refresh_recovers(monkeypatch):
+    calls = []
+
+    async def unreadable_write(title_id, token):
+        raise XanoWriteSucceededWithUnreadableResponse()
+
+    async def loans(_token):
+        calls.append("loans")
+        if len(calls) == 1:
+            raise XanoRequestError("Falha de comunicação")
+        return []
+
+    async def empty_records(_token):
+        return []
+
+    async def matching_request(_token):
+        return [
+            {
+                "id": 9,
+                "usuario_id": 7,
+                "titulo_id": 14,
+                "estado": "pendente",
+            }
+        ]
+
+    async def public_titles():
+        return []
+
+    monkeypatch.setattr(frontend, "request_title_loan", unreadable_write)
+    monkeypatch.setattr(frontend, "list_my_loans", loans)
+    monkeypatch.setattr(frontend, "list_my_requests", matching_request)
+    monkeypatch.setattr(frontend, "list_my_reservations", empty_records)
+    monkeypatch.setattr(frontend, "list_public_titles", public_titles)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"student-write-lock-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-estudante", "estudante")
+            state.public_catalog_detail = {"id": 14}
+
+            await state.request_catalog_title(14)
+            assert state.student_library_has_error is True
+            assert state.student_request_pending is True
+
+            await state.retry_student_library()
+            assert state.student_library_has_error is False
+            assert state.student_request_pending is False
+
+    asyncio.run(verify())
+
+
 @pytest.mark.parametrize(
     ("server_message", "status_code", "expected_message"),
     [
@@ -738,7 +928,17 @@ def test_student_request_uses_backend_result_for_available_or_unavailable_title(
             **({"reserva_id": 42} if status == "em_reserva" else {}),
         }
 
+    async def empty_records(_token):
+        return []
+
+    async def public_titles():
+        return []
+
     monkeypatch.setattr(frontend, "request_title_loan", submit)
+    monkeypatch.setattr(frontend, "list_my_loans", empty_records)
+    monkeypatch.setattr(frontend, "list_my_requests", empty_records)
+    monkeypatch.setattr(frontend, "list_my_reservations", empty_records)
+    monkeypatch.setattr(frontend, "list_public_titles", public_titles)
 
     async def verify():
         async with frontend.app.modify_state(

@@ -22,6 +22,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoRequestError,
     XanoResponseError,
     parse_xano_response_json,
+    parse_xano_write_response,
     xano_public_error_message,
 )
 
@@ -441,15 +442,18 @@ async def update_title(
         token=token,
         json=request_payload,
     )
-    title = _response_json(response)
-    if (
-        not isinstance(title, dict)
-        or type(title.get("id")) is not int
-        or title["id"] != title_id
-    ):
-        raise _response_error()
     invalidar_cache_catalogo_publico()
-    return {"id": title_id}
+
+    def parse_result(title: object) -> Title:
+        if (
+            not isinstance(title, dict)
+            or type(title.get("id")) is not int
+            or title["id"] != title_id
+        ):
+            raise _response_error()
+        return {"id": title_id}
+
+    return parse_xano_write_response(response, parse_result)
 
 
 async def create_title(
@@ -465,11 +469,14 @@ async def create_title(
         token=token,
         json=payload,
     )
-    title = _response_json(response)
-    if not isinstance(title, dict) or type(title.get("id")) is not int:
-        raise _response_error()
     invalidar_cache_catalogo_publico()
-    return {"id": title["id"]}
+
+    def parse_result(title: object) -> Title:
+        if not isinstance(title, dict) or type(title.get("id")) is not int:
+            raise _response_error()
+        return {"id": title["id"]}
+
+    return parse_xano_write_response(response, parse_result)
 
 
 async def associate_category(
@@ -486,22 +493,25 @@ async def associate_category(
         token=token,
         json={"categoria_id": category_id},
     )
-    association = _response_json(response)
-    if (
-        not isinstance(association, dict)
-        or type(association.get("id")) is not int
-        or type(association.get("titulo_id")) is not int
-        or association.get("titulo_id") != title_id
-        or type(association.get("categoria_id")) is not int
-        or association.get("categoria_id") != category_id
-    ):
-        raise _response_error()
     invalidar_cache_catalogo_publico()
-    return {
-        "id": association["id"],
-        "titulo_id": title_id,
-        "categoria_id": category_id,
-    }
+
+    def parse_result(association: object) -> TitleCategory:
+        if (
+            not isinstance(association, dict)
+            or type(association.get("id")) is not int
+            or type(association.get("titulo_id")) is not int
+            or association.get("titulo_id") != title_id
+            or type(association.get("categoria_id")) is not int
+            or association.get("categoria_id") != category_id
+        ):
+            raise _response_error()
+        return {
+            "id": association["id"],
+            "titulo_id": title_id,
+            "categoria_id": category_id,
+        }
+
+    return parse_xano_write_response(response, parse_result)
 
 
 async def category_contains_title(
@@ -539,24 +549,27 @@ async def create_copy(
         token=token,
         json={"titulo_id": title_id},
     )
-    copy = _response_json(response)
-    if (
-        not isinstance(copy, dict)
-        or type(copy.get("id")) is not int
-        or type(copy.get("titulo_id")) is not int
-        or copy.get("titulo_id") != title_id
-        or not isinstance(copy.get("estado"), str)
-        or not isinstance(copy.get("codigo_tombo"), str)
-        or not copy["codigo_tombo"]
-    ):
-        raise _response_error()
     invalidar_cache_catalogo_publico()
-    return {
-        "id": copy["id"],
-        "titulo_id": title_id,
-        "estado": copy["estado"],
-        "codigo_tombo": copy["codigo_tombo"],
-    }
+
+    def parse_result(copy: object) -> Copy:
+        if (
+            not isinstance(copy, dict)
+            or type(copy.get("id")) is not int
+            or type(copy.get("titulo_id")) is not int
+            or copy.get("titulo_id") != title_id
+            or not isinstance(copy.get("estado"), str)
+            or not isinstance(copy.get("codigo_tombo"), str)
+            or not copy["codigo_tombo"]
+        ):
+            raise _response_error()
+        return {
+            "id": copy["id"],
+            "titulo_id": title_id,
+            "estado": copy["estado"],
+            "codigo_tombo": copy["codigo_tombo"],
+        }
+
+    return parse_xano_write_response(response, parse_result)
 
 
 def catalog_error_message(error: Exception) -> str:

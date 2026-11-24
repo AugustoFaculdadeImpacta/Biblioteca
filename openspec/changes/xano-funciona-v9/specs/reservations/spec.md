@@ -16,3 +16,11 @@ A interface MUST bloquear nova submissão de reserva desde o início da tentativ
 #### Scenario: Listas atualizadas
 - **WHEN** o recarregamento das listas relacionadas termina
 - **THEN** uma nova solicitação pode ser iniciada conforme o estado atualizado
+
+#### Scenario: Escrita ilegível ainda não aparece nas listas
+- **WHEN** a escrita recebe HTTP 2xx sem resposta interpretável e a releitura ainda não mostra a solicitação ou reserva
+- **THEN** a interface não afirma que o pedido foi confirmado, mantém nova submissão bloqueada e oferece atualizar as listas antes de tentar novamente
+
+#### Scenario: Escrita ilegível confirmada pela releitura
+- **WHEN** a escrita recebe HTTP 2xx sem resposta interpretável e a releitura encontra a solicitação ou reserva do título
+- **THEN** a interface confirma o resultado sem repetir a escrita e libera uma nova ação conforme o estado atualizado

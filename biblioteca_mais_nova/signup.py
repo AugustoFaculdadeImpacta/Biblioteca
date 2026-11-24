@@ -11,7 +11,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoInvalidResponseError,
     XanoRequestError,
     XanoResponseError,
-    parse_xano_response_json,
+    parse_xano_write_response,
     xano_public_error_message,
 )
 
@@ -63,25 +63,26 @@ async def submit_student_signup(
     client = XanoClient.from_environment(transport=transport)
     response = await client.request("POST", "/auth/signup", json=payload)
 
-    session = parse_xano_response_json(response)
+    def parse_session(session: object) -> SignupSession:
+        if not isinstance(session, dict):
+            raise XanoInvalidResponseError()
 
-    if not isinstance(session, dict):
-        raise XanoInvalidResponseError()
+        token = session.get("authToken")
+        user = session.get("usuario")
+        if (
+            not isinstance(token, str)
+            or not token
+            or not isinstance(user, dict)
+            or not isinstance(user.get("id"), int)
+            or not isinstance(user.get("nome"), str)
+            or not isinstance(user.get("email"), str)
+            or user.get("perfil") != "estudante"
+        ):
+            raise XanoInvalidResponseError()
 
-    token = session.get("authToken")
-    user = session.get("usuario")
-    if (
-        not isinstance(token, str)
-        or not token
-        or not isinstance(user, dict)
-        or not isinstance(user.get("id"), int)
-        or not isinstance(user.get("nome"), str)
-        or not isinstance(user.get("email"), str)
-        or user.get("perfil") != "estudante"
-    ):
-        raise XanoInvalidResponseError()
+        return {"authToken": token, "usuario": user}
 
-    return {"authToken": token, "usuario": user}
+    return parse_xano_write_response(response, parse_session)
 
 
 def signup_error_message(error: Exception) -> str:

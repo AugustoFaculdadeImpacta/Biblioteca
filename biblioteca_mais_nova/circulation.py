@@ -18,6 +18,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoRequestError,
     XanoResponseError,
     parse_xano_response_json,
+    parse_xano_write_response,
     xano_public_error_message,
 )
 
@@ -363,19 +364,22 @@ async def request_title_loan(
         token=token,
         json={"titulo_id": title_id},
     )
-    result = _parse_request(_response_json(response))
-    if result["titulo_id"] != title_id:
-        raise _response_error()
-    return {
-        "id": result["id"],
-        "titulo_id": result["titulo_id"],
-        "estado": result["estado"],
-        **(
-            {"reserva_id": result["reserva_id"]}
-            if "reserva_id" in result
-            else {}
-        ),
-    }
+    def parse_result(value: object) -> LoanRequestResult:
+        result = _parse_request(value)
+        if result["titulo_id"] != title_id:
+            raise _response_error()
+        return {
+            "id": result["id"],
+            "titulo_id": result["titulo_id"],
+            "estado": result["estado"],
+            **(
+                {"reserva_id": result["reserva_id"]}
+                if "reserva_id" in result
+                else {}
+            ),
+        }
+
+    return parse_xano_write_response(response, parse_result)
 
 
 def _admin_id_path(path: str, record_id: int) -> str:
@@ -390,10 +394,9 @@ async def _admin_post(
     *,
     body: dict[str, int] | None = None,
     transport: httpx.AsyncBaseTransport | None = None,
-) -> object:
+) -> httpx.Response:
     client = XanoClient.from_environment(transport=transport)
-    response = await client.request("POST", path, token=token, json=body)
-    return _response_json(response)
+    return await client.request("POST", path, token=token, json=body)
 
 
 async def register_request_pickup(
@@ -402,15 +405,19 @@ async def register_request_pickup(
     *,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> Loan:
-    result = await _admin_post(
+    response = await _admin_post(
         _admin_id_path("/admin/solicitacoes/{record_id}/retirada", request_id),
         token,
         transport=transport,
     )
-    loan = _parse_loan(result)
-    if loan.get("solicitacao_id") not in {None, request_id}:
-        raise _response_error()
-    return loan
+
+    def parse_result(value: object) -> Loan:
+        loan = _parse_loan(value)
+        if loan.get("solicitacao_id") not in {None, request_id}:
+            raise _response_error()
+        return loan
+
+    return parse_xano_write_response(response, parse_result)
 
 
 async def refuse_loan_request(
@@ -419,15 +426,19 @@ async def refuse_loan_request(
     *,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> LoanRequest:
-    result = await _admin_post(
+    response = await _admin_post(
         _admin_id_path("/admin/solicitacoes/{record_id}/recusar", request_id),
         token,
         transport=transport,
     )
-    request = _parse_request(result)
-    if request["id"] != request_id or request["estado"] != "recusada":
-        raise _response_error()
-    return request
+
+    def parse_result(value: object) -> LoanRequest:
+        request = _parse_request(value)
+        if request["id"] != request_id or request["estado"] != "recusada":
+            raise _response_error()
+        return request
+
+    return parse_xano_write_response(response, parse_result)
 
 
 async def offer_next_reservation(
@@ -439,22 +450,26 @@ async def offer_next_reservation(
 ) -> None:
     if not _positive_id(title_id) or not _positive_id(copy_id):
         raise _response_error()
-    result = await _admin_post(
+    response = await _admin_post(
         "/admin/reservas/ofertar-proxima",
         token,
         body={"titulo_id": title_id, "exemplar_id": copy_id},
         transport=transport,
     )
-    if (
-        not isinstance(result, dict)
-        or not isinstance(result.get("reserva"), dict)
-        or not _positive_id(result["reserva"].get("id"))
-        or result["reserva"].get("titulo_id") != title_id
-        or result["reserva"].get("estado") != "ofertada"
-        or not _timestamp(result.get("expira_em_utc"))
-        or not _sao_paulo_timestamp(result.get("expira_em_sao_paulo"))
-    ):
-        raise _response_error()
+
+    def parse_result(result: object) -> None:
+        if (
+            not isinstance(result, dict)
+            or not isinstance(result.get("reserva"), dict)
+            or not _positive_id(result["reserva"].get("id"))
+            or result["reserva"].get("titulo_id") != title_id
+            or result["reserva"].get("estado") != "ofertada"
+            or not _timestamp(result.get("expira_em_utc"))
+            or not _sao_paulo_timestamp(result.get("expira_em_sao_paulo"))
+        ):
+            raise _response_error()
+
+    parse_xano_write_response(response, parse_result)
 
 
 async def register_reservation_pickup(
@@ -463,12 +478,12 @@ async def register_reservation_pickup(
     *,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> Loan:
-    result = await _admin_post(
+    response = await _admin_post(
         _admin_id_path("/admin/reservas/{record_id}/retirada", reservation_id),
         token,
         transport=transport,
     )
-    return _parse_loan(result)
+    return parse_xano_write_response(response, _parse_loan)
 
 
 async def refuse_reservation(
@@ -477,17 +492,21 @@ async def refuse_reservation(
     *,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> None:
-    result = await _admin_post(
+    response = await _admin_post(
         _admin_id_path("/admin/reservas/{record_id}/recusar", reservation_id),
         token,
         transport=transport,
     )
-    if (
-        not isinstance(result, dict)
-        or result.get("id") != reservation_id
-        or result.get("estado") != "recusada"
-    ):
-        raise _response_error()
+
+    def parse_result(result: object) -> None:
+        if (
+            not isinstance(result, dict)
+            or result.get("id") != reservation_id
+            or result.get("estado") != "recusada"
+        ):
+            raise _response_error()
+
+    parse_xano_write_response(response, parse_result)
 
 
 async def register_loan_return(
@@ -496,13 +515,20 @@ async def register_loan_return(
     *,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> None:
-    result = await _admin_post(
+    response = await _admin_post(
         _admin_id_path("/admin/emprestimos/{record_id}/devolucao", loan_id),
         token,
         transport=transport,
     )
-    if not isinstance(result, dict) or not isinstance(result.get("emprestimo"), dict):
-        raise _response_error()
-    loan = _parse_loan(result["emprestimo"])
-    if loan["id"] != loan_id or not _timestamp(loan["devolvido_em"], nullable=True):
-        raise _response_error()
+
+    def parse_result(result: object) -> None:
+        if not isinstance(result, dict) or not isinstance(
+            result.get("emprestimo"),
+            dict,
+        ):
+            raise _response_error()
+        loan = _parse_loan(result["emprestimo"])
+        if loan["id"] != loan_id or not _timestamp(loan["devolvido_em"]):
+            raise _response_error()
+
+    parse_xano_write_response(response, parse_result)

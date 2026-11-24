@@ -104,6 +104,10 @@ class XanoInvalidResponseError(XanoRequestError):
         super().__init__(message)
 
 
+class XanoWriteSucceededWithUnreadableResponse(Exception):
+    """Escrita 2xx concluída cujo corpo não pôde ser interpretado."""
+
+
 class XanoNonJsonResponseError(XanoInvalidResponseError):
     """Resposta que não contém JSON quando o contrato exige JSON."""
 
@@ -180,6 +184,17 @@ def parse_xano_response_json(response: httpx.Response) -> object:
         return response.json()
     except ValueError:
         raise XanoInvalidResponseError() from None
+
+
+def parse_xano_write_response(
+    response: httpx.Response,
+    parser: Callable[[object], _R],
+) -> _R:
+    """Interpreta a resposta de uma escrita sem converter 2xx em falha."""
+    try:
+        return parser(parse_xano_response_json(response))
+    except XanoInvalidResponseError:
+        raise XanoWriteSucceededWithUnreadableResponse() from None
 
 
 def xano_public_error_message(error: Exception) -> str | None:

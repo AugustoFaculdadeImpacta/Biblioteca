@@ -17,6 +17,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoRequestError,
     XanoResponseError,
     parse_xano_response_json,
+    parse_xano_write_response,
     xano_public_error_message,
 )
 
@@ -115,7 +116,7 @@ async def create_staff_reservation(
         token=token,
         json={"usuario_id": student_id, "titulo_id": title_id},
     )
-    return _parse_staff_reservation(_response_json(response))
+    return parse_xano_write_response(response, _parse_staff_reservation)
 
 
 def staff_reservation_error_message(error: Exception) -> str:

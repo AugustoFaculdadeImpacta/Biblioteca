@@ -15,7 +15,10 @@ from biblioteca_mais_nova.user_admin import (
     list_librarians,
     set_librarian_active,
 )
-from biblioteca_mais_nova.xano_client import XanoRequestError
+from biblioteca_mais_nova.xano_client import (
+    XanoRequestError,
+    XanoWriteSucceededWithUnreadableResponse,
+)
 
 
 def _librarian(user_id=12, *, active=True):
@@ -134,6 +137,44 @@ def test_list_librarians_accepts_envelope_and_skips_bad_records(monkeypatch):
         }
     ]
     assert librarians.skipped_count == 1
+
+
+def test_librarian_writes_report_unreadable_success_without_retry(monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(204)
+
+    transport = httpx.MockTransport(handle)
+    with pytest.raises(XanoWriteSucceededWithUnreadableResponse):
+        asyncio.run(
+            create_librarian(
+                {
+                    "nome": "Ana",
+                    "email": "ana@escola.edu.br",
+                    "senha": "senha",
+                },
+                "token",
+                transport=transport,
+            )
+        )
+    assert len(requests) == 1
+    assert requests[0].method == "POST"
+
+    requests.clear()
+    with pytest.raises(XanoWriteSucceededWithUnreadableResponse):
+        asyncio.run(
+            set_librarian_active(
+                12,
+                False,
+                "token",
+                transport=transport,
+            )
+        )
+    assert len(requests) == 1
+    assert requests[0].method == "PATCH"
 
 
 def test_create_librarian_sends_only_approved_fields_and_sanitizes_response(
@@ -311,6 +352,58 @@ def test_management_handlers_require_admin_and_keep_session_private(monkeypatch)
             serialized = json.dumps(delta, default=str)
             assert "token-falso-admin" not in serialized
             assert '"admin"' not in serialized
+
+    asyncio.run(verify())
+
+
+def test_unreadable_librarian_writes_refresh_accounts_and_show_warning(monkeypatch):
+    writes = []
+    refreshes = []
+
+    async def unreadable_create(payload, token):
+        writes.append(("POST", token))
+        raise XanoWriteSucceededWithUnreadableResponse()
+
+    async def unreadable_update(librarian_id, active, token):
+        writes.append(("PATCH", token))
+        raise XanoWriteSucceededWithUnreadableResponse()
+
+    async def librarians(token):
+        refreshes.append(token)
+        return [_librarian()]
+
+    monkeypatch.setattr(frontend, "create_librarian", unreadable_create)
+    monkeypatch.setattr(frontend, "set_librarian_active", unreadable_update)
+    monkeypatch.setattr(frontend, "list_librarians", librarians)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"librarian-write-warning-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-admin", "admin")
+            form = {
+                "nome": "Bia",
+                "email": "bia@escola.edu.br",
+                "senha": "senha",
+            }
+
+            await state.submit_librarian(form)
+            assert state.librarian_management_success is True
+            assert "Não foi possível ler a resposta" in (
+                state.librarian_management_message
+            )
+
+            await state.set_librarian_active(12, False)
+            assert state.librarian_management_success is True
+            assert "Não foi possível ler a resposta" in (
+                state.librarian_management_message
+            )
+            assert writes == [
+                ("POST", "token-admin"),
+                ("PATCH", "token-admin"),
+            ]
+            assert refreshes == ["token-admin", "token-admin"]
 
     asyncio.run(verify())
 

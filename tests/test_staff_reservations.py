@@ -14,7 +14,11 @@ from biblioteca_mais_nova.staff_reservations import (
     find_student_by_email,
     staff_reservation_error_message,
 )
-from biblioteca_mais_nova.xano_client import XanoRequestError, XanoResponseError
+from biblioteca_mais_nova.xano_client import (
+    XanoRequestError,
+    XanoResponseError,
+    XanoWriteSucceededWithUnreadableResponse,
+)
 
 
 def _entry(title_id: int, title: str, *, active: bool = True):
@@ -134,6 +138,28 @@ def test_create_staff_reservation_sends_only_student_and_title_ids(monkeypatch):
     assert requests[0].read() == b'{"usuario_id":8,"titulo_id":81}'
     assert "Authorization" in requests[0].headers
     assert "token-nao-exposto" not in json.dumps(result)
+
+
+def test_staff_reservation_unreadable_success_is_not_retried(monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(200, content=b"")
+
+    with pytest.raises(XanoWriteSucceededWithUnreadableResponse):
+        asyncio.run(
+            create_staff_reservation(
+                101,
+                12,
+                "token-falso",
+                transport=httpx.MockTransport(handle),
+            )
+        )
+
+    assert len(requests) == 1
+    assert requests[0].method == "POST"
 
 
 @pytest.mark.parametrize(

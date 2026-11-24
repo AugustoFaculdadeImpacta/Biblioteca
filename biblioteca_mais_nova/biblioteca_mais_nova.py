@@ -92,14 +92,17 @@ from biblioteca_mais_nova.xano_client import (
     XanoRequestError,
     XanoResponseError,
     XanoTimeoutError,
+    XanoWriteSucceededWithUnreadableResponse,
     diagnosticar_pagina_xano,
 )
 
 
 def _timestamp_is_past(
-    value: str | int | float,
+    value: str | int | float | None,
     now: datetime,
 ) -> bool:
+    if value is None or value == 0:
+        return False
     if type(value) in {int, float}:
         deadline = datetime.fromtimestamp(value, tz=timezone.utc)
     else:
@@ -219,6 +222,7 @@ class State(rx.State):
     student_library_skipped: int = 0
     student_reservation_tab: str = "aguardando"
     student_request_pending: bool = False
+    student_request_uncertain_title_id: int | None = None
     student_request_message: str = ""
     student_request_has_error: bool = False
     librarian_management_pending: bool = False
@@ -338,6 +342,8 @@ class State(rx.State):
         self._session_email = ""
         self._admin_view_mode = ""
         self.mobile_navigation_open = False
+        self.student_request_pending = False
+        self.student_request_uncertain_title_id = None
         self.is_authenticated = False
 
     def _is_librarian(self) -> bool:
@@ -1148,14 +1154,39 @@ class State(rx.State):
             )
             self.student_request_has_error = True
             return rx.redirect("/")
+        if self.student_request_pending:
+            return
         if self.public_catalog_detail.get("id") != title_id:
             return
 
         self.student_request_pending = True
         self.student_request_message = ""
         self.student_request_has_error = False
+        write_succeeded = False
         try:
-            result = await request_title_loan(title_id, self._session_token)
+            try:
+                result = await request_title_loan(
+                    title_id,
+                    self._session_token,
+                )
+            except XanoWriteSucceededWithUnreadableResponse:
+                write_succeeded = True
+                self.student_request_uncertain_title_id = title_id
+                self.student_request_message = (
+                    "Atualizando Reservas para confirmar a solicitação."
+                )
+            else:
+                write_succeeded = True
+                if result["estado"] == "em_reserva":
+                    self.student_request_message = (
+                        "Sua solicitação foi registrada na fila de reservas."
+                    )
+                else:
+                    self.student_request_message = (
+                        "Sua solicitação foi registrada. A equipe da biblioteca "
+                        "confirmará a retirada."
+                    )
+            await self.load_student_library()
         except (
             XanoResponseError,
             XanoTimeoutError,
@@ -1174,17 +1205,10 @@ class State(rx.State):
                 and error.status_code == 401
             ):
                 self._clear_session_token()
-        else:
-            if result["estado"] == "em_reserva":
-                self.student_request_message = (
-                    "Sua solicitação foi registrada na fila de reservas."
-                )
-            else:
-                self.student_request_message = (
-                    "Sua solicitação foi registrada. A equipe da biblioteca "
-                    "confirmará a retirada."
-                )
-        self.student_request_pending = False
+                self.student_request_pending = False
+        finally:
+            if not write_succeeded or not self.student_library_has_error:
+                self.student_request_pending = False
 
     @rx.event
     @diagnosticar_pagina_xano("reservas")
@@ -1286,6 +1310,59 @@ class State(rx.State):
             }
             for reservation in reservations
         ]
+        uncertain_title_id = self.student_request_uncertain_title_id
+        if uncertain_title_id is not None:
+            confirmed_reservation = next(
+                (
+                    reservation
+                    for reservation in reservations
+                    if reservation["titulo_id"] == uncertain_title_id
+                    and reservation["estado"] in {"aguardando", "ofertada"}
+                ),
+                None,
+            )
+            confirmed_request = next(
+                (
+                    request
+                    for request in requests
+                    if request["titulo_id"] == uncertain_title_id
+                    and request["estado"] in {"pendente", "em_reserva"}
+                ),
+                None,
+            )
+            if confirmed_reservation is not None or confirmed_request is not None:
+                self.student_request_uncertain_title_id = None
+                self.student_request_pending = False
+                self.student_request_has_error = False
+                if confirmed_reservation is not None:
+                    self.student_request_message = (
+                        "Sua reserva foi registrada. Confira em Reservas."
+                    )
+                elif (
+                    confirmed_request is not None
+                    and confirmed_request["estado"] == "em_reserva"
+                ):
+                    self.student_request_message = (
+                        "Sua solicitação entrou na fila de reservas."
+                    )
+                else:
+                    self.student_request_message = (
+                        "Sua solicitação foi registrada. A equipe da biblioteca "
+                        "confirmará a retirada."
+                    )
+            else:
+                self.student_library_has_error = True
+                self.student_library_message = (
+                    "Ainda não foi possível confirmar a solicitação. "
+                    "Atualize Reservas antes de tentar novamente."
+                )
+                self.student_request_message = (
+                    "Não foi possível confirmar a solicitação. "
+                    "Confira Reservas antes de tentar novamente."
+                )
+                self.student_request_has_error = True
+        else:
+            self.student_request_pending = False
 
     @rx.event
     def redirect_student_library(self):
@@ -1304,6 +1381,13 @@ class State(rx.State):
         try:
             payload = build_signup_payload(form_data)
             session = await submit_student_signup(payload)
+        except XanoWriteSucceededWithUnreadableResponse:
+            self.signup_success_message = (
+                "Cadastro enviado. Não foi possível ler a resposta; "
+                "tente entrar com a conta."
+            )
+            self.signup_has_error = False
+            return
         except (
             SignupValidationError,
             XanoConfigurationError,
@@ -1411,6 +1495,18 @@ class State(rx.State):
                 payload,
                 self._session_token,
             )
+        except XanoWriteSucceededWithUnreadableResponse:
+            await self.load_librarians()
+            self.librarian_management_message = (
+                "Bibliotecário cadastrado. Não foi possível ler a resposta; "
+                "confira as contas bibliotecárias."
+            )
+            self.librarian_management_success = (
+                not self.librarian_management_has_error
+            )
+            return rx.call_script(
+                "document.getElementById('form-cadastro-bibliotecario')?.reset()"
+            )
         except (
             UserAdminValidationError,
             XanoConfigurationError,
@@ -1456,6 +1552,17 @@ class State(rx.State):
                 active,
                 self._session_token,
             )
+        except XanoWriteSucceededWithUnreadableResponse:
+            await self.load_librarians()
+            self.librarian_management_confirm_id = None
+            self.librarian_management_message = (
+                "Operação concluída. Não foi possível ler a resposta; "
+                "confira as contas bibliotecárias."
+            )
+            self.librarian_management_success = (
+                not self.librarian_management_has_error
+            )
+            return
         except (
             UserAdminValidationError,
             XanoConfigurationError,
@@ -1639,6 +1746,14 @@ class State(rx.State):
                 title_id,
                 self._session_token,
             )
+        except XanoWriteSucceededWithUnreadableResponse:
+            await self._refresh_circulation_data()
+            self.staff_reservation_message = (
+                "Reserva enviada. Não foi possível ler a resposta; "
+                "confira Reservas."
+            )
+            self.staff_reservation_has_error = False
+            return
         except XanoResponseError as error:
             if error.status_code >= 500:
                 self.staff_reservation_needs_manual_check = True
@@ -1780,8 +1895,15 @@ class State(rx.State):
         self.circulation_pending = True
         self.circulation_message = ""
         self.circulation_has_error = False
+        write_warning = False
         try:
             await action()
+        except XanoWriteSucceededWithUnreadableResponse:
+            write_warning = True
+            success_message = (
+                "Operação concluída. Não foi possível ler a resposta; "
+                "a lista foi atualizada."
+            )
         except XanoResponseError as error:
             if error.status_code >= 500:
                 self.circulation_needs_manual_check = True
@@ -1810,6 +1932,11 @@ class State(rx.State):
 
         self.circulation_message = success_message
         if not await self._refresh_circulation_data():
+            if write_warning:
+                self.circulation_message = (
+                    "Operação concluída, mas não foi possível ler a resposta "
+                    "nem atualizar a lista. Tente recarregar."
+                )
             return
         self.circulation_message = success_message
 
@@ -2179,6 +2306,7 @@ class State(rx.State):
         self.example_seed_has_error = False
         self.example_seed_preview_ready = False
         failure_message = ""
+        write_warning = False
         plan_loaded = False
 
         try:
@@ -2285,6 +2413,12 @@ class State(rx.State):
                         for _ in range(book["exemplares"]):
                             await create_copy(title["id"], self._session_token)
                             await asyncio.sleep(1.5)
+                    except XanoWriteSucceededWithUnreadableResponse:
+                        write_warning = True
+                        self.example_seed_progress = index
+                        self.example_seed_resume_index = index
+                        self.example_seed_can_resume = True
+                        break
                     except (
                         CatalogValidationError,
                         XanoConfigurationError,
@@ -2305,6 +2439,13 @@ class State(rx.State):
 
         if plan_loaded:
             await self._refresh_admin_catalog()
+        if write_warning:
+            self.example_seed_message = (
+                "Importação pausada. Uma gravação foi concluída, mas não foi "
+                "possível ler a resposta. Confira o Acervo antes de continuar."
+            )
+            self.example_seed_has_error = False
+            return
         error_label = "erro" if self.example_seed_errors == 1 else "erros"
         totals = (
             f"{self.example_seed_created} criados, "
@@ -2350,6 +2491,17 @@ class State(rx.State):
             )
             self.admin_catalog_pending = True
             await update_title(int(raw_id), payload, self._session_token)
+        except XanoWriteSucceededWithUnreadableResponse:
+            await self._refresh_admin_catalog()
+            self.admin_catalog_message = (
+                "Título atualizado. Não foi possível ler a resposta; "
+                "confira o Acervo."
+            )
+            if self.admin_catalog_has_error:
+                self.admin_catalog_message += (
+                    " A lista também não pôde ser atualizada."
+                )
+            return
         except (
             CatalogValidationError,
             XanoConfigurationError,
@@ -2424,6 +2576,8 @@ class State(rx.State):
         year = title.get("ano_publicacao")
         form_data["ano_publicacao"] = str(year) if year is not None else ""
         payload: dict[str, Any] = {}
+        update_result: object = None
+        write_warning = False
         try:
             self.admin_catalog_pending = True
             self.admin_catalog_title_action_title_id = title_id
@@ -2436,6 +2590,8 @@ class State(rx.State):
                 self._session_token,
                 active=active,
             )
+        except XanoWriteSucceededWithUnreadableResponse:
+            write_warning = True
         except (
             CatalogValidationError,
             XanoConfigurationError,
@@ -2473,6 +2629,34 @@ class State(rx.State):
             ),
             None,
         )
+
+        if write_warning:
+            active_reloaded = (
+                refreshed_entry["titulo"].get("ativo")
+                if refreshed_entry is not None
+                else None
+            )
+            _diagnostico_desativacao(
+                title_id=title_id,
+                status_code=200,
+                body_keys=sorted(payload.keys()),
+                response_keys=[],
+                active_response=None,
+                active_reloaded=active_reloaded,
+            )
+            self.admin_catalog_message = (
+                "Título atualizado. Não foi possível ler a resposta; "
+                "confira o Acervo."
+            )
+            if self.admin_catalog_has_error:
+                self.admin_catalog_message += (
+                    " A lista também não pôde ser atualizada."
+                )
+            self.admin_catalog_confirm_title_id = None
+            self.admin_catalog_title_action_title_id = title_id
+            self.admin_catalog_title_action_message = self.admin_catalog_message
+            self.admin_catalog_title_action_error = self.admin_catalog_has_error
+            return
 
         if self.admin_catalog_has_error:
             _diagnostico_desativacao(
@@ -2616,6 +2800,17 @@ class State(rx.State):
         self.admin_catalog_pending = True
         try:
             await create_copy(title_id, self._session_token)
+        except XanoWriteSucceededWithUnreadableResponse:
+            await self._refresh_admin_catalog()
+            self.admin_catalog_message = (
+                "Exemplar criado. Não foi possível ler a resposta; "
+                "confira o Acervo."
+            )
+            if self.admin_catalog_has_error:
+                self.admin_catalog_message += (
+                    " A lista também não pôde ser atualizada."
+                )
+            return
         except XanoResponseError as error:
             if error.status_code >= 500:
                 self.admin_catalog_needs_manual_check = True
@@ -2696,6 +2891,14 @@ class State(rx.State):
 
         try:
             title = await create_title(payload, self._session_token)
+        except XanoWriteSucceededWithUnreadableResponse:
+            await self._refresh_admin_catalog()
+            self.catalog_message = (
+                "Título enviado. Não foi possível ler a resposta; confira o "
+                "Acervo antes de cadastrar novamente."
+            )
+            self.catalog_has_error = False
+            return
         except XanoResponseError as error:
             if error.status_code >= 500:
                 self._catalog_title_uncertain = True
@@ -2726,13 +2929,20 @@ class State(rx.State):
         self.catalog_title_created = True
         self._pending_category_ids = list(self.selected_category_ids)
         self._sync_catalog_progress()
-        await self._process_pending_categories()
-        if not self.catalog_categories_pending and not self.catalog_has_error:
+        write_warning = await self._process_pending_categories()
+        if (
+            write_warning
+            or (
+                not self.catalog_categories_pending
+                and not self.catalog_has_error
+            )
+        ):
             await self._refresh_admin_catalog()
 
-    async def _process_pending_categories(self):
+    async def _process_pending_categories(self) -> bool:
         if self._catalog_title_id is None:
-            return
+            return False
+        write_warning = False
         for category_id in list(self._pending_category_ids):
             try:
                 await associate_category(
@@ -2743,6 +2953,11 @@ class State(rx.State):
             except XanoConfigurationError as error:
                 self.catalog_message = catalog_error_message(error)
                 self.catalog_has_error = True
+                break
+            except XanoWriteSucceededWithUnreadableResponse:
+                write_warning = True
+                self._pending_category_ids.remove(category_id)
+                self._sync_catalog_progress()
                 break
             except XanoRequestError as error:
                 try:
@@ -2783,10 +2998,18 @@ class State(rx.State):
             self._sync_catalog_progress()
 
         self._sync_catalog_progress()
-        if not self.catalog_categories_pending:
+        if write_warning:
+            self.catalog_message = (
+                "Categoria associada. Não foi possível ler a resposta; "
+                "confira o Acervo."
+            )
+            self.catalog_has_error = False
+            self.catalog_needs_manual_check = False
+        elif not self.catalog_categories_pending:
             self.catalog_message = "Título e categorias cadastrados."
             self.catalog_has_error = False
             self.catalog_needs_manual_check = False
+        return write_warning
 
     @rx.event
     async def retry_catalog_categories(self):
@@ -2814,8 +3037,14 @@ class State(rx.State):
             self._sync_catalog_progress()
         self.catalog_needs_manual_check = False
         self.catalog_has_error = False
-        await self._process_pending_categories()
-        if not self.catalog_categories_pending and not self.catalog_has_error:
+        write_warning = await self._process_pending_categories()
+        if (
+            write_warning
+            or (
+                not self.catalog_categories_pending
+                and not self.catalog_has_error
+            )
+        ):
             await self._refresh_admin_catalog()
 
     @rx.event
@@ -2837,6 +3066,14 @@ class State(rx.State):
 
         try:
             copy = await create_copy(self._catalog_title_id, self._session_token)
+        except XanoWriteSucceededWithUnreadableResponse:
+            await self._refresh_admin_catalog()
+            self.catalog_message = (
+                "Exemplar criado. Não foi possível ler a resposta; confira o "
+                "Acervo."
+            )
+            self.catalog_has_error = False
+            return
         except XanoResponseError as error:
             if error.status_code >= 500:
                 self._catalog_copy_uncertain = True
@@ -7348,7 +7585,7 @@ app = rx.App(
         },
         ".accessibility-menu-trigger": {
             "background_color": "transparent",
-            "color": "var(--text)",
+            "color": "var(--brand-text)",
         },
         ".profile-menu-trigger": {
             "background_color": "transparent",

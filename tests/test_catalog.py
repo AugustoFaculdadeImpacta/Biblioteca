@@ -21,7 +21,11 @@ from biblioteca_mais_nova.catalog import (
     list_categories,
     list_public_titles,
 )
-from biblioteca_mais_nova.xano_client import XanoRequestError, XanoResponseError
+from biblioteca_mais_nova.xano_client import (
+    XanoRequestError,
+    XanoResponseError,
+    XanoWriteSucceededWithUnreadableResponse,
+)
 
 
 def test_public_catalog_cache_reuses_titles_and_categories_for_60_seconds(monkeypatch):
@@ -332,7 +336,7 @@ def test_catalog_services_follow_local_xano_fields_and_routes(monkeypatch):
         assert request.headers["Authorization"] == f"Bearer {token}"
 
 
-def test_catalog_services_reject_missing_ids_and_codes(monkeypatch):
+def test_catalog_writes_report_unreadable_success_for_unusable_bodies(monkeypatch):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
     payload = build_title_payload({"titulo": "Livro", "autores": "Autoria"})
     cases = [
@@ -349,18 +353,20 @@ def test_catalog_services_reject_missing_ids_and_codes(monkeypatch):
         ),
     ]
     for operation, args, response_body in cases:
-        with pytest.raises(XanoRequestError):
+        requests = []
+
+        def handle(request, body=response_body):
+            requests.append(request)
+            return httpx.Response(200, json=body)
+
+        with pytest.raises(XanoWriteSucceededWithUnreadableResponse):
             asyncio.run(
                 operation(
                     *args,
-                    transport=httpx.MockTransport(
-                        lambda request, body=response_body: httpx.Response(
-                            200,
-                            json=body,
-                        )
-                    ),
+                    transport=httpx.MockTransport(handle),
                 )
             )
+        assert len(requests) == 1
 
 
 def test_public_catalog_services_validate_list_and_detail_without_auth(

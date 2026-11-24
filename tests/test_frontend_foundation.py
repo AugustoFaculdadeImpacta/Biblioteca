@@ -119,6 +119,9 @@ def test_shared_header_and_footer_follow_the_restored_visual_hierarchy():
     assert app.style[".accessibility-menu-trigger"]["background_color"] == (
         "transparent"
     )
+    assert app.style[".accessibility-menu-trigger"]["color"] == (
+        app.style[".profile-menu-trigger"]["color"]
+    )
     assert app.style[".site-footer"]["flex_wrap"] == "wrap"
 
 

@@ -18,6 +18,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoConfigurationError,
     XanoRequestError,
     XanoResponseError,
+    XanoWriteSucceededWithUnreadableResponse,
 )
 
 
@@ -209,8 +210,11 @@ def test_signup_duplicate_access_denied_has_specific_safe_message(
 
 def test_signup_response_must_return_a_student_session(monkeypatch):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
-    transport = httpx.MockTransport(
-        lambda request: httpx.Response(
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(
             200,
             json={
                 "authToken": "token-falso",
@@ -222,13 +226,15 @@ def test_signup_response_must_return_a_student_session(monkeypatch):
                 },
             },
         )
-    )
+
+    transport = httpx.MockTransport(handle)
     payload = build_signup_payload(
         {"nome": "Ana", "email": "ana@escola.edu.br", "senha": "senha"}
     )
 
-    with pytest.raises(XanoRequestError):
+    with pytest.raises(XanoWriteSucceededWithUnreadableResponse):
         asyncio.run(submit_student_signup(payload, transport=transport))
+    assert len(requests) == 1
 
 
 def test_signup_event_keeps_token_and_password_out_of_client_state_and_logs(
@@ -301,6 +307,36 @@ def test_signup_event_keeps_token_and_password_out_of_client_state_and_logs(
     assert password not in caplog.text
     assert session_token not in caplog.text
     assert "api.example.test" not in caplog.text
+
+
+def test_signup_unreadable_success_shows_warning_without_auth_or_retry(monkeypatch):
+    calls = []
+
+    async def unreadable_signup(payload):
+        calls.append(payload)
+        raise XanoWriteSucceededWithUnreadableResponse()
+
+    monkeypatch.setattr(frontend, "submit_student_signup", unreadable_signup)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"signup-write-warning-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            await state.submit_signup(
+                {"nome": "Ana", "email": "ana@escola.edu.br", "senha": "senha"}
+            )
+
+            assert len(calls) == 1
+            assert state.signup_has_error is False
+            assert state.is_authenticated is False
+            assert state._read_session_token() is None
+            assert state.signup_success_message == (
+                "Cadastro enviado. Não foi possível ler a resposta; "
+                "tente entrar com a conta."
+            )
+
+    asyncio.run(verify())
 
 
 @pytest.mark.parametrize(
