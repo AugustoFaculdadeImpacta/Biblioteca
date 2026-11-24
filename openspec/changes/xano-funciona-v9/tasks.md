@@ -23,6 +23,7 @@
 ## 5. Comparação de contratos Xano
 
 - [ ] 5.1 Antes do pull, confirmar via Xano CLI o workspace, branch e ambiente selecionados e registrar a identificação na Change; puxar somente definições para pasta temporária fora do repositório, inventariar todas as chamadas do app e documentar em `docs/xano-diferencas.md` existência, autorização, entradas, resposta esperada, diferença local e recomendação “Publicar: sim/não”; conferir que não houve escrita remota nem segredo/URL no relatório.
+  - Bloqueio: o perfil padrão informa somente um ID de workspace e a listagem de workspaces pelo CLI falha; não foi possível confirmar que o destino é a biblioteca nem confirmar branch/ambiente. Nenhuma definição foi puxada e nenhuma escrita foi feita no Xano.
 
 ## 6. Verificação local
 
