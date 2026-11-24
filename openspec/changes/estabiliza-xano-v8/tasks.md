@@ -19,7 +19,7 @@
 
 ## 5. Diagnóstico do Acervo
 
-- [ ] 5.1 Criar “🩺 Testar conexão” exclusivo para admin real, com cinco leituras sequenciais, resumo solicitado e testes simulados; conferir o PATCH local de desativação contra um pull remoto somente leitura se o workspace/branch/ambiente selecionados forem confirmados sem ambiguidade, caso contrário registrar a limitação sem acessar destino remoto.
+- [x] 5.1 Criar “🩺 Testar conexão” exclusivo para admin real, com cinco leituras sequenciais, resumo solicitado e testes simulados; confirmar a coerência local do PATCH `ativo` com a entrada XanoScript, `db.patch` e releitura, registrando que não houve pull remoto ou acesso sem destino inequívoco; 6 testes focados passaram em `92ee9fb`.
 
 ## 6. Importação retomável
 
