@@ -65,6 +65,7 @@ ACOES: dict[str, Icone] = {
     "novo_cadastro": Icone("🆕", "Novo cadastro", "confirmar"),
     "fechar_cadastro": Icone("🧹", "Fechar cadastro", "atencao"),
     "atualizar_lista": Icone("🔃", "Atualizar lista", "navegar"),
+    "diagnostico": Icone("🩺", "Testar conexão", "atencao"),
     "liberar_acervo": Icone("🧐", "Liberar lista", "atencao"),
     "cadastrar_bibliotecario": Icone("🧑‍💼", "Criar conta", "confirmar"),
     "buscar_estudante": Icone("🧑‍🎓", "Buscar estudante", "navegar"),

@@ -3954,10 +3954,11 @@ def home_indicators() -> rx.Component:
                 rx.el.strong("—", class_name="hero-stat-value"),
                 rx.text("Títulos", class_name="hero-stat-label"),
                 rx.button(
-                    "Tentar de novo",
+                    conteudo_acao("atualizar_lista", "Tentar de novo"),
                     type="button",
                     on_click=State.retry_public_catalog,
                     class_name="nav-logout",
+                    **atributos_acao("atualizar_lista", "Tentar de novo"),
                 ),
                 class_name="hero-stat-card",
             ),
@@ -3969,10 +3970,11 @@ def home_indicators() -> rx.Component:
                 rx.el.strong("—", class_name="hero-stat-value"),
                 rx.text("Exemplares disponíveis", class_name="hero-stat-label"),
                 rx.button(
-                    "Tentar de novo",
+                    conteudo_acao("atualizar_lista", "Tentar de novo"),
                     type="button",
                     on_click=State.retry_public_catalog,
                     class_name="nav-logout",
+                    **atributos_acao("atualizar_lista", "Tentar de novo"),
                 ),
                 class_name="hero-stat-card",
             ),
@@ -3987,10 +3989,11 @@ def home_indicators() -> rx.Component:
                 rx.el.strong("—", class_name="hero-stat-value"),
                 rx.text("Categorias", class_name="hero-stat-label"),
                 rx.button(
-                    "Tentar de novo",
+                    conteudo_acao("atualizar_lista", "Tentar de novo"),
                     type="button",
                     on_click=State.retry_public_catalog,
                     class_name="nav-logout",
+                    **atributos_acao("atualizar_lista", "Tentar de novo"),
                 ),
                 class_name="hero-stat-card",
             ),
@@ -4309,10 +4312,11 @@ def public_catalog() -> rx.Component:
                 rx.cond(
                     State.public_catalog_has_error,
                     rx.button(
-                        "Tentar de novo",
+                        conteudo_acao("atualizar_lista", "Tentar de novo"),
                         type="button",
                         on_click=State.retry_public_catalog,
                         class_name="nav-logout",
+                        **atributos_acao("atualizar_lista", "Tentar de novo"),
                     ),
                     rx.fragment(),
                 ),
@@ -4377,10 +4381,11 @@ def public_catalog_detail() -> rx.Component:
                 rx.cond(
                     State.public_catalog_detail_has_error,
                     rx.button(
-                        "Tentar de novo",
+                        conteudo_acao("atualizar_lista", "Tentar de novo"),
                         type="button",
                         on_click=State.retry_public_catalog_detail,
                         class_name="nav-logout",
+                        **atributos_acao("atualizar_lista", "Tentar de novo"),
                     ),
                     rx.fragment(),
                 ),
@@ -4718,10 +4723,11 @@ def student_reservations() -> rx.Component:
                                 **atributos_acao("entrar"),
                             ),
                             rx.button(
-                                "Tentar de novo",
+                                conteudo_acao("atualizar_lista", "Tentar de novo"),
                                 type="button",
                                 on_click=State.retry_student_library,
                                 class_name="nav-logout",
+                                **atributos_acao("atualizar_lista", "Tentar de novo"),
                             ),
                         ),
                         role="alert",
@@ -5645,11 +5651,15 @@ def example_books_import_section() -> rx.Component:
             rx.cond(
                 State.example_seed_can_resume,
                 rx.button(
-                    "Continuar importação",
+                    conteudo_acao("retomar_categorias", "Continuar importação"),
                     type="button",
                     on_click=State.continue_example_books_import,
                     disabled=State.example_seed_pending,
                     class_name="focus-demo-button",
+                    **atributos_acao(
+                        "retomar_categorias",
+                        "Continuar importação",
+                    ),
                 ),
                 rx.fragment(),
             ),
@@ -5929,11 +5939,12 @@ def catalog_admin() -> rx.Component:
                 State.can_manage_librarians,
                 rx.el.section(
                     rx.button(
-                        "🩺 Testar conexão",
+                        conteudo_acao("diagnostico", "Testar conexão"),
                         type="button",
                         on_click=State.test_xano_connection,
                         disabled=State.connection_test_pending,
                         class_name="nav-logout",
+                        **atributos_acao("diagnostico", "Testar conexão"),
                     ),
                     rx.cond(
                         State.connection_test_message != "",
