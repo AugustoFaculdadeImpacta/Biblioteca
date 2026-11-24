@@ -11,7 +11,7 @@
 
 ## 3. Cliente Xano resiliente
 
-- [ ] 3.1 Implementar diagnóstico opt-in sem segredos, contagem por carregamento, semáforo de três chamadas, retries exclusivamente GET com backoff/Retry-After e mensagens específicas; documentar uso em `docs/diagnostico-xano.md` e verificar com `pytest tests/test_xano_client.py tests/test_circulation.py tests/test_catalog.py`.
+- [x] 3.1 Implementar diagnóstico opt-in sem segredos, contagem por carregamento, semáforo de três chamadas, retries exclusivamente GET com backoff/Retry-After e mensagens específicas; documentar uso em `docs/diagnostico-xano.md`; `pytest tests\test_xano_client.py tests\test_circulation.py tests\test_catalog.py` e testes focados de mensagens passaram (83 testes), e após o ajuste final de logging `pytest tests\test_xano_client.py -q` passou (22 testes); Pylance não reportou diagnósticos; implementação no commit `1ff684e`.
 
 ## 4. Carregamentos e cache por rota
 
