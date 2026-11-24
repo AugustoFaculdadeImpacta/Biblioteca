@@ -131,7 +131,7 @@ def test_admin_actions_handle_success_404_403_and_connection():
         "Sua conta não tem permissão para acessar este recurso."
     )
     assert catalog_error_message(XanoRequestError("Falha de rede")) == (
-        "Não foi possível se comunicar com o serviço Xano. Verifique a conexão e tente novamente."
+        "Não foi possível conectar ao Xano. Verifique a conexão e tente novamente."
     )
 
 
@@ -140,7 +140,7 @@ def test_admin_actions_handle_success_404_403_and_connection():
     [
         (XanoResponseError(403), "Sua conta não tem permissão"),
         (XanoResponseError(404), "O recurso não foi encontrado"),
-        (XanoRequestError("Falha de rede"), "Não foi possível se comunicar"),
+        (XanoRequestError("Falha de rede"), "Não foi possível conectar"),
     ],
 )
 def test_title_deactivation_reports_http_and_connection_errors(

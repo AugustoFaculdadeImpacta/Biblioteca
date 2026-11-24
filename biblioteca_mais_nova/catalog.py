@@ -1,6 +1,5 @@
 """Operações de catálogo conforme os endpoints locais do Xano."""
 
-import json
 from typing import NotRequired, TypedDict
 from urllib.parse import urlsplit
 
@@ -12,7 +11,8 @@ from biblioteca_mais_nova.xano_client import (
     XanoInvalidResponseError,
     XanoRequestError,
     XanoResponseError,
-    XanoTimeoutError,
+    parse_xano_response_json,
+    xano_public_error_message,
 )
 
 
@@ -161,18 +161,11 @@ def build_title_payload(form_data: dict[str, str]) -> TitlePayload:
 
 
 def _response_json(response: httpx.Response) -> object:
-    try:
-        return response.json()
-    except (json.JSONDecodeError, ValueError):
-        raise XanoRequestError(
-            "O serviço não retornou uma resposta válida. Tente novamente mais tarde."
-        ) from None
+    return parse_xano_response_json(response)
 
 
 def _response_error() -> XanoRequestError:
-    return XanoInvalidResponseError(
-        "O serviço não retornou uma resposta válida. Tente novamente mais tarde."
-    )
+    return XanoInvalidResponseError()
 
 
 async def list_categories(
@@ -514,6 +507,9 @@ async def create_copy(
 def catalog_error_message(error: Exception) -> str:
     if isinstance(error, CatalogValidationError):
         return str(error)
+    common_message = xano_public_error_message(error)
+    if common_message is not None:
+        return common_message
     if isinstance(error, XanoConfigurationError):
         return "O acervo está temporariamente indisponível. Tente novamente mais tarde."
     if isinstance(error, XanoResponseError):
@@ -527,10 +523,4 @@ def catalog_error_message(error: Exception) -> str:
             return "O recurso não foi encontrado ou a rota ainda não está disponível."
         if error.status_code >= 500:
             return "O serviço Xano está temporariamente indisponível. Tente novamente mais tarde."
-    if isinstance(error, XanoTimeoutError):
-        return "O serviço Xano demorou para responder. Verifique a conexão e tente novamente."
-    if isinstance(error, XanoInvalidResponseError):
-        return "O serviço Xano retornou uma resposta inválida. Tente novamente mais tarde."
-    if isinstance(error, XanoRequestError):
-        return "Não foi possível se comunicar com o serviço Xano. Verifique a conexão e tente novamente."
     return "Ocorreu um erro inesperado. Tente novamente mais tarde."

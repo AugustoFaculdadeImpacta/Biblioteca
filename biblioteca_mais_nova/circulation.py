@@ -1,6 +1,5 @@
 """Operações autenticadas de circulação disponíveis ao estudante."""
 
-import json
 from datetime import datetime, timezone
 from typing import Callable, NotRequired, TypeVar, TypedDict
 
@@ -11,7 +10,8 @@ from biblioteca_mais_nova.xano_client import (
     XanoInvalidResponseError,
     XanoRequestError,
     XanoResponseError,
-    XanoTimeoutError,
+    parse_xano_response_json,
+    xano_public_error_message,
 )
 
 
@@ -75,16 +75,11 @@ Record = TypeVar("Record")
 
 
 def _response_error() -> XanoRequestError:
-    return XanoInvalidResponseError(
-        "O serviço não retornou uma resposta válida. Tente novamente mais tarde."
-    )
+    return XanoInvalidResponseError()
 
 
 def _response_json(response: httpx.Response) -> object:
-    try:
-        return response.json()
-    except (json.JSONDecodeError, ValueError):
-        raise _response_error() from None
+    return parse_xano_response_json(response)
 
 
 def _timestamp(value: object, *, nullable: bool = False) -> bool:
@@ -355,11 +350,9 @@ async def list_admin_loans(
 
 
 def reservation_request_error_message(error: Exception) -> str:
-    if isinstance(error, XanoTimeoutError):
-        return (
-            "[RES-TIMEOUT] Sem resposta do servidor. "
-            "Confira Minhas reservas antes de tentar de novo."
-        )
+    common_message = xano_public_error_message(error)
+    if common_message is not None:
+        return common_message
     if isinstance(error, XanoResponseError):
         if error.status_code == 401:
             return "[RES-401] Sua sessão expirou, entre de novo"

@@ -1,6 +1,5 @@
 """Operações de gestão de bibliotecários no contrato local do Xano."""
 
-import json
 from typing import TypedDict
 
 import httpx
@@ -9,8 +8,11 @@ from biblioteca_mais_nova.signup import SignupValidationError, normalize_email
 from biblioteca_mais_nova.xano_client import (
     XanoClient,
     XanoConfigurationError,
+    XanoInvalidResponseError,
     XanoRequestError,
     XanoResponseError,
+    parse_xano_response_json,
+    xano_public_error_message,
 )
 
 
@@ -48,18 +50,11 @@ def build_librarian_payload(form_data: dict[str, str]) -> LibrarianPayload:
 
 
 def _response_json(response: httpx.Response) -> object:
-    try:
-        return response.json()
-    except (json.JSONDecodeError, ValueError):
-        raise XanoRequestError(
-            "O serviço não retornou uma resposta válida. Tente novamente mais tarde."
-        ) from None
+    return parse_xano_response_json(response)
 
 
 def _response_error() -> XanoRequestError:
-    return XanoRequestError(
-        "O serviço não retornou uma resposta válida. Tente novamente mais tarde."
-    )
+    return XanoInvalidResponseError()
 
 
 def _parse_librarian(value: object) -> Librarian:
@@ -137,6 +132,9 @@ async def set_librarian_active(
 def user_admin_error_message(error: Exception) -> str:
     if isinstance(error, UserAdminValidationError):
         return str(error)
+    common_message = xano_public_error_message(error)
+    if common_message is not None:
+        return common_message
     if isinstance(error, XanoResponseError) and error.status_code in {400, 401, 403}:
         return "Não foi possível concluir a operação. Confira sua permissão e os dados."
     if isinstance(error, XanoConfigurationError):

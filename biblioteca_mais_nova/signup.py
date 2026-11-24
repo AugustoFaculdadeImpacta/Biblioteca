@@ -1,6 +1,5 @@
 """Regras de entrada e integração do autocadastro de estudantes."""
 
-import json
 import re
 from typing import TypedDict
 
@@ -9,8 +8,11 @@ import httpx
 from biblioteca_mais_nova.xano_client import (
     XanoClient,
     XanoConfigurationError,
+    XanoInvalidResponseError,
     XanoRequestError,
     XanoResponseError,
+    parse_xano_response_json,
+    xano_public_error_message,
 )
 
 
@@ -61,17 +63,10 @@ async def submit_student_signup(
     client = XanoClient.from_environment(transport=transport)
     response = await client.request("POST", "/auth/signup", json=payload)
 
-    try:
-        session = response.json()
-    except (json.JSONDecodeError, ValueError):
-        raise XanoRequestError(
-            "O serviço não retornou uma resposta válida. Tente novamente mais tarde."
-        ) from None
+    session = parse_xano_response_json(response)
 
     if not isinstance(session, dict):
-        raise XanoRequestError(
-            "O serviço não retornou uma resposta válida. Tente novamente mais tarde."
-        )
+        raise XanoInvalidResponseError()
 
     token = session.get("authToken")
     user = session.get("usuario")
@@ -84,9 +79,7 @@ async def submit_student_signup(
         or not isinstance(user.get("email"), str)
         or user.get("perfil") != "estudante"
     ):
-        raise XanoRequestError(
-            "O serviço não retornou uma resposta válida. Tente novamente mais tarde."
-        )
+        raise XanoInvalidResponseError()
 
     return {"authToken": token, "usuario": user}
 
@@ -94,6 +87,9 @@ async def submit_student_signup(
 def signup_error_message(error: Exception) -> str:
     if isinstance(error, SignupValidationError):
         return str(error)
+    common_message = xano_public_error_message(error)
+    if common_message is not None:
+        return common_message
     if isinstance(error, XanoResponseError):
         if error.status_code == 409:
             return "Este e-mail já está cadastrado. Tente entrar com sua conta."

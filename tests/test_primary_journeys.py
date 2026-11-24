@@ -621,7 +621,8 @@ def test_librarian_creates_catalog_and_registers_pickup_through_mock_transport(
         ),
         (
             429,
-            "[RES-429] Não foi possível confirmar a reserva",
+            "O Xano limitou as requisições por alguns segundos. "
+            "Aguarde um pouco e tente de novo.",
         ),
         (
             500,
@@ -730,10 +731,13 @@ def test_student_request_uncertain_result_is_not_reported_or_retried(
 
             assert state.student_request_has_error is True
             assert state.student_request_pending is False
-            assert (
-                "Minhas reservas" in state.student_request_message
-                or "[RES-INVALID]" in state.student_request_message
+            expected_message = (
+                "Não foi possível conectar ao Xano. "
+                "Verifique a conexão e tente novamente."
+                if failure == "transport"
+                else "O Xano respondeu em formato inesperado."
             )
+            assert state.student_request_message == expected_message
             assert "registrada" not in state.student_request_message
             serialized = json.dumps(state.dict(), default=str)
             assert token not in serialized

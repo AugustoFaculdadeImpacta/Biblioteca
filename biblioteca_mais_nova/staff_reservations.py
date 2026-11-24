@@ -1,6 +1,5 @@
 """Busca de estudantes e reservas administrativas no contrato local do Xano."""
 
-import json
 from urllib.parse import quote
 from typing import TypedDict
 
@@ -10,8 +9,11 @@ from biblioteca_mais_nova.signup import SignupValidationError, normalize_email
 from biblioteca_mais_nova.xano_client import (
     XanoClient,
     XanoConfigurationError,
+    XanoInvalidResponseError,
     XanoRequestError,
     XanoResponseError,
+    parse_xano_response_json,
+    xano_public_error_message,
 )
 
 
@@ -32,18 +34,11 @@ class StaffReservationValidationError(ValueError):
 
 
 def _response_json(response: httpx.Response) -> object:
-    try:
-        return response.json()
-    except (json.JSONDecodeError, ValueError):
-        raise XanoRequestError(
-            "O serviço não retornou uma resposta válida. Tente novamente mais tarde."
-        ) from None
+    return parse_xano_response_json(response)
 
 
 def _response_error() -> XanoRequestError:
-    return XanoRequestError(
-        "O serviço não retornou uma resposta válida. Tente novamente mais tarde."
-    )
+    return XanoInvalidResponseError()
 
 
 def _positive_id(value: object) -> bool:
@@ -126,6 +121,9 @@ async def create_staff_reservation(
 def staff_reservation_error_message(error: Exception) -> str:
     if isinstance(error, StaffReservationValidationError):
         return str(error)
+    common_message = xano_public_error_message(error)
+    if common_message is not None:
+        return common_message
     if isinstance(error, XanoResponseError) and error.public_detail:
         return error.public_detail
     if isinstance(error, XanoResponseError) and error.status_code in {401, 403}:

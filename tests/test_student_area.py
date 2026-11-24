@@ -275,15 +275,24 @@ def test_student_library_formats_timezone_and_detects_only_active_overdue_loans(
         ),
         (
             XanoTimeoutError("detalhe interno não deve aparecer"),
-            "O serviço Xano demorou para responder. Verifique a conexão e tente novamente.",
+            "O Xano demorou para responder. Tente novamente.",
         ),
         (
             XanoInvalidResponseError("payload interno não deve aparecer"),
-            "O serviço Xano retornou uma resposta inválida. Tente novamente mais tarde.",
+            "O Xano respondeu em formato inesperado.",
         ),
         (
             XanoRequestError("detalhe de transporte não deve aparecer"),
-            "Não foi possível se comunicar com o serviço Xano. Verifique a conexão e tente novamente.",
+            "Não foi possível conectar ao Xano. Verifique a conexão e tente novamente.",
+        ),
+        (
+            XanoResponseError(502, non_json_response=True),
+            "O Xano devolveu uma página de erro (código 502).",
+        ),
+        (
+            XanoResponseError(429),
+            "O Xano limitou as requisições por alguns segundos. "
+            "Aguarde um pouco e tente de novo.",
         ),
     ],
 )
@@ -489,8 +498,12 @@ def test_student_library_loads_only_session_data_and_deduplicates_linked_reserve
         ),
         (
             XanoTimeoutError("tempo esgotado"),
-            "[RES-TIMEOUT] Sem resposta do servidor. "
-            "Confira Minhas reservas antes de tentar de novo.",
+            "O Xano demorou para responder. Tente novamente.",
+        ),
+        (
+            XanoResponseError(429),
+            "O Xano limitou as requisições por alguns segundos. "
+            "Aguarde um pouco e tente de novo.",
         ),
     ],
 )
@@ -517,7 +530,10 @@ def test_student_request_does_not_retry_uncertain_result(monkeypatch):
             await state.request_catalog_title(14)
             assert len(calls) == 1
             assert state.student_request_has_error is True
-            assert "Minhas reservas" in state.student_request_message
+            assert state.student_request_message == (
+                "Não foi possível conectar ao Xano. "
+                "Verifique a conexão e tente novamente."
+            )
 
     asyncio.run(verify())
 

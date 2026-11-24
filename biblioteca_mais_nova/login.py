@@ -1,6 +1,5 @@
 """Autenticação de usuários pelo contrato local do Xano."""
 
-import json
 from typing import Literal, TypedDict
 
 import httpx
@@ -9,8 +8,11 @@ from biblioteca_mais_nova.signup import SignupValidationError, normalize_email
 from biblioteca_mais_nova.xano_client import (
     XanoClient,
     XanoConfigurationError,
+    XanoInvalidResponseError,
     XanoRequestError,
     XanoResponseError,
+    parse_xano_response_json,
+    xano_public_error_message,
 )
 
 
@@ -55,17 +57,10 @@ async def submit_login(
     client = XanoClient.from_environment(transport=transport)
     response = await client.request("POST", "/auth/login", json=payload)
 
-    try:
-        session = response.json()
-    except (json.JSONDecodeError, ValueError):
-        raise XanoRequestError(
-            "O serviço não retornou uma resposta válida. Tente novamente mais tarde."
-        ) from None
+    session = parse_xano_response_json(response)
 
     if not isinstance(session, dict):
-        raise XanoRequestError(
-            "O serviço não retornou uma resposta válida. Tente novamente mais tarde."
-        )
+        raise XanoInvalidResponseError()
 
     token = session.get("authToken")
     user = session.get("usuario")
@@ -79,9 +74,7 @@ async def submit_login(
         or not isinstance(user.get("perfil"), str)
         or user["perfil"] not in {"estudante", "bibliotecario", "admin"}
     ):
-        raise XanoRequestError(
-            "O serviço não retornou uma resposta válida. Tente novamente mais tarde."
-        )
+        raise XanoInvalidResponseError()
 
     return {
         "authToken": token,
@@ -97,6 +90,9 @@ async def submit_login(
 def login_error_message(error: Exception) -> str:
     if isinstance(error, LoginValidationError):
         return str(error)
+    common_message = xano_public_error_message(error)
+    if common_message is not None:
+        return common_message
     if (
         isinstance(error, XanoResponseError)
         and error.status_code == 403

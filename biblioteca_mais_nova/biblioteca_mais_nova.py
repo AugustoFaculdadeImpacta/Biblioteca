@@ -89,6 +89,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoRequestError,
     XanoResponseError,
     XanoTimeoutError,
+    diagnosticar_pagina_xano,
 )
 
 
@@ -869,6 +870,7 @@ class State(rx.State):
             self.student_reservation_tab = value
 
     @rx.event
+    @diagnosticar_pagina_xano("home")
     async def load_home(self):
         await self.load_public_catalog()
         if self._session_profile == "estudante":
@@ -880,6 +882,7 @@ class State(rx.State):
         return State.resolve_public_catalog_covers
 
     @rx.event
+    @diagnosticar_pagina_xano("catalogo")
     async def load_public_catalog(self):
         self.public_catalog_pending = True
         self.public_catalog_message = ""
@@ -976,6 +979,7 @@ class State(rx.State):
                         )
 
     @rx.event
+    @diagnosticar_pagina_xano("detalhe")
     async def load_public_catalog_detail(self):
         self.public_catalog_detail = {}
         self.public_catalog_detail_message = ""
@@ -1116,6 +1120,7 @@ class State(rx.State):
         self.student_request_pending = False
 
     @rx.event
+    @diagnosticar_pagina_xano("reservas")
     async def load_student_library(self):
         if not self._session_token:
             return rx.redirect("/login")
@@ -1275,6 +1280,7 @@ class State(rx.State):
         return rx.redirect(self._profile_home_path())
 
     @rx.event
+    @diagnosticar_pagina_xano("contas")
     async def load_librarians(self):
         if not self._is_admin():
             return self._redirect_non_admin()
@@ -1628,6 +1634,7 @@ class State(rx.State):
         await self._refresh_circulation_data()
 
     @rx.event
+    @diagnosticar_pagina_xano("reservas_admin")
     async def load_staff_reservations_dashboard(self):
         if not self._is_librarian():
             return self._redirect_non_librarian()
@@ -1653,6 +1660,7 @@ class State(rx.State):
             )
 
     @rx.event
+    @diagnosticar_pagina_xano("emprestimos_admin")
     async def load_circulation_loans_tab(self):
         result = await self.load_staff_reservations_dashboard()
         self.circulation_active_tab = "emprestimos"
@@ -1829,6 +1837,7 @@ class State(rx.State):
         await self._load_catalog_categories()
 
     @rx.event
+    @diagnosticar_pagina_xano("acervo")
     async def load_catalog_page(self):
         if not self._is_librarian():
             return self._redirect_non_librarian()

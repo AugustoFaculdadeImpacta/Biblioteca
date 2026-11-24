@@ -150,9 +150,9 @@ def test_signup_posts_only_contract_fields_through_mock_transport(monkeypatch):
 @pytest.mark.parametrize(
     ("status_code", "message"),
     [
-        (409, "Este e-mail já está cadastrado. Tente entrar com sua conta."),
-        (400, "Confira os dados informados e tente novamente."),
-        (503, "Não foi possível concluir o cadastro. Tente novamente mais tarde."),
+        (409, "O Xano devolveu uma página de erro (código 409)."),
+        (400, "O Xano devolveu uma página de erro (código 400)."),
+        (503, "O Xano devolveu uma página de erro (código 503)."),
     ],
 )
 def test_signup_api_errors_have_safe_portuguese_messages(
@@ -306,8 +306,8 @@ def test_signup_event_keeps_token_and_password_out_of_client_state_and_logs(
 @pytest.mark.parametrize(
     ("status_code", "message"),
     [
-        (409, "Este e-mail já está cadastrado. Tente entrar com sua conta."),
-        (400, "Confira os dados informados e tente novamente."),
+        (409, "O Xano devolveu uma página de erro (código 409)."),
+        (400, "O Xano devolveu uma página de erro (código 400)."),
     ],
 )
 def test_signup_api_failure_does_not_authenticate_session(
@@ -376,7 +376,7 @@ def test_signup_event_does_not_call_api_for_invalid_email(monkeypatch):
         ),
         (
             XanoRequestError("detalhe interno"),
-            "Não foi possível concluir o cadastro. Tente novamente mais tarde.",
+            "Não foi possível conectar ao Xano. Verifique a conexão e tente novamente.",
         ),
         (
             SignupValidationError("Informe seu nome."),

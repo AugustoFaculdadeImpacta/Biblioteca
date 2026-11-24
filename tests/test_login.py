@@ -152,7 +152,7 @@ def test_login_rejections_have_safe_message_and_hide_response(
         )
 
     assert login_error_message(error.value) == (
-        "Não foi possível autenticar. Confira os dados e tente novamente."
+        f"O Xano devolveu uma página de erro (código {status_code})."
     )
     assert detail not in str(error.value)
     assert "api.example.test" not in str(error.value)
