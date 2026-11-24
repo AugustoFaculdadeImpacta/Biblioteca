@@ -15,7 +15,7 @@
 
 ## 4. Carregamentos e cache por rota
 
-- [ ] 4.1 Auditar home, catálogo, detalhe, reservas, Acervo e Contas; reutilizar catálogo/categorias por 60 s com invalidação após escritas, evitar consultas pessoais sem sessão/necessidade, encerrar flags em `finally`, oferecer retry visível e separar os indicadores da home; cobrir chamadas/cache/erros em testes e completar a tabela de rotas em `docs/diagnostico-xano.md`.
+- [x] 4.1 Auditar home, catálogo, detalhe, reservas, Acervo e Contas; reutilizar catálogo/categorias por 60 s com invalidação após escritas, evitar consultas pessoais sem sessão/necessidade, encerrar flags em `finally`, oferecer retry visível e separar os indicadores da home; cobrir chamadas/cache/erros em testes e completar a tabela de rotas em `docs/diagnostico-xano.md`; 8 testes focados passaram em `3816d77` e a auditoria foi registrada em `docs/diagnostico-xano.md`.
 
 ## 5. Diagnóstico do Acervo
 
