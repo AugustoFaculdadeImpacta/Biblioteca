@@ -47,6 +47,16 @@ públicos antes da próxima leitura. Navegar entre rotas públicas reutiliza
 catálogo e categorias durante até 60 segundos no processo. Dados pessoais,
 autorizados por token ou perfil, nunca entram nesse cache compartilhado.
 
+## Comparação local do PATCH de desativação
+
+O arquivo local [xano/api/default/catalogo/titulos_id_PATCH.xs](../xano/api/default/catalogo/titulos_id_PATCH.xs)
+declara `bool ativo?` na entrada. Quando recebe valor, adiciona `ativo` ao mapa
+`dados_atualizacao`, passa esse mapa ao `db.patch titulo` e devolve
+`ativo: $titulo_atualizado.ativo`. O cliente envia `ativo` no corpo quando a
+operação o fornece e a interface compara o valor da resposta com uma releitura
+do acervo. Não foi feito pull remoto nem acesso a outro workspace para
+confrontar uma referência externa; não havia destino inequívoco confirmado.
+
 ## Concorrência e repetição
 
 O cliente limita a três as chamadas Xano simultâneas por processo/event loop.

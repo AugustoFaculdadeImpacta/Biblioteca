@@ -3,6 +3,7 @@
 import asyncio
 import unicodedata
 import os
+import time
 from urllib.parse import quote
 from datetime import datetime, timezone
 from functools import wraps
@@ -85,6 +86,7 @@ from biblioteca_mais_nova.staff_reservations import (
     staff_reservation_error_message,
 )
 from biblioteca_mais_nova.xano_client import (
+    XanoClient,
     XanoConfigurationError,
     XanoInvalidResponseError,
     XanoRequestError,
@@ -160,6 +162,9 @@ class State(rx.State):
     admin_catalog_edit_title_id: int | None = None
     admin_catalog_copy_title_id: int | None = None
     admin_catalog_new_title_open: bool = False
+    connection_test_pending: bool = False
+    connection_test_message: str = ""
+    connection_test_has_error: bool = False
     example_seed_pending: bool = False
     example_seed_confirming: bool = False
     example_seed_preview_ready: bool = False
@@ -1953,6 +1958,80 @@ class State(rx.State):
             return self._redirect_non_librarian()
         self.admin_catalog_message = ""
         await self._refresh_admin_catalog()
+
+    @rx.event
+    async def test_xano_connection(self):
+        if not self._is_admin():
+            return self._redirect_non_admin()
+        if self.connection_test_pending:
+            return
+
+        self.connection_test_pending = True
+        self.connection_test_has_error = False
+        self.connection_test_message = "Testando..."
+
+        public_paths = (
+            "/catalogo/titulos",
+            "/catalogo/categorias",
+            "/catalogo/titulos",
+            "/catalogo/categorias",
+            "/catalogo/titulos",
+        )
+        successful = 0
+        slowest_ms = 0
+        first_error_code: int | None = None
+
+        try:
+            for path in public_paths:
+                started_at = time.perf_counter()
+                client = XanoClient.from_environment()
+                try:
+                    response = await client.request("GET", path)
+                    duration_ms = round(
+                        (time.perf_counter() - started_at) * 1000
+                    )
+                    slowest_ms = max(slowest_ms, duration_ms)
+                    if response.status_code < 400:
+                        successful += 1
+                except XanoResponseError as error:
+                    duration_ms = round(
+                        (time.perf_counter() - started_at) * 1000
+                    )
+                    slowest_ms = max(slowest_ms, duration_ms)
+                    if first_error_code is None:
+                        first_error_code = error.status_code
+                except (XanoTimeoutError, XanoRequestError, XanoConfigurationError):
+                    duration_ms = round(
+                        (time.perf_counter() - started_at) * 1000
+                    )
+                    slowest_ms = max(slowest_ms, duration_ms)
+                    if first_error_code is None:
+                        first_error_code = 0
+        finally:
+            self.connection_test_pending = False
+
+        if successful == 5:
+            self.connection_test_message = (
+                f"{successful} de 5 leituras deram certo. "
+                f"A mais lenta levou {slowest_ms} ms."
+            )
+        else:
+            error_label = (
+                f"Primeiro código de erro: {first_error_code}"
+                if first_error_code not in (None, 0)
+                else "Primeiro código de erro: sem código"
+            )
+            limit_hint = (
+                " Se aparecer 429, o plano do Xano está limitando as chamadas."
+                if first_error_code == 429
+                else ""
+            )
+            self.connection_test_message = (
+                f"{successful} de 5 leituras deram certo. "
+                f"A mais lenta levou {slowest_ms} ms. "
+                f"{error_label}.{limit_hint}"
+            )
+            self.connection_test_has_error = True
 
     @rx.event
     async def preview_example_books(self):
@@ -5772,6 +5851,38 @@ def catalog_admin() -> rx.Component:
                 class_name="content-section admin-acervo-content",
             ),
             example_books_import_section(),
+            rx.cond(
+                State.can_manage_librarians,
+                rx.el.section(
+                    rx.button(
+                        "🩺 Testar conexão",
+                        type="button",
+                        on_click=State.test_xano_connection,
+                        disabled=State.connection_test_pending,
+                        class_name="nav-logout",
+                    ),
+                    rx.cond(
+                        State.connection_test_message != "",
+                        rx.el.p(
+                            State.connection_test_message,
+                            role=rx.cond(
+                                State.connection_test_has_error,
+                                "alert",
+                                "status",
+                            ),
+                            aria_live="polite",
+                            class_name=rx.cond(
+                                State.connection_test_has_error,
+                                "signup-feedback signup-feedback-error",
+                                "signup-feedback signup-feedback-success",
+                            ),
+                        ),
+                        rx.fragment(),
+                    ),
+                    class_name="content-section admin-connection-test",
+                ),
+                rx.fragment(),
+            ),
             rx.el.section(
                 rx.heading("Acervo completo", size="6"),
                 rx.text(
