@@ -27,7 +27,7 @@
 
 ## 7. Integração e fechamento
 
-- [ ] 7.1 Rodar compile `--dry` e pytest em sequência, uma rodada do robô apenas nas rotas e larguras solicitadas com limite de 10 minutos, registrar fatos/lacunas no relatório, validar Change e specs com `--strict`, sincronizar specs, arquivar e enviar commits sem force.
+- [ ] 7.1 Rodar compile `--dry` e pytest em sequência, uma rodada do robô apenas nas rotas e larguras solicitadas com limite de 10 minutos, registrar fatos/lacunas no relatório e validar Change e specs com `--strict`, sincronizar specs, arquivar e enviar commits sem force. Evidência parcial: `scripts/verificar.ps1` passou (compile dry e 354 testes), o build de produção teve timeout de prerender em `/`, o frontend não ficou disponível e o robô registrou 12 combinações como FALHOU sem PASSOU visual. Por isso a sincronização e o archive desta Change permanecem bloqueados até concluir o frontend/robô.
 
 ## Workflow follow-up
 

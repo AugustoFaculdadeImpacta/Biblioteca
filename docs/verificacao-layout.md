@@ -176,3 +176,22 @@ quinta rodada.
 | /login | visitante | 1366 | escuro | PASSOU | nenhuma | [PNG](./capturas/verificacao/login-visitante-1366-escuro.png) |
 
 Duração desta rodada: 287s. Limite total: 900s.
+
+## Rodada 2026-11-24T16:27:51.968Z
+
+| rota | perfil | largura | tema | resultado | violações | captura |
+|---|---|---:|---|---|---|---|
+| / | visitante | 360 | claro | FALHOU | cabeçalhos=0; filhos fora do contêiner=div.nav-wrapper.suggested-left>div.interstitial-wrapper; alvos menores que 44px=a,a,button.blue-button.text-button | [PNG](./capturas/verificacao/home-visitante-360-claro.png) |
+| / | visitante | 360 | escuro | FALHOU | cabeçalhos=0; filhos fora do contêiner=div.nav-wrapper.suggested-left>div.interstitial-wrapper; alvos menores que 44px=a,a,button.blue-button.text-button | [PNG](./capturas/verificacao/home-visitante-360-escuro.png) |
+| / | visitante | 1366 | claro | FALHOU | cabeçalhos=0; filhos fora do contêiner=div.footer>div; alvos menores que 44px=a,a,button.blue-button.text-button | [PNG](./capturas/verificacao/home-visitante-1366-claro.png) |
+| / | visitante | 1366 | escuro | FALHOU | cabeçalhos=0; filhos fora do contêiner=div.footer>div; alvos menores que 44px=a,a,button.blue-button.text-button | [PNG](./capturas/verificacao/home-visitante-1366-escuro.png) |
+| /catalogo | visitante | 360 | claro | FALHOU | redirecionado para /; cabeçalhos=0; filhos fora do contêiner=div.nav-wrapper.suggested-left>div.interstitial-wrapper; alvos menores que 44px=a,a,button.blue-button.text-button | [PNG](./capturas/verificacao/catalogo-visitante-360-claro.png) |
+| /catalogo | visitante | 360 | escuro | FALHOU | redirecionado para /; cabeçalhos=0; filhos fora do contêiner=div.nav-wrapper.suggested-left>div.interstitial-wrapper; alvos menores que 44px=a,a,button.blue-button.text-button | [PNG](./capturas/verificacao/catalogo-visitante-360-escuro.png) |
+| /catalogo | visitante | 1366 | claro | FALHOU | redirecionado para /; cabeçalhos=0; filhos fora do contêiner=div.footer>div; alvos menores que 44px=a,a,button.blue-button.text-button | [PNG](./capturas/verificacao/catalogo-visitante-1366-claro.png) |
+| /catalogo | visitante | 1366 | escuro | FALHOU | redirecionado para /; cabeçalhos=0; filhos fora do contêiner=div.footer>div; alvos menores que 44px=a,a,button.blue-button.text-button | [PNG](./capturas/verificacao/catalogo-visitante-1366-escuro.png) |
+| /login | visitante | 360 | claro | FALHOU | redirecionado para /; cabeçalhos=0; filhos fora do contêiner=div.nav-wrapper.suggested-left>div.interstitial-wrapper; alvos menores que 44px=a,a,button.blue-button.text-button | [PNG](./capturas/verificacao/login-visitante-360-claro.png) |
+| /login | visitante | 360 | escuro | FALHOU | redirecionado para /; cabeçalhos=0; filhos fora do contêiner=div.nav-wrapper.suggested-left>div.interstitial-wrapper; alvos menores que 44px=a,a,button.blue-button.text-button | [PNG](./capturas/verificacao/login-visitante-360-escuro.png) |
+| /login | visitante | 1366 | claro | FALHOU | redirecionado para /; cabeçalhos=0; filhos fora do contêiner=div.footer>div; alvos menores que 44px=a,a,button.blue-button.text-button | [PNG](./capturas/verificacao/login-visitante-1366-claro.png) |
+| /login | visitante | 1366 | escuro | FALHOU | redirecionado para /; cabeçalhos=0; filhos fora do contêiner=div.footer>div; alvos menores que 44px=a,a,button.blue-button.text-button | [PNG](./capturas/verificacao/login-visitante-1366-escuro.png) |
+
+Duração desta rodada: 177s. Limite total: 900s.

@@ -1,5 +1,46 @@
 # Relatório de execução noturna
 
+## Atualização — estabiliza-xano-v8, 2026-11-24
+
+### Integração e validação local
+
+- Branch: `trabalho-autopilot`.
+- `scripts/verificar.ps1` passou: `reflex compile --dry` compilou e
+  `pytest --ignore=evaluation` aprovou 354 testes.
+- OpenSpec: Change `estabiliza-xano-v8` válida com `--strict`; specs
+  consolidadas válidas com `--strict` (9 specs verificadas).
+- Commits de implementação e evidência foram feitos em lotes pequenos em
+  português. Nenhuma operação de escrita, sincronização ou seed foi enviada ao
+  Xano.
+
+### Robô visual — última execução
+
+| Rota | Perfil | Largura | Tema | Resultado |
+|---|---|---:|---|---|
+| `/` | visitante | 360 | claro | FALHOU: cabeçalho ausente no erro do navegador |
+| `/` | visitante | 360 | escuro | FALHOU: cabeçalho ausente no erro do navegador |
+| `/` | visitante | 1366 | claro | FALHOU: cabeçalho ausente no erro do navegador |
+| `/` | visitante | 1366 | escuro | FALHOU: cabeçalho ausente no erro do navegador |
+| `/catalogo` | visitante | 360 | claro | FALHOU: redirecionado para `/` no erro |
+| `/catalogo` | visitante | 360 | escuro | FALHOU: redirecionado para `/` no erro |
+| `/catalogo` | visitante | 1366 | claro | FALHOU: redirecionado para `/` no erro |
+| `/catalogo` | visitante | 1366 | escuro | FALHOU: redirecionado para `/` no erro |
+| `/login` | visitante | 360 | claro | FALHOU: redirecionado para `/` no erro |
+| `/login` | visitante | 360 | escuro | FALHOU: redirecionado para `/` no erro |
+| `/login` | visitante | 1366 | claro | FALHOU: redirecionado para `/` no erro |
+| `/login` | visitante | 1366 | escuro | FALHOU: redirecionado para `/` no erro |
+
+O build de produção do Reflex terminou antes da abertura do frontend: o
+prerender de `/` excedeu o timeout. O frontend em `localhost:3000` não ficou
+disponível e o robô não confirmou PASSOU em nenhuma combinação. Capturas e
+linhas detalhadas da última rodada estão em
+`docs/verificacao-layout.md` (rodada `2026-11-24T16:27:51.968Z`).
+
+Não verificado visualmente nesta execução: contraste renderizado, composição
+final da página, menus, perfis autenticados, fluxos de reserva/acervo/admin e
+continuidade da importação em navegador real. Essas lacunas não foram convertidas
+em PASSOU.
+
 ## Fase 0 — preflight
 
 - Branch local: `trabalho-autopilot`.
