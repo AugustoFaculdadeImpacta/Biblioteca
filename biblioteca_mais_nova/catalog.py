@@ -7,6 +7,14 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from biblioteca_mais_nova.response_parsing import (
+    ParsedRecords,
+    parse_optional_xano_text,
+    parse_xano_bool,
+    parse_xano_id,
+    parse_xano_records,
+    parse_xano_timestamp,
+)
 from biblioteca_mais_nova.xano_client import (
     XanoClient,
     XanoConfigurationError,
@@ -205,28 +213,25 @@ def _response_error() -> XanoRequestError:
 async def list_categories(
     *,
     transport: httpx.AsyncBaseTransport | None = None,
-) -> list[Category]:
+) -> ParsedRecords[Category]:
     cached = _cache_read("categorias") if transport is None else None
     if isinstance(cached, list):
         return copy.deepcopy(cached)
     client = XanoClient.from_environment(transport=transport)
     response = await client.request("GET", "/catalogo/categorias")
-    categories = _response_json(response)
-    if not isinstance(categories, list):
-        raise _response_error()
-
-    parsed: list[Category] = []
-    for category in categories:
-        if (
-            not isinstance(category, dict)
-            or type(category.get("id")) is not int
-            or not isinstance(category.get("nome"), str)
-        ):
-            raise _response_error()
-        parsed.append({"id": category["id"], "nome": category["nome"]})
+    categories = parse_xano_records(
+        _response_json(response),
+        _parse_category,
+    )
     if transport is None:
-        _cache_write("categorias", parsed)
-    return parsed
+        _cache_write("categorias", categories)
+    return categories
+
+
+def _parse_category(value: object) -> Category:
+    if not isinstance(value, dict) or not isinstance(value.get("nome"), str):
+        raise _response_error()
+    return {"id": parse_xano_id(value.get("id")), "nome": value["nome"]}
 
 
 def _parse_public_catalog_entry(value: object) -> PublicCatalogEntry:
@@ -238,7 +243,6 @@ def _parse_public_catalog_entry(value: object) -> PublicCatalogEntry:
     available = value.get("exemplares_disponiveis")
     if (
         not isinstance(title, dict)
-        or type(title.get("id")) is not int
         or not isinstance(title.get("titulo"), str)
         or not isinstance(title.get("autores"), str)
         or not isinstance(categories, list)
@@ -248,38 +252,31 @@ def _parse_public_catalog_entry(value: object) -> PublicCatalogEntry:
         raise _response_error()
 
     parsed_title: PublicTitleFields = {
-        "id": title["id"],
+        "id": parse_xano_id(title.get("id")),
         "titulo": title["titulo"],
         "autores": title["autores"],
     }
-    created_at = title.get("created_at")
-    if created_at is not None and type(created_at) not in {str, int, float}:
-        raise _response_error()
     if "created_at" in title:
-        parsed_title["created_at"] = created_at
+        parsed_title["created_at"] = parse_xano_timestamp(title["created_at"])
 
     active = title.get("ativo")
-    if active is not None and type(active) is not bool:
-        raise _response_error()
     if "ativo" in title:
-        parsed_title["ativo"] = active
+        parsed_title["ativo"] = (
+            None if active is None else parse_xano_bool(active)
+        )
     for field in ("isbn", "editora", "edicao", "descricao"):
-        field_value = title.get(field)
-        if field_value is not None and not isinstance(field_value, str):
-            raise _response_error()
         if field in title:
-            parsed_title[field] = field_value
-    cover_url = title.get("capa_url")
-    if cover_url is not None and not isinstance(cover_url, str):
-        raise _response_error()
-    if cover_url:
-        try:
-            _validate_cover_url(cover_url)
-        except CatalogValidationError:
-            raise _response_error() from None
-        parsed_title["capa_url"] = cover_url
-    elif "capa_url" in title:
-        parsed_title["capa_url"] = None
+            parsed_title[field] = parse_optional_xano_text(title[field])
+    if "capa_url" in title:
+        cover_url = parse_optional_xano_text(title["capa_url"])
+        if cover_url:
+            try:
+                _validate_cover_url(cover_url)
+            except CatalogValidationError:
+                raise _response_error() from None
+            parsed_title["capa_url"] = cover_url
+        else:
+            parsed_title["capa_url"] = None
 
     year = title.get("ano_publicacao")
     if year is not None and type(year) is not int:
@@ -291,17 +288,14 @@ def _parse_public_catalog_entry(value: object) -> PublicCatalogEntry:
     for category in categories:
         if (
             not isinstance(category, dict)
-            or type(category.get("id")) is not int
-            or category.get("titulo_id") != title["id"]
-            or type(category.get("titulo_id")) is not int
-            or type(category.get("categoria_id")) is not int
+            or parse_xano_id(category.get("titulo_id")) != parsed_title["id"]
         ):
             raise _response_error()
         parsed_categories.append(
             {
-                "id": category["id"],
-                "titulo_id": category["titulo_id"],
-                "categoria_id": category["categoria_id"],
+                "id": parse_xano_id(category.get("id")),
+                "titulo_id": parsed_title["id"],
+                "categoria_id": parse_xano_id(category.get("categoria_id")),
             }
         )
 
@@ -333,7 +327,7 @@ async def list_public_titles(
                 if isinstance(title_fields, dict)
                 else None
             )
-            if active is False:
+            if active is not None and not parse_xano_bool(active):
                 continue
         public_titles.append(_parse_public_catalog_entry(title))
     if transport is None:
@@ -364,6 +358,17 @@ def _parse_admin_catalog_entry(value: object) -> AdminCatalogEntry:
     if not isinstance(value, dict):
         raise _response_error()
     public_entry = _parse_public_catalog_entry(value)
+    for field in (
+        "created_at",
+        "ativo",
+        "isbn",
+        "editora",
+        "edicao",
+        "ano_publicacao",
+        "descricao",
+        "capa_url",
+    ):
+        public_entry["titulo"].setdefault(field, None)
     copies = value.get("exemplares")
     if not isinstance(copies, list):
         raise _response_error()
@@ -372,21 +377,18 @@ def _parse_admin_catalog_entry(value: object) -> AdminCatalogEntry:
     for copy in copies:
         if (
             not isinstance(copy, dict)
-            or type(copy.get("id")) is not int
-            or copy.get("titulo_id") != public_entry["titulo"]["id"]
-            or type(copy.get("titulo_id")) is not int
+            or parse_xano_id(copy.get("titulo_id"))
+            != public_entry["titulo"]["id"]
             or not isinstance(copy.get("estado"), str)
             or copy["estado"]
             not in {"disponivel", "reservado", "emprestado", "indisponivel"}
         ):
             raise _response_error()
-        code = copy.get("codigo_tombo")
-        if code is not None and not isinstance(code, str):
-            raise _response_error()
+        code = parse_optional_xano_text(copy.get("codigo_tombo"))
         parsed_copies.append(
             {
-                "id": copy["id"],
-                "titulo_id": copy["titulo_id"],
+                "id": parse_xano_id(copy.get("id")),
+                "titulo_id": public_entry["titulo"]["id"],
                 "estado": copy["estado"],
                 "codigo_tombo": code,
             }
@@ -404,13 +406,18 @@ async def list_admin_catalog(
     token: str,
     *,
     transport: httpx.AsyncBaseTransport | None = None,
-) -> list[AdminCatalogEntry]:
+) -> ParsedRecords[AdminCatalogEntry]:
     client = XanoClient.from_environment(transport=transport)
     response = await client.request("GET", "/admin/acervo", token=token)
-    entries = _response_json(response)
-    if not isinstance(entries, list):
-        raise _response_error()
-    return [_parse_admin_catalog_entry(entry) for entry in entries]
+    return parse_xano_records(
+        _response_json(response),
+        _parse_admin_catalog_entry,
+        identifier=lambda entry: (
+            entry["titulo"].get("id")
+            if isinstance(entry.get("titulo"), dict)
+            else None
+        ),
+    )
 
 
 async def update_title(

@@ -142,12 +142,14 @@ class State(rx.State):
     catalog_message: str = ""
     catalog_has_error: bool = False
     catalog_categories: list[dict[str, Any]] = []
+    catalog_categories_skipped: int = 0
     selected_category_ids: list[int] = []
     catalog_categories_pending: bool = False
     catalog_title_created: bool = False
     catalog_created_codes: list[str] = []
     catalog_needs_manual_check: bool = False
     admin_catalog_entries: list[AdminCatalogEntry] = []
+    admin_catalog_skipped: int = 0
     admin_catalog_message: str = ""
     admin_catalog_has_error: bool = False
     admin_catalog_pending: bool = False
@@ -191,6 +193,7 @@ class State(rx.State):
     _catalog_copy_uncertain: bool = False
     public_catalog_entries: list[dict[str, Any]] = []
     public_catalog_categories: list[dict[str, Any]] = []
+    public_catalog_categories_skipped: int = 0
     public_catalog_cover_resolutions: dict[str, str] = {}
     public_catalog_message: str = ""
     public_catalog_has_error: bool = False
@@ -213,6 +216,7 @@ class State(rx.State):
     student_library_loans: list[dict[str, Any]] = []
     student_library_requests: list[dict[str, Any]] = []
     student_library_reservations: list[dict[str, Any]] = []
+    student_library_skipped: int = 0
     student_reservation_tab: str = "aguardando"
     student_request_pending: bool = False
     student_request_message: str = ""
@@ -224,12 +228,14 @@ class State(rx.State):
     librarian_management_search: str = ""
     librarian_management_confirm_id: int | None = None
     managed_librarians: list[dict[str, Any]] = []
+    librarian_management_skipped: int = 0
     staff_reservation_pending: bool = False
     staff_reservation_message: str = ""
     staff_reservation_has_error: bool = False
     staff_reservation_email: str = ""
     staff_reservation_student: dict[str, Any] = {}
     staff_reservation_title_options: list[dict[str, str]] = []
+    staff_reservation_skipped: int = 0
     staff_reservation_title_id: str = ""
     staff_reservation_needs_manual_check: bool = False
     circulation_pending: bool = False
@@ -241,6 +247,7 @@ class State(rx.State):
     circulation_reservations: list[AdminReservation] = []
     circulation_loans: list[dict[str, Any]] = []
     circulation_catalog_entries: list[AdminCatalogEntry] = []
+    circulation_skipped: int = 0
 
     def _store_session_token(self, token: str) -> None:
         if not token:
@@ -807,6 +814,7 @@ class State(rx.State):
         self.student_library_loans = []
         self.student_library_requests = []
         self.student_library_reservations = []
+        self.student_library_skipped = 0
         self.student_request_message = ""
         self.student_request_has_error = False
         self.librarian_management_pending = False
@@ -815,15 +823,21 @@ class State(rx.State):
         self.librarian_management_success = False
         self.librarian_management_confirm_id = None
         self.managed_librarians = []
+        self.librarian_management_skipped = 0
         self.staff_reservation_pending = False
         self.staff_reservation_message = ""
         self.staff_reservation_has_error = False
         self.staff_reservation_email = ""
         self.staff_reservation_student = {}
         self.staff_reservation_title_options = []
+        self.staff_reservation_skipped = 0
         self.staff_reservation_title_id = ""
         self.staff_reservation_needs_manual_check = False
         self.catalog_categories = []
+        self.catalog_categories_skipped = 0
+        self.public_catalog_categories_skipped = 0
+        self.admin_catalog_skipped = 0
+        self.circulation_skipped = 0
         self.selected_category_ids = []
         self.catalog_categories_pending = False
         self.catalog_title_created = False
@@ -899,6 +913,7 @@ class State(rx.State):
         self.public_catalog_has_error = False
         self.home_titles_has_error = False
         self.home_categories_has_error = False
+        self.public_catalog_categories_skipped = 0
         titles: list[dict[str, Any]] | None = None
         categories: list[dict[str, Any]] | None = None
         title_error: Exception | None = None
@@ -918,6 +933,11 @@ class State(rx.State):
             self.public_catalog_entries = titles
         if categories is not None:
             self.public_catalog_categories = categories
+            self.public_catalog_categories_skipped = getattr(
+                categories,
+                "skipped_count",
+                0,
+            )
         if title_error is not None or category_error is not None:
             first_error = title_error or category_error
             self.public_catalog_message = catalog_error_message(first_error)
@@ -1055,6 +1075,11 @@ class State(rx.State):
             return
 
         self.public_catalog_categories = categories
+        self.public_catalog_categories_skipped = getattr(
+            categories,
+            "skipped_count",
+            0,
+        )
         category_names = {
             category["id"]: category["nome"]
             for category in categories
@@ -1175,6 +1200,7 @@ class State(rx.State):
         self.student_library_message = ""
         self.student_library_has_error = False
         self.student_library_requires_login = False
+        self.student_library_skipped = 0
         try:
             loans = await list_my_loans(self._session_token)
             requests = await list_my_requests(self._session_token)
@@ -1190,6 +1216,10 @@ class State(rx.State):
         finally:
             self.student_library_pending = False
 
+        self.student_library_skipped = sum(
+            getattr(records, "skipped_count", 0)
+            for records in (loans, requests, reservations)
+        )
         title_names = {
             entry["titulo"]["id"]: entry["titulo"]["titulo"] for entry in titles
         }
@@ -1330,9 +1360,14 @@ class State(rx.State):
         self.librarian_management_pending = True
         self.librarian_management_message = ""
         self.librarian_management_has_error = False
+        self.librarian_management_skipped = 0
         try:
-            self.managed_librarians = await list_librarians(
-                self._session_token
+            librarians = await list_librarians(self._session_token)
+            self.managed_librarians = librarians
+            self.librarian_management_skipped = getattr(
+                librarians,
+                "skipped_count",
+                0,
             )
         except (
             UserAdminValidationError,
@@ -1489,6 +1524,7 @@ class State(rx.State):
         self.staff_reservation_student = {}
         self.staff_reservation_title_id = ""
         self.staff_reservation_needs_manual_check = False
+        self.staff_reservation_skipped = 0
         try:
             entries = await list_admin_catalog(self._session_token)
         except (
@@ -1500,6 +1536,11 @@ class State(rx.State):
             self.staff_reservation_has_error = True
             self.staff_reservation_title_options = []
         else:
+            self.staff_reservation_skipped = getattr(
+                entries,
+                "skipped_count",
+                0,
+            )
             self.staff_reservation_title_options = [
                 {
                     "id": str(entry["titulo"]["id"]),
@@ -1636,6 +1677,7 @@ class State(rx.State):
 
     async def _refresh_circulation_data(self) -> bool:
         self.circulation_pending = True
+        self.circulation_skipped = 0
         try:
             requests = await list_admin_requests(self._session_token)
             reservations = await list_admin_reservations(self._session_token)
@@ -1664,6 +1706,15 @@ class State(rx.State):
         ]
         self.circulation_catalog_entries = catalog_entries
         self.circulation_has_error = False
+        self.circulation_skipped = sum(
+            getattr(records, "skipped_count", 0)
+            for records in (
+                requests,
+                reservations,
+                loans,
+                catalog_entries,
+            )
+        )
         self.circulation_needs_manual_check = False
         return True
 
@@ -1864,8 +1915,15 @@ class State(rx.State):
         self.staff_reservation_has_error = False
 
     async def _load_catalog_categories(self):
+        self.catalog_categories_skipped = 0
         try:
-            self.catalog_categories = await list_categories()
+            categories = await list_categories()
+            self.catalog_categories = categories
+            self.catalog_categories_skipped = getattr(
+                categories,
+                "skipped_count",
+                0,
+            )
         except (XanoConfigurationError, XanoRequestError, XanoResponseError) as error:
             self.catalog_message = catalog_error_message(error)
             self.catalog_has_error = True
@@ -1891,9 +1949,14 @@ class State(rx.State):
     async def _refresh_admin_catalog(self):
         self.admin_catalog_pending = True
         self.admin_catalog_has_error = False
+        self.admin_catalog_skipped = 0
         try:
-            self.admin_catalog_entries = await list_admin_catalog(
-                self._session_token
+            entries = await list_admin_catalog(self._session_token)
+            self.admin_catalog_entries = entries
+            self.admin_catalog_skipped = getattr(
+                entries,
+                "skipped_count",
+                0,
             )
         except (
             XanoConfigurationError,
@@ -4310,6 +4373,15 @@ def public_catalog() -> rx.Component:
                     rx.fragment(),
                 ),
                 rx.cond(
+                    State.public_catalog_categories_skipped > 0,
+                    rx.el.p(
+                        State.public_catalog_categories_skipped,
+                        " registros não puderam ser lidos.",
+                        role="status",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
                     State.public_catalog_has_error,
                     rx.button(
                         conteudo_acao("atualizar_lista", "Tentar de novo"),
@@ -4740,6 +4812,15 @@ def student_reservations() -> rx.Component:
                     (~State.student_library_pending)
                     & (~State.student_library_has_error),
                     rx.fragment(
+                        rx.cond(
+                            State.student_library_skipped > 0,
+                            rx.el.p(
+                                State.student_library_skipped,
+                                " registros não puderam ser lidos.",
+                                role="status",
+                            ),
+                            rx.fragment(),
+                        ),
                         rx.cond(
                             State.student_reservation_tab == "aguardando",
                             awaiting_approval_section,
@@ -5741,6 +5822,15 @@ def catalog_admin() -> rx.Component:
                     rx.fragment(),
                 ),
                 rx.cond(
+                    State.catalog_categories_skipped > 0,
+                    rx.el.p(
+                        State.catalog_categories_skipped,
+                        " registros não puderam ser lidos.",
+                        role="status",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
                     State.catalog_needs_manual_check,
                     rx.el.p(
                         "Não repita automaticamente a etapa até conferir o resultado.",
@@ -5993,6 +6083,15 @@ def catalog_admin() -> rx.Component:
                     rx.fragment(),
                 ),
                 rx.cond(
+                    State.admin_catalog_skipped > 0,
+                    rx.el.p(
+                        State.admin_catalog_skipped,
+                        " registros não puderam ser lidos.",
+                        role="status",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
                     State.admin_catalog_pending,
                     rx.text("Carregando acervo…", role="status"),
                     rx.fragment(),
@@ -6204,6 +6303,15 @@ def librarian_management() -> rx.Component:
                     class_name="signup-form librarian-form",
                 ),
                 rx.heading("Contas bibliotecárias", size="5"),
+                rx.cond(
+                    State.librarian_management_skipped > 0,
+                    rx.el.p(
+                        State.librarian_management_skipped,
+                        " registros não puderam ser lidos.",
+                        role="status",
+                    ),
+                    rx.fragment(),
+                ),
                 rx.el.label(
                     "Buscar conta por nome ou e-mail",
                     html_for="busca-contas-bibliotecarias",
@@ -6297,6 +6405,15 @@ def staff_reservation_page() -> rx.Component:
                             "signup-feedback signup-feedback-error",
                             "signup-feedback signup-feedback-success",
                         ),
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.staff_reservation_skipped > 0,
+                    rx.el.p(
+                        State.staff_reservation_skipped,
+                        " registros não puderam ser lidos.",
+                        role="status",
                     ),
                     rx.fragment(),
                 ),
@@ -6673,6 +6790,15 @@ def circulation_page() -> rx.Component:
                             "signup-feedback signup-feedback-error",
                             "signup-feedback signup-feedback-success",
                         ),
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.circulation_skipped > 0,
+                    rx.el.p(
+                        State.circulation_skipped,
+                        " registros não puderam ser lidos.",
+                        role="status",
                     ),
                     rx.fragment(),
                 ),

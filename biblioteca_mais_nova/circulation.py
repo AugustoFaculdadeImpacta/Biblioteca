@@ -1,10 +1,17 @@
 """Operações autenticadas de circulação disponíveis ao estudante."""
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Callable, NotRequired, TypeVar, TypedDict
 
 import httpx
 
+from biblioteca_mais_nova.response_parsing import (
+    ParsedRecords,
+    parse_optional_xano_id,
+    parse_xano_id,
+    parse_xano_records,
+    parse_xano_timestamp,
+)
 from biblioteca_mais_nova.xano_client import (
     XanoClient,
     XanoInvalidResponseError,
@@ -20,30 +27,30 @@ class Loan(TypedDict):
     usuario_id: int
     exemplar_id: int
     solicitacao_id: NotRequired[int | None]
-    retirado_em: str | int | float
-    vence_em: str | int | float
-    devolvido_em: str | int | float | None
+    retirado_em: str | None
+    vence_em: str | None
+    devolvido_em: str | None
 
 
 class LoanRequest(TypedDict):
     id: int
     usuario_id: int
     titulo_id: int
-    solicitada_em: NotRequired[str | int | float | None]
+    solicitada_em: NotRequired[str | None]
     estado: str
     reserva_id: NotRequired[int | None]
-    atendida_em: NotRequired[str | int | float | None]
+    atendida_em: NotRequired[str | None]
 
 
 class Reservation(TypedDict):
     id: int
     usuario_id: int
     titulo_id: int
-    criada_em: str | int | float
+    criada_em: str | None
     estado: str
     exemplar_id: int | None
-    ofertada_em: str | int | float | None
-    expira_em: str | int | float | None
+    ofertada_em: str | None
+    expira_em: str | None
     expira_em_sao_paulo: str | None
 
 
@@ -62,8 +69,8 @@ class AdminLoan(TypedDict):
     titulo: str
     autores: str
     exemplar_id: int
-    retirado_em: str | int | float
-    vence_em: str | int | float
+    retirado_em: str | None
+    vence_em: str | None
 
 
 class AdminReservation(Reservation):
@@ -83,21 +90,11 @@ def _response_json(response: httpx.Response) -> object:
 
 
 def _timestamp(value: object, *, nullable: bool = False) -> bool:
-    if nullable and (value is None or (type(value) is int and value == 0)):
-        return True
-    if type(value) in {int, float}:
-        try:
-            datetime.fromtimestamp(value, tz=timezone.utc)
-        except (OverflowError, OSError, ValueError):
-            return False
-        return True
-    if not isinstance(value, str) or not value:
-        return False
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
+        parse_xano_timestamp(value)
+    except XanoInvalidResponseError:
         return False
-    return parsed.tzinfo is None or parsed.utcoffset() is not None
+    return True
 
 
 def _positive_id(value: object) -> bool:
@@ -107,124 +104,91 @@ def _positive_id(value: object) -> bool:
 def _parse_loan(value: object) -> Loan:
     if (
         not isinstance(value, dict)
-        or not _positive_id(value.get("id"))
-        or not _positive_id(value.get("usuario_id"))
-        or not _positive_id(value.get("exemplar_id"))
-        or not _timestamp(value.get("retirado_em"))
-        or not _timestamp(value.get("vence_em"))
-        or "devolvido_em" not in value
-        or not _timestamp(value["devolvido_em"], nullable=True)
+        or "retirado_em" not in value
+        or "vence_em" not in value
     ):
         raise _response_error()
 
     loan: Loan = {
-        "id": value["id"],
-        "usuario_id": value["usuario_id"],
-        "exemplar_id": value["exemplar_id"],
-        "retirado_em": value["retirado_em"],
-        "vence_em": value["vence_em"],
-        "devolvido_em": value["devolvido_em"],
+        "id": parse_xano_id(value.get("id")),
+        "usuario_id": parse_xano_id(value.get("usuario_id")),
+        "exemplar_id": parse_xano_id(value.get("exemplar_id")),
+        "retirado_em": parse_xano_timestamp(value.get("retirado_em")),
+        "vence_em": parse_xano_timestamp(value.get("vence_em")),
+        "devolvido_em": parse_xano_timestamp(value.get("devolvido_em")),
     }
     request_id = value.get("solicitacao_id")
-    if request_id is not None and not _positive_id(request_id):
-        raise _response_error()
-    if "solicitacao_id" in value:
-        loan["solicitacao_id"] = request_id
+    loan["solicitacao_id"] = parse_optional_xano_id(request_id)
     return loan
 
 
 def _parse_request(value: object) -> LoanRequest:
     if (
         not isinstance(value, dict)
-        or not _positive_id(value.get("id"))
-        or not _positive_id(value.get("usuario_id"))
-        or not _positive_id(value.get("titulo_id"))
         or not isinstance(value.get("estado"), str)
         or value["estado"] not in {"pendente", "em_reserva", "atendida", "recusada"}
     ):
         raise _response_error()
 
-    for field in ("solicitada_em", "atendida_em"):
-        if field in value and not _timestamp(value[field], nullable=True):
-            raise _response_error()
-    reservation_id = value.get("reserva_id")
-    if reservation_id is not None and not _positive_id(reservation_id):
-        raise _response_error()
-
     request: LoanRequest = {
-        "id": value["id"],
-        "usuario_id": value["usuario_id"],
-        "titulo_id": value["titulo_id"],
+        "id": parse_xano_id(value.get("id")),
+        "usuario_id": parse_xano_id(value.get("usuario_id")),
+        "titulo_id": parse_xano_id(value.get("titulo_id")),
         "estado": value["estado"],
+        "solicitada_em": parse_xano_timestamp(value.get("solicitada_em")),
+        "reserva_id": parse_optional_xano_id(value.get("reserva_id")),
+        "atendida_em": parse_xano_timestamp(value.get("atendida_em")),
     }
-    for field in ("solicitada_em", "reserva_id", "atendida_em"):
-        if field in value:
-            request[field] = value[field]
     return request
 
 
 def _parse_reservation(value: object) -> Reservation:
     if (
         not isinstance(value, dict)
-        or not _positive_id(value.get("id"))
-        or not _positive_id(value.get("usuario_id"))
-        or not _positive_id(value.get("titulo_id"))
-        or not _timestamp(value.get("criada_em"))
+        or "criada_em" not in value
         or not isinstance(value.get("estado"), str)
         or value["estado"]
         not in {"aguardando", "ofertada", "retirada", "expirada", "recusada"}
-        or not _timestamp(value.get("ofertada_em"), nullable=True)
-        or not _timestamp(value.get("expira_em"), nullable=True)
-        or "expira_em_sao_paulo" not in value
-        or not (
-            value.get("expira_em_sao_paulo") is None
-            or _sao_paulo_timestamp(value.get("expira_em_sao_paulo"))
-        )
     ):
         raise _response_error()
 
-    copy_id = value.get("exemplar_id")
-    if copy_id is not None and not _positive_id(copy_id):
-        raise _response_error()
     return {
-        "id": value["id"],
-        "usuario_id": value["usuario_id"],
-        "titulo_id": value["titulo_id"],
-        "criada_em": value["criada_em"],
+        "id": parse_xano_id(value.get("id")),
+        "usuario_id": parse_xano_id(value.get("usuario_id")),
+        "titulo_id": parse_xano_id(value.get("titulo_id")),
+        "criada_em": parse_xano_timestamp(value.get("criada_em")),
         "estado": value["estado"],
-        "exemplar_id": copy_id,
-        "ofertada_em": value.get("ofertada_em"),
-        "expira_em": value.get("expira_em"),
-        "expira_em_sao_paulo": value.get("expira_em_sao_paulo"),
+        "exemplar_id": parse_optional_xano_id(value.get("exemplar_id")),
+        "ofertada_em": parse_xano_timestamp(value.get("ofertada_em")),
+        "expira_em": parse_xano_timestamp(value.get("expira_em")),
+        "expira_em_sao_paulo": _parse_local_timestamp(
+            value.get("expira_em_sao_paulo")
+        ),
     }
 
 
 def _parse_admin_loan(value: object) -> AdminLoan:
     if (
         not isinstance(value, dict)
-        or not _positive_id(value.get("id"))
-        or not _positive_id(value.get("usuario_id"))
         or not isinstance(value.get("usuario_nome"), str)
         or not value["usuario_nome"].strip()
-        or not _positive_id(value.get("titulo_id"))
         or not isinstance(value.get("titulo"), str)
         or not value["titulo"].strip()
         or not isinstance(value.get("autores"), str)
-        or not _positive_id(value.get("exemplar_id"))
-        or not _timestamp(value.get("retirado_em"))
-        or not _timestamp(value.get("vence_em"))
+        or "retirado_em" not in value
+        or "vence_em" not in value
     ):
         raise _response_error()
     return {
-        "id": value["id"],
-        "usuario_id": value["usuario_id"],
+        "id": parse_xano_id(value.get("id")),
+        "usuario_id": parse_xano_id(value.get("usuario_id")),
         "usuario_nome": value["usuario_nome"],
-        "titulo_id": value["titulo_id"],
+        "titulo_id": parse_xano_id(value.get("titulo_id")),
         "titulo": value["titulo"],
         "autores": value["autores"],
-        "exemplar_id": value["exemplar_id"],
-        "retirado_em": value["retirado_em"],
-        "vence_em": value["vence_em"],
+        "exemplar_id": parse_xano_id(value.get("exemplar_id")),
+        "retirado_em": parse_xano_timestamp(value.get("retirado_em")),
+        "vence_em": parse_xano_timestamp(value.get("vence_em")),
     }
 
 
@@ -256,26 +220,31 @@ def _sao_paulo_timestamp(value: object) -> bool:
     return True
 
 
+def _parse_local_timestamp(value: object) -> str | None:
+    if value is None or (type(value) in {int, float} and value == 0):
+        return None
+    if isinstance(value, str) and _sao_paulo_timestamp(value):
+        return value
+    return parse_xano_timestamp(value)
+
+
 async def _list_personal_records(
     path: str,
     parser: Callable[[object], Record],
     token: str,
     *,
     transport: httpx.AsyncBaseTransport | None = None,
-) -> list[Record]:
+) -> ParsedRecords[Record]:
     client = XanoClient.from_environment(transport=transport)
     response = await client.request("GET", path, token=token)
-    records = _response_json(response)
-    if not isinstance(records, list):
-        raise _response_error()
-    return [parser(record) for record in records]
+    return parse_xano_records(_response_json(response), parser)
 
 
 async def list_my_loans(
     token: str,
     *,
     transport: httpx.AsyncBaseTransport | None = None,
-) -> list[Loan]:
+) -> ParsedRecords[Loan]:
     return await _list_personal_records(
         "/minhas/emprestimos",
         _parse_loan,
@@ -288,7 +257,7 @@ async def list_my_requests(
     token: str,
     *,
     transport: httpx.AsyncBaseTransport | None = None,
-) -> list[LoanRequest]:
+) -> ParsedRecords[LoanRequest]:
     return await _list_personal_records(
         "/minhas/solicitacoes",
         _parse_request,
@@ -301,7 +270,7 @@ async def list_my_reservations(
     token: str,
     *,
     transport: httpx.AsyncBaseTransport | None = None,
-) -> list[Reservation]:
+) -> ParsedRecords[Reservation]:
     return await _list_personal_records(
         "/minhas/reservas",
         _parse_reservation,
@@ -314,7 +283,7 @@ async def list_admin_requests(
     token: str,
     *,
     transport: httpx.AsyncBaseTransport | None = None,
-) -> list[LoanRequest]:
+) -> ParsedRecords[LoanRequest]:
     return await _list_personal_records(
         "/admin/solicitacoes",
         _parse_request,
@@ -327,7 +296,7 @@ async def list_admin_reservations(
     token: str,
     *,
     transport: httpx.AsyncBaseTransport | None = None,
-) -> list[AdminReservation]:
+) -> ParsedRecords[AdminReservation]:
     return await _list_personal_records(
         "/admin/reservas",
         _parse_admin_reservation,
@@ -340,7 +309,7 @@ async def list_admin_loans(
     token: str,
     *,
     transport: httpx.AsyncBaseTransport | None = None,
-) -> list[AdminLoan]:
+) -> ParsedRecords[AdminLoan]:
     return await _list_personal_records(
         "/admin/emprestimos",
         _parse_admin_loan,

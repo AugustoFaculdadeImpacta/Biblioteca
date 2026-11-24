@@ -363,6 +363,41 @@ def test_admin_catalog_client_returns_inactive_titles_and_all_copy_states(
     assert "Authorization" in requests[0].headers
 
 
+def test_admin_catalog_accepts_envelope_and_skips_one_bad_record(monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    valid_entry = _entry(active="false")
+    valid_entry["titulo"]["id"] = "81"
+    valid_entry["categorias"][0] = {
+        "id": "9",
+        "titulo_id": "81",
+        "categoria_id": "7",
+    }
+    valid_entry["exemplares"][0]["id"] = "101"
+    valid_entry["exemplares"][0]["titulo_id"] = "81"
+    valid_entry["exemplares"][1]["titulo_id"] = "81"
+    malformed_entry = _entry()
+    malformed_entry["titulo"]["titulo"] = None
+
+    entries = asyncio.run(
+        list_admin_catalog(
+            "token",
+            transport=httpx.MockTransport(
+                lambda _request: httpx.Response(
+                    200,
+                    json={"records": [valid_entry, malformed_entry]},
+                )
+            ),
+        )
+    )
+
+    assert len(entries) == 1
+    assert entries[0]["titulo"]["id"] == 81
+    assert entries[0]["titulo"]["ativo"] is False
+    assert entries[0]["categorias"][0]["categoria_id"] == 7
+    assert entries[0]["exemplares"][0]["id"] == 101
+    assert entries.skipped_count == 1
+
+
 def test_update_title_reuses_patch_and_only_sends_approved_fields(monkeypatch):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
     requests: list[httpx.Request] = []

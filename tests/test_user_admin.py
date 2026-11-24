@@ -96,6 +96,46 @@ def test_list_librarians_uses_authenticated_route_and_strips_extra_fields(monkey
     assert not ({"senha", "hash", "authToken"} & result[0].keys())
 
 
+def test_list_librarians_accepts_envelope_and_skips_bad_records(monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    librarians = asyncio.run(
+        list_librarians(
+            "token",
+            transport=httpx.MockTransport(
+                lambda _request: httpx.Response(
+                    200,
+                    json={
+                        "items": [
+                            {
+                                "id": "12",
+                                "nome": "Ana",
+                                "email": "ana@escola.edu.br",
+                                "ativo": "false",
+                            },
+                            {
+                                "id": 13,
+                                "nome": "Inválido",
+                                "email": "invalido@escola.edu.br",
+                                "ativo": "talvez",
+                            },
+                        ]
+                    },
+                )
+            ),
+        )
+    )
+
+    assert librarians == [
+        {
+            "id": 12,
+            "nome": "Ana",
+            "email": "ana@escola.edu.br",
+            "ativo": False,
+        }
+    ]
+    assert librarians.skipped_count == 1
+
+
 def test_create_librarian_sends_only_approved_fields_and_sanitizes_response(
     monkeypatch,
 ):

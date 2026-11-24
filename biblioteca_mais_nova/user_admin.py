@@ -4,6 +4,12 @@ from typing import TypedDict
 
 import httpx
 
+from biblioteca_mais_nova.response_parsing import (
+    ParsedRecords,
+    parse_xano_bool,
+    parse_xano_id,
+    parse_xano_records,
+)
 from biblioteca_mais_nova.signup import SignupValidationError, normalize_email
 from biblioteca_mais_nova.xano_client import (
     XanoClient,
@@ -60,23 +66,23 @@ def _response_error() -> XanoRequestError:
 def _parse_librarian(value: object) -> Librarian:
     if (
         not isinstance(value, dict)
-        or type(value.get("id")) is not int
-        or value.get("id", 0) < 1
         or not isinstance(value.get("nome"), str)
         or not isinstance(value.get("email"), str)
         or (
             "perfil" in value
             and value.get("perfil") != "bibliotecario"
         )
-        or (value.get("ativo") is not None and type(value.get("ativo")) is not bool)
     ):
         raise _response_error()
 
+    active = value.get("ativo", True)
+    if active is None:
+        active = True
     return {
-        "id": value["id"],
+        "id": parse_xano_id(value.get("id")),
         "nome": value["nome"],
         "email": value["email"],
-        "ativo": value.get("ativo") is not False,
+        "ativo": parse_xano_bool(active),
     }
 
 
@@ -84,13 +90,10 @@ async def list_librarians(
     token: str,
     *,
     transport: httpx.AsyncBaseTransport | None = None,
-) -> list[Librarian]:
+) -> ParsedRecords[Librarian]:
     client = XanoClient.from_environment(transport=transport)
     response = await client.request("GET", "/admin/usuarios", token=token)
-    data = _response_json(response)
-    if not isinstance(data, list):
-        raise _response_error()
-    return [_parse_librarian(item) for item in data]
+    return parse_xano_records(_response_json(response), _parse_librarian)
 
 
 async def create_librarian(

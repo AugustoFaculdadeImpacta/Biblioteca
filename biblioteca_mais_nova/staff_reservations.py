@@ -5,6 +5,10 @@ from typing import TypedDict
 
 import httpx
 
+from biblioteca_mais_nova.response_parsing import (
+    extract_xano_list,
+    parse_xano_id,
+)
 from biblioteca_mais_nova.signup import SignupValidationError, normalize_email
 from biblioteca_mais_nova.xano_client import (
     XanoClient,
@@ -48,12 +52,11 @@ def _positive_id(value: object) -> bool:
 def _parse_student(value: object) -> StudentIdentity:
     if (
         not isinstance(value, dict)
-        or not _positive_id(value.get("id"))
         or not isinstance(value.get("nome"), str)
         or not value["nome"].strip()
     ):
         raise _response_error()
-    return {"id": value["id"], "nome": value["nome"]}
+    return {"id": parse_xano_id(value.get("id")), "nome": value["nome"]}
 
 
 async def find_student_by_email(
@@ -73,8 +76,8 @@ async def find_student_by_email(
         f"/admin/estudantes?email={quote(normalized_email, safe='')}",
         token=token,
     )
-    result = _response_json(response)
-    if not isinstance(result, list) or len(result) > 1:
+    result = extract_xano_list(_response_json(response))
+    if len(result) > 1:
         raise _response_error()
     if not result:
         return None
@@ -84,16 +87,13 @@ async def find_student_by_email(
 def _parse_staff_reservation(value: object) -> StaffReservation:
     if (
         not isinstance(value, dict)
-        or not _positive_id(value.get("id"))
-        or not _positive_id(value.get("usuario_id"))
-        or not _positive_id(value.get("titulo_id"))
         or value.get("estado") != "aguardando"
     ):
         raise _response_error()
     return {
-        "id": value["id"],
-        "usuario_id": value["usuario_id"],
-        "titulo_id": value["titulo_id"],
+        "id": parse_xano_id(value.get("id")),
+        "usuario_id": parse_xano_id(value.get("usuario_id")),
+        "titulo_id": parse_xano_id(value.get("titulo_id")),
         "estado": "aguardando",
     }
 

@@ -213,6 +213,31 @@ def test_invalid_title_is_rejected(form_data, message):
         build_title_payload(form_data)
 
 
+def test_categories_accept_envelopes_and_skip_unreadable_records(monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    response_body = {
+        "data": [
+            {"id": "7", "nome": "Romance", "campo_extra": "ignorado"},
+            {"id": 8, "nome": None},
+            {"id": 9, "nome": "História"},
+        ]
+    }
+
+    categories = asyncio.run(
+        list_categories(
+            transport=httpx.MockTransport(
+                lambda _request: httpx.Response(200, json=response_body)
+            )
+        )
+    )
+
+    assert categories == [
+        {"id": 7, "nome": "Romance"},
+        {"id": 9, "nome": "História"},
+    ]
+    assert categories.skipped_count == 1
+
+
 def test_catalog_services_follow_local_xano_fields_and_routes(monkeypatch):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test/grupo")
     requests: list[httpx.Request] = []

@@ -143,7 +143,60 @@ def test_personal_services_use_openapi_routes_and_authenticated_headers(monkeypa
     assert all(request.method == "GET" for request in requests)
 
 
-@pytest.mark.parametrize("devolvido_em", [None, 0, "2026-11-14T12:00:00Z"])
+def test_personal_list_accepts_envelope_and_skips_one_unreadable_record(
+    monkeypatch,
+):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    response_body = {
+        "items": [
+            {
+                "id": "31",
+                "usuario_id": "9",
+                "titulo_id": "14",
+                "solicitada_em": 1794312000000,
+                "estado": "em_reserva",
+                "reserva_id": "41",
+                "atendida_em": 0,
+                "campo_desconhecido": "ignorado",
+            },
+            {
+                "id": 32,
+                "usuario_id": 9,
+                "titulo_id": 14,
+                "estado": [],
+            },
+            {
+                "id": 33,
+                "usuario_id": 9,
+                "titulo_id": 14,
+                "estado": "pendente",
+            },
+        ]
+    }
+
+    records = asyncio.run(
+        list_my_requests(
+            "token",
+            transport=httpx.MockTransport(
+                lambda _request: httpx.Response(200, json=response_body)
+            ),
+        )
+    )
+
+    assert [record["id"] for record in records] == [31, 33]
+    assert records[0]["usuario_id"] == 9
+    assert records[0]["reserva_id"] == 41
+    assert records[0]["atendida_em"] is None
+    assert records[1]["solicitada_em"] is None
+    assert records[1]["reserva_id"] is None
+    assert records[1]["atendida_em"] is None
+    assert records.skipped_count == 1
+
+
+@pytest.mark.parametrize(
+    "devolvido_em",
+    [None, 0, "2026-11-14T12:00:00Z", 1794312000, 1794312000000],
+)
 def test_loan_parser_accepts_null_zero_and_timestamp_returned_values(
     monkeypatch, devolvido_em
 ):
@@ -152,10 +205,20 @@ def test_loan_parser_accepts_null_zero_and_timestamp_returned_values(
         lambda request: httpx.Response(200, json=_loan_records(devolvido_em))
     )
     records = asyncio.run(list_my_loans("token", transport=transport))
-    assert records[0]["devolvido_em"] == devolvido_em
+    expected = devolvido_em
+    if type(devolvido_em) is int and devolvido_em != 0:
+        timestamp = (
+            devolvido_em / 1000
+            if devolvido_em > 100_000_000_000
+            else devolvido_em
+        )
+        expected = datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
+    elif devolvido_em in (None, 0):
+        expected = None
+    assert records[0]["devolvido_em"] == expected
 
 
-def test_personal_services_reject_malformed_responses(monkeypatch):
+def test_personal_services_skip_individually_unreadable_records(monkeypatch):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
     malformed_cases = [
         (list_my_loans, [{"id": 1, "devolvido_em": 0}]),
@@ -166,7 +229,7 @@ def test_personal_services_reject_malformed_responses(monkeypatch):
         ),
         (
             list_my_reservations,
-            [{**_reservation_records()[0], "expira_em_sao_paulo": 42}],
+            [{**_reservation_records()[0], "expira_em": "sem data"}],
         ),
         (
             list_my_reservations,
@@ -179,8 +242,63 @@ def test_personal_services_reject_malformed_responses(monkeypatch):
                 200, json=response_body
             )
         )
-        with pytest.raises(XanoInvalidResponseError):
-            asyncio.run(service("token", transport=transport))
+        records = asyncio.run(service("token", transport=transport))
+        assert records == []
+        assert records.skipped_count == 1
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"items": []},
+        {"result": []},
+        {"data": []},
+        {"results": []},
+        {"records": []},
+    ],
+)
+def test_personal_lists_accept_all_supported_envelopes(monkeypatch, payload):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    records = asyncio.run(
+        list_my_requests(
+            "token",
+            transport=httpx.MockTransport(
+                lambda _request: httpx.Response(200, json=payload)
+            ),
+        )
+    )
+    assert records == []
+    assert records.skipped_count == 0
+
+
+@pytest.mark.parametrize("payload", [{"items": "invalid"}, {"id": 1}])
+def test_personal_lists_reject_invalid_top_level_shapes(monkeypatch, payload):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    with pytest.raises(XanoInvalidResponseError):
+        asyncio.run(
+            list_my_requests(
+                "token",
+                transport=httpx.MockTransport(
+                    lambda _request: httpx.Response(200, json=payload)
+                ),
+            )
+        )
+
+
+def test_personal_lists_reject_records_without_identifier(monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    with pytest.raises(XanoInvalidResponseError):
+        asyncio.run(
+            list_my_requests(
+                "token",
+                transport=httpx.MockTransport(
+                    lambda _request: httpx.Response(
+                        200,
+                        json=[{"usuario_id": 9, "titulo_id": 14}],
+                    )
+                ),
+            )
+        )
 
 
 def test_request_service_sends_only_title_id_to_openapi_post(monkeypatch):

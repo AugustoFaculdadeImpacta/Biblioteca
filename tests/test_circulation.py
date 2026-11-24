@@ -137,6 +137,82 @@ def test_admin_lists_use_typed_contracts_and_bearer_auth(monkeypatch):
     )
 
 
+def test_admin_lists_accept_envelopes_numeric_ids_and_timestamp_units(monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+
+    def handle(request):
+        if request.url.path == "/admin/solicitacoes":
+            return httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {
+                            "id": "7",
+                            "usuario_id": "101",
+                            "titulo_id": "12",
+                            "estado": "pendente",
+                        }
+                    ]
+                },
+            )
+        if request.url.path == "/admin/reservas":
+            return httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {
+                            "id": "15",
+                            "usuario_id": "101",
+                            "usuario_nome": "Estudante",
+                            "titulo_id": "12",
+                            "titulo": "Livro",
+                            "criada_em": 1794312000000,
+                            "estado": "aguardando",
+                            "exemplar_id": None,
+                            "ofertada_em": 0,
+                            "expira_em": None,
+                        }
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "records": [
+                    {
+                        "id": "5",
+                        "usuario_id": "101",
+                        "usuario_nome": "Estudante",
+                        "titulo_id": "12",
+                        "titulo": "Livro",
+                        "autores": "Autoria",
+                        "exemplar_id": "9",
+                        "retirado_em": 1794312000,
+                        "vence_em": 0,
+                    }
+                ]
+            },
+        )
+
+    requests = asyncio.run(
+        list_admin_requests("token", transport=httpx.MockTransport(handle))
+    )
+    reservations = asyncio.run(
+        list_admin_reservations("token", transport=httpx.MockTransport(handle))
+    )
+    loans = asyncio.run(
+        list_admin_loans("token", transport=httpx.MockTransport(handle))
+    )
+
+    assert requests[0]["id"] == 7
+    assert reservations[0]["criada_em"] == "2026-11-10T12:00:00+00:00"
+    assert reservations[0]["expira_em"] is None
+    assert reservations[0]["expira_em_sao_paulo"] is None
+    assert loans[0]["id"] == 5
+    assert loans[0]["retirado_em"] == "2026-11-10T12:00:00+00:00"
+    assert loans[0]["vence_em"] is None
+
+
 def test_admin_actions_use_expected_paths_bodies_and_validate_results(monkeypatch):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
     requests = []
