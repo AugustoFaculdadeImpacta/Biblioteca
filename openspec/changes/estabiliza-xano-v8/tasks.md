@@ -23,7 +23,7 @@
 
 ## 6. Importação retomável
 
-- [ ] 6.1 Executar a importação em evento Reflex de segundo plano, com progresso, pausa de 1,5 s, repetição limitada após releitura, retomada idempotente e parada após três falhas; testar pausa, repetição, retomada e interrupção, e confirmar que os 30 dados originais ainda incluem Dom Casmurro e Memórias Póstumas de Brás Cubas.
+- [x] 6.1 Executar a importação em evento Reflex de segundo plano, com progresso, pausa de 1,5 s, repetição limitada após releitura, retomada idempotente e parada após três falhas; 5 testes focados passaram em `fed5245`, e o seed local contém 30 títulos incluindo Dom Casmurro e Memórias Póstumas de Brás Cubas.
 
 ## 7. Integração e fechamento
 
