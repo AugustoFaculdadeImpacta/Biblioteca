@@ -3,7 +3,6 @@
 import asyncio
 import unicodedata
 import os
-import time
 from urllib.parse import quote
 from datetime import datetime, timezone
 from functools import wraps
@@ -87,14 +86,19 @@ from biblioteca_mais_nova.staff_reservations import (
     find_student_by_email,
     staff_reservation_error_message,
 )
+from biblioteca_mais_nova.xano_diagnostics import (
+    XanoDiagnosticResult,
+    diagnose_xano,
+    format_xano_diagnostic_report,
+)
 from biblioteca_mais_nova.xano_client import (
-    XanoClient,
     XanoConfigurationError,
     XanoInvalidResponseError,
     XanoRequestError,
     XanoResponseError,
     XanoTimeoutError,
     XanoWriteSucceededWithUnreadableResponse,
+    contexto_evento_xano,
     diagnosticar_pagina_xano,
     registrar_excecao_backend,
     registrar_resultado_xano,
@@ -176,6 +180,8 @@ class State(rx.State):
     connection_test_pending: bool = False
     connection_test_message: str = ""
     connection_test_has_error: bool = False
+    connection_diagnostic_results: list[XanoDiagnosticResult] = []
+    connection_diagnostic_report: str = ""
     example_seed_pending: bool = False
     example_seed_confirming: bool = False
     example_seed_preview_ready: bool = False
@@ -2316,78 +2322,52 @@ class State(rx.State):
         await self._refresh_admin_catalog()
 
     @rx.event
+    @diagnosticar_pagina_xano("perfil_diagnostico")
     async def test_xano_connection(self):
-        if not self._is_admin():
-            return self._redirect_non_admin()
+        if not self._session_token:
+            return rx.redirect("/login")
+        if self._session_profile not in {"estudante", "bibliotecario", "admin"}:
+            return rx.redirect("/")
         if self.connection_test_pending:
             return
 
         self.connection_test_pending = True
         self.connection_test_has_error = False
         self.connection_test_message = "Testando..."
-
-        public_paths = (
-            "/catalogo/titulos",
-            "/catalogo/categorias",
-            "/catalogo/titulos",
-            "/catalogo/categorias",
-            "/catalogo/titulos",
-        )
-        successful = 0
-        slowest_ms = 0
-        first_error_code: int | None = None
-
+        self.connection_diagnostic_results = []
+        self.connection_diagnostic_report = ""
         try:
-            for path in public_paths:
-                started_at = time.perf_counter()
-                client = XanoClient.from_environment()
-                try:
-                    response = await client.request("GET", path)
-                    duration_ms = round(
-                        (time.perf_counter() - started_at) * 1000
-                    )
-                    slowest_ms = max(slowest_ms, duration_ms)
-                    if response.status_code < 400:
-                        successful += 1
-                except XanoResponseError as error:
-                    duration_ms = round(
-                        (time.perf_counter() - started_at) * 1000
-                    )
-                    slowest_ms = max(slowest_ms, duration_ms)
-                    if first_error_code is None:
-                        first_error_code = error.status_code
-                except (XanoTimeoutError, XanoRequestError, XanoConfigurationError):
-                    duration_ms = round(
-                        (time.perf_counter() - started_at) * 1000
-                    )
-                    slowest_ms = max(slowest_ms, duration_ms)
-                    if first_error_code is None:
-                        first_error_code = 0
+            with contexto_evento_xano("testar_conexao", self._session_profile):
+                results = await diagnose_xano(
+                    self._session_profile,
+                    self._session_token,
+                )
+            self.connection_diagnostic_results = results
+            self.connection_diagnostic_report = format_xano_diagnostic_report(
+                results
+            )
         finally:
             self.connection_test_pending = False
 
-        if successful == 5:
-            self.connection_test_message = (
-                f"{successful} de 5 leituras deram certo. "
-                f"A mais lenta levou {slowest_ms} ms."
-            )
-        else:
-            error_label = (
-                f"Primeiro código de erro: {first_error_code}"
-                if first_error_code not in (None, 0)
-                else "Primeiro código de erro: sem código"
-            )
-            limit_hint = (
-                " Se aparecer 429, o plano do Xano está limitando as chamadas."
-                if first_error_code == 429
-                else ""
-            )
-            self.connection_test_message = (
-                f"{successful} de 5 leituras deram certo. "
-                f"A mais lenta levou {slowest_ms} ms. "
-                f"{error_label}.{limit_hint}"
-            )
-            self.connection_test_has_error = True
+        successful = sum(
+            result["status"] == "HTTP 200"
+            and result["validation"] == "válida"
+            for result in results
+        )
+        slowest_ms = max(
+            (result["duration_ms"] for result in results),
+            default=0,
+        )
+        self.connection_test_has_error = successful != len(results)
+        limit_hint = (
+            " O Xano limitou as chamadas se algum resultado for HTTP 429."
+            if any(result["status"] == "HTTP 429" for result in results)
+            else ""
+        )
+        self.connection_test_message = (
+            f"{successful} de {len(results)} leituras foram validadas. "
+            f"A mais lenta levou {slowest_ms} ms.{limit_hint}"
+        )
 
     @rx.event
     async def preview_example_books(self):
@@ -5646,10 +5626,129 @@ def profile_page() -> rx.Component:
                 id="conteudo-perfil",
                 class_name="content-section signup-section",
             ),
+            rx.cond(
+                State.is_authenticated,
+                rx.el.section(
+                    rx.heading("Diagnóstico da comunicação", size="5"),
+                    rx.text(
+                        "Executa somente leituras públicas e autorizadas pelo "
+                        "seu perfil. O relatório mostra estrutura e tipos, sem "
+                        "valores pessoais."
+                    ),
+                    rx.button(
+                        conteudo_acao("diagnostico", "Testar conexão"),
+                        type="button",
+                        on_click=State.test_xano_connection,
+                        disabled=State.connection_test_pending,
+                        class_name="nav-logout",
+                        **atributos_acao("diagnostico", "Testar conexão"),
+                    ),
+                    rx.cond(
+                        State.connection_test_message != "",
+                        rx.el.p(
+                            State.connection_test_message,
+                            role=rx.cond(
+                                State.connection_test_has_error,
+                                "alert",
+                                "status",
+                            ),
+                            aria_live="polite",
+                            class_name=rx.cond(
+                                State.connection_test_has_error,
+                                "signup-feedback signup-feedback-error",
+                                "signup-feedback signup-feedback-success",
+                            ),
+                        ),
+                        rx.fragment(),
+                    ),
+                    rx.cond(
+                        State.connection_diagnostic_report != "",
+                        rx.fragment(
+                            rx.el.div(
+                                rx.el.table(
+                                    rx.el.caption(
+                                        "Resultados estruturais das leituras"
+                                    ),
+                                    rx.el.thead(
+                                        rx.el.tr(
+                                            rx.el.th("Consulta", scope="col"),
+                                            rx.el.th("HTTP", scope="col"),
+                                            rx.el.th("Duração", scope="col"),
+                                            rx.el.th("Topo", scope="col"),
+                                            rx.el.th("Registros", scope="col"),
+                                            rx.el.th("Campos e tipos", scope="col"),
+                                            rx.el.th("Validação", scope="col"),
+                                            rx.el.th(
+                                                "Problemas e motivo",
+                                                scope="col",
+                                            ),
+                                            rx.el.th("Referência", scope="col"),
+                                        )
+                                    ),
+                                    rx.el.tbody(
+                                        rx.foreach(
+                                            State.connection_diagnostic_results,
+                                            xano_diagnostic_table_row,
+                                        )
+                                    ),
+                                    class_name="xano-diagnostic-table",
+                                ),
+                                style={"overflow_x": "auto", "width": "100%"},
+                            ),
+                            rx.button(
+                                conteudo_acao(
+                                    "copiar_relatorio",
+                                    complemento="Copiar relatório",
+                                ),
+                                type="button",
+                                on_click=rx.set_clipboard(
+                                    State.connection_diagnostic_report
+                                ),
+                                class_name="nav-logout",
+                                **atributos_acao(
+                                    "copiar_relatorio",
+                                    "Copiar relatório",
+                                ),
+                            ),
+                            rx.el.pre(
+                                State.connection_diagnostic_report,
+                                class_name="xano-diagnostic-report",
+                                style={
+                                    "white_space": "pre-wrap",
+                                    "overflow_wrap": "anywhere",
+                                },
+                            ),
+                        ),
+                        rx.fragment(),
+                    ),
+                    class_name="content-section profile-xano-diagnostic",
+                ),
+                rx.fragment(),
+            ),
             class_name="main-content",
         ),
         site_footer(),
         class_name="app-shell",
+    )
+
+
+def xano_diagnostic_table_row(
+    result: rx.Var[XanoDiagnosticResult],
+) -> rx.Component:
+    return rx.el.tr(
+        rx.el.td(result["name"]),
+        rx.el.td(result["status"]),
+        rx.el.td(result["duration_ms"], " ms"),
+        rx.el.td(result["top_type"]),
+        rx.el.td(result["record_count"]),
+        rx.el.td(result["fields"]),
+        rx.el.td(result["validation"]),
+        rx.el.td(
+            result["problematic_fields"],
+            ": ",
+            result["reason"],
+        ),
+        rx.el.td(result["reference"]),
     )
 
 
@@ -6455,39 +6554,6 @@ def catalog_admin() -> rx.Component:
                 class_name="content-section admin-acervo-content",
             ),
             example_books_import_section(),
-            rx.cond(
-                State.can_manage_librarians,
-                rx.el.section(
-                    rx.button(
-                        conteudo_acao("diagnostico", "Testar conexão"),
-                        type="button",
-                        on_click=State.test_xano_connection,
-                        disabled=State.connection_test_pending,
-                        class_name="nav-logout",
-                        **atributos_acao("diagnostico", "Testar conexão"),
-                    ),
-                    rx.cond(
-                        State.connection_test_message != "",
-                        rx.el.p(
-                            State.connection_test_message,
-                            role=rx.cond(
-                                State.connection_test_has_error,
-                                "alert",
-                                "status",
-                            ),
-                            aria_live="polite",
-                            class_name=rx.cond(
-                                State.connection_test_has_error,
-                                "signup-feedback signup-feedback-error",
-                                "signup-feedback signup-feedback-success",
-                            ),
-                        ),
-                        rx.fragment(),
-                    ),
-                    class_name="content-section admin-connection-test",
-                ),
-                rx.fragment(),
-            ),
             rx.el.section(
                 rx.heading("Acervo completo", size="6"),
                 rx.text(

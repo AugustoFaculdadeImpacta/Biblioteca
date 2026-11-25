@@ -986,9 +986,28 @@ def test_admin_catalog_edits_titles_and_adds_copies_without_repeating_writes(
     asyncio.run(verify())
 
 
-def test_connection_tool_reports_five_successful_public_reads(monkeypatch):
-    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+def test_connection_tool_reports_successful_admin_diagnostic(monkeypatch):
     calls = []
+
+    async def diagnose(profile, token):
+        calls.append((profile, token))
+        return [
+            {
+                "name": f"Leitura {index + 1}",
+                "status": "HTTP 200",
+                "duration_ms": index,
+                "top_type": "lista",
+                "record_count": 0,
+                "fields": "—",
+                "validation": "válida",
+                "problematic_fields": "—",
+                "reason": "—",
+                "reference": "—",
+            }
+            for index in range(7)
+        ]
+
+    monkeypatch.setattr(frontend, "diagnose_xano", diagnose)
 
     async def verify():
         async with frontend.app.modify_state(
@@ -999,44 +1018,39 @@ def test_connection_tool_reports_five_successful_public_reads(monkeypatch):
         ) as root:
             state = await root.get_state(frontend.State)
             state._store_session("token-admin", "admin")
-            original_request = frontend.XanoClient.request
-
-            async def mocked_request(client, method, path, **kwargs):
-                calls.append((method, path))
-                return httpx.Response(
-                    200,
-                    json=[],
-                    headers={"content-type": "application/json"},
-                )
-
-            monkeypatch.setattr(frontend.XanoClient, "request", mocked_request)
-            try:
-                await state.test_xano_connection()
-            finally:
-                monkeypatch.setattr(
-                    frontend.XanoClient,
-                    "request",
-                    original_request,
-                )
+            await state.test_xano_connection()
 
             assert state.connection_test_pending is False
             assert state.connection_test_has_error is False
-            assert "5 de 5 leituras deram certo" in state.connection_test_message
+            assert "7 de 7 leituras foram validadas" in state.connection_test_message
             assert "A mais lenta levou" in state.connection_test_message
 
     asyncio.run(verify())
-    assert calls == [
-        ("GET", "/catalogo/titulos"),
-        ("GET", "/catalogo/categorias"),
-        ("GET", "/catalogo/titulos"),
-        ("GET", "/catalogo/categorias"),
-        ("GET", "/catalogo/titulos"),
-    ]
+    assert calls == [("admin", "token-admin")]
 
 
 def test_connection_tool_reports_429_hint(monkeypatch):
-    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
     calls = []
+
+    async def diagnose(profile, token):
+        calls.append((profile, token))
+        return [
+            {
+                "name": f"Leitura {index + 1}",
+                "status": "HTTP 429",
+                "duration_ms": index,
+                "top_type": "indisponível",
+                "record_count": 0,
+                "fields": "—",
+                "validation": "inválida",
+                "problematic_fields": "resposta",
+                "reason": "consulta recusada pelo servidor (HTTP 429)",
+                "reference": "ABCDE",
+            }
+            for index in range(7)
+        ]
+
+    monkeypatch.setattr(frontend, "diagnose_xano", diagnose)
 
     async def verify():
         async with frontend.app.modify_state(
@@ -1047,57 +1061,91 @@ def test_connection_tool_reports_429_hint(monkeypatch):
         ) as root:
             state = await root.get_state(frontend.State)
             state._store_session("token-admin", "admin")
-            original_request = frontend.XanoClient.request
-
-            async def mocked_request(client, method, path, **kwargs):
-                calls.append((method, path))
-                raise frontend.XanoResponseError(429)
-
-            monkeypatch.setattr(frontend.XanoClient, "request", mocked_request)
-            try:
-                await state.test_xano_connection()
-            finally:
-                monkeypatch.setattr(
-                    frontend.XanoClient,
-                    "request",
-                    original_request,
-                )
+            await state.test_xano_connection()
 
             assert state.connection_test_pending is False
             assert state.connection_test_has_error is True
-            assert "0 de 5 leituras deram certo" in state.connection_test_message
-            assert "Primeiro código de erro: 429" in state.connection_test_message
-            assert (
-                "o plano do Xano está limitando as chamadas"
-                in state.connection_test_message
+            assert "0 de 7 leituras foram validadas" in state.connection_test_message
+            assert "HTTP 429" in state.connection_test_message
+            assert all(
+                result["status"] == "HTTP 429"
+                for result in state.connection_diagnostic_results
             )
 
     asyncio.run(verify())
-    assert len(calls) == 5
-    assert all(method == "GET" for method, _ in calls)
+    assert calls == [("admin", "token-admin")]
 
 
-@pytest.mark.parametrize("profile", ["", "estudante", "bibliotecario"])
-def test_connection_tool_is_hidden_and_rejects_non_admin(profile):
+@pytest.mark.parametrize("profile", ["estudante", "bibliotecario", "admin"])
+def test_connection_tool_is_available_in_profile_for_authenticated_roles(
+    monkeypatch,
+    profile,
+):
+    calls = []
+
+    async def diagnose(role, token):
+        calls.append((role, token))
+        return [
+            {
+                "name": "Leitura simulada",
+                "status": "HTTP 200",
+                "duration_ms": 1,
+                "top_type": "lista",
+                "record_count": 0,
+                "fields": "—",
+                "validation": "válida",
+                "problematic_fields": "—",
+                "reason": "—",
+                "reference": "—",
+            }
+        ]
+
+    monkeypatch.setattr(frontend, "diagnose_xano", diagnose)
+
     async def verify():
         async with frontend.app.modify_state(
             BaseStateToken(
-                ident=f"connection-hidden-{uuid4()}",
+                ident=f"connection-profile-{profile}-{uuid4()}",
                 cls=rx.State,
             )
         ) as root:
             state = await root.get_state(frontend.State)
-            if profile:
-                state._store_session("token-falso", profile)
+            state._store_session("token-falso", profile)
 
-            rendered = repr(frontend.catalog_admin())
-            assert "test_xano_connection" in rendered
+            assert "test_xano_connection" in repr(frontend.profile_page())
+            assert "test_xano_connection" not in repr(frontend.catalog_admin())
 
+            await state.test_xano_connection()
+            assert state.connection_test_pending is False
+            assert "1 de 1 leituras foram validadas" in state.connection_test_message
+
+    asyncio.run(verify())
+    assert calls == [(profile, "token-falso")]
+
+
+def test_connection_tool_rejects_unauthenticated_user(monkeypatch):
+    calls = []
+
+    async def diagnose(role, token):
+        calls.append((role, token))
+        return []
+
+    monkeypatch.setattr(frontend, "diagnose_xano", diagnose)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(
+                ident=f"connection-anonymous-{uuid4()}",
+                cls=rx.State,
+            )
+        ) as root:
+            state = await root.get_state(frontend.State)
             await state.test_xano_connection()
             assert state.connection_test_pending is False
             assert state.connection_test_message == ""
 
     asyncio.run(verify())
+    assert calls == []
 
 
 def test_uncertain_copy_creation_requires_manual_review_before_retry(

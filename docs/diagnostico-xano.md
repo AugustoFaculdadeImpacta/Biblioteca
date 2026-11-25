@@ -1,18 +1,21 @@
 # Diagnóstico da comunicação com o Xano
 
-## Ativação
+## Logs no terminal
 
-O diagnóstico fica desligado por padrão. Para habilitá-lo, defina
-`BIBLIOTECA_DIAGNOSTICO=1` somente no ambiente do processo backend. As mensagens
-vão para o terminal; nunca são mostradas na interface. Remova a variável para
-desabilitar os registros.
+Blocos de falha são registrados no `stderr` por padrão. Defina
+`BIBLIOTECA_LOG_ERROS=0` no ambiente do processo backend para desligá-los.
+Registros de chamadas bem-sucedidas permanecem desligados por padrão e podem
+ser habilitados com `BIBLIOTECA_DIAGNOSTICO=1`. Os logs vão somente para o
+terminal do backend; nunca são mostrados na interface.
 
 Cada tentativa registra método, caminho relativo sem query string, status HTTP
 ou tipo da falha, duração, tipo de conteúdo, tamanho da resposta, número da
 tentativa e classe da exceção de transporte, quando houver. O corpo e os
 cabeçalhos da resposta, parâmetros de consulta, URL de origem, token, e-mail e
-senha não são registrados. Ao terminar um carregamento de página, é emitido um
-resumo com a rota, o total de tentativas ao Xano e quantas falharam.
+senha não são registrados. Blocos de falha incluem uma referência para
+correlacionar o terminal com a mensagem apresentada após uma ação. Ao terminar
+um carregamento de página, é emitido um resumo com a rota, o total de tentativas
+ao Xano e quantas falharam.
 
 Rotas instrumentadas:
 
@@ -20,6 +23,7 @@ Rotas instrumentadas:
 | --- | --- |
 | Início | `home` |
 | Catálogo público | `catalogo` |
+| Diagnóstico pelo Perfil | `perfil_diagnostico` |
 | Detalhe do título | `detalhe` |
 | Reservas do estudante | `reservas` |
 | Acervo | `acervo` |
@@ -37,6 +41,7 @@ externo, evitando resumos duplicados para uma única navegação.
 | `/` | catálogo público e categorias; consulta pessoal apenas para estudante autenticado ou dados operacionais somente de visão bibliotecária | Empréstimos, pedidos e reservas somente com sessão própria | catálogo/categorias reutilizados por 60 s; indicadores independentes |
 | `/catalogo` | catálogo público e categorias | Nenhum | catálogo/categorias reutilizados por 60 s |
 | `/catalogo/<id>` | título público e categorias | Nenhum | categorias reutilizadas por 60 s; pendência termina em `finally` |
+| `/perfil` | nenhuma chamada automática; “Testar conexão” consulta endpoints públicos e os autorizados ao perfil | Token próprio somente nas leituras privadas; admin inclui contas bibliotecárias | relatório estrutural temporário, sem valores nem persistência |
 | `/reservas` | empréstimos, pedidos e reservas próprios; catálogo para nomes | Somente com token de estudante ou admin em visão estudante | sem cache autenticado; falha encerra `pending` |
 | `/admin/acervo` | categorias e acervo administrativo | Somente com sessão administrativa/bibliotecária | categorias públicas reutilizadas por 60 s; acervo autenticado não é cacheado |
 | `/admin/bibliotecarios` | contas bibliotecárias | Somente com sessão admin | sem cache autenticado |
@@ -47,6 +52,27 @@ públicos antes da próxima leitura. Navegar entre rotas públicas reutiliza
 catálogo e categorias durante até 60 segundos no processo. Dados pessoais,
 autorizados por token ou perfil, nunca entram nesse cache compartilhado.
 
+## Diagnóstico somente leitura pelo Perfil
+
+Em `/perfil`, uma pessoa autenticada pode acionar “Testar conexão”. A ação não
+faz gravações e envia o token da sessão somente às leituras privadas permitidas
+ao perfil:
+
+- Estudante: catálogo e categorias públicos, além de empréstimos, solicitações
+  e reservas próprias.
+- Bibliotecário: catálogo e categorias públicos, acervo e listas operacionais
+  administrativas permitidas ao perfil.
+- Admin: as mesmas leituras operacionais e, adicionalmente, a lista de contas
+  bibliotecárias.
+
+A tabela informa consulta, status HTTP, duração, tipo do topo JSON, quantidade
+de registros, nomes e tipos dos campos do primeiro registro, validação,
+campos problemáticos, motivo e referência do log quando houver. O relatório
+copiável contém somente esses metadados; não inclui valores dos campos, e-mails,
+identificadores pessoais, token, corpo da resposta nem URL do Xano. Respostas
+HTTP recusadas e corpos não JSON mostram apenas o status e a condição, sem
+reproduzir o conteúdo recebido.
+
 ## Comparação local do PATCH de desativação
 
 O arquivo local [xano/api/default/catalogo/titulos_id_PATCH.xs](../xano/api/default/catalogo/titulos_id_PATCH.xs)
@@ -54,8 +80,9 @@ declara `bool ativo?` na entrada. Quando recebe valor, adiciona `ativo` ao mapa
 `dados_atualizacao`, passa esse mapa ao `db.patch titulo` e devolve
 `ativo: $titulo_atualizado.ativo`. O cliente envia `ativo` no corpo quando a
 operação o fornece e a interface compara o valor da resposta com uma releitura
-do acervo. Não foi feito pull remoto nem acesso a outro workspace para
-confrontar uma referência externa; não havia destino inequívoco confirmado.
+do acervo. A comparação foi feita contra a cópia remota local de referência já
+existente; não foi feito novo pull nem escrita remota. A análise e os passos
+manuais estão em [xano-correcao-ativo.md](./xano-correcao-ativo.md).
 
 ## Concorrência e repetição
 
