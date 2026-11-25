@@ -40,6 +40,10 @@ _LAST_RESPONSE: contextvars.ContextVar[httpx.Response | None] = contextvars.Cont
 _EVENT_CONTEXT: contextvars.ContextVar[tuple[str, str] | None] = contextvars.ContextVar(
     "xano_event_context", default=None
 )
+_DEFER_FAILURE_LOG: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "xano_defer_failure_log",
+    default=False,
+)
 _SEMAPHORES: WeakKeyDictionary[
     asyncio.AbstractEventLoop, asyncio.Semaphore
 ] = WeakKeyDictionary()
@@ -128,13 +132,22 @@ class XanoInvalidResponseError(XanoRequestError):
         message: str = "O Xano respondeu em formato inesperado.",
         *,
         reference: str | None = None,
+        field: str | None = None,
+        reason: str | None = None,
     ) -> None:
-        _record_failure()
+        self.field = field
+        self.reason = reason or message
+        if not _DEFER_FAILURE_LOG.get():
+            _record_failure()
         response = _LAST_RESPONSE.get()
-        if reference is None and response is not None:
+        if (
+            reference is None
+            and response is not None
+            and not _DEFER_FAILURE_LOG.get()
+        ):
             reference = _log_response_failure(
                 response,
-                "resposta 2xx ilegível ou incompatível",
+                _invalid_response_result(self, 0),
             )
         super().__init__(message, reference=reference)
 
@@ -190,6 +203,15 @@ def contexto_evento_xano(action: str, profile: str) -> Generator[None, None, Non
         yield
     finally:
         _EVENT_CONTEXT.reset(token)
+
+
+@contextmanager
+def adiar_log_falha_xano() -> Generator[None, None, None]:
+    token = _DEFER_FAILURE_LOG.set(True)
+    try:
+        yield
+    finally:
+        _DEFER_FAILURE_LOG.reset(token)
 
 
 def _new_reference() -> str:
@@ -380,10 +402,37 @@ def _log_response_failure(response: httpx.Response, result: str) -> str:
         method=method,
         path=path,
         status=response.status_code,
-        duration_ms=0,
+        duration_ms=int(response.extensions.get("xano_duration_ms", 0)),
         response=response,
         request=request,
         result=result,
+    )
+
+
+def _invalid_response_result(
+    error: XanoInvalidResponseError,
+    record_index: int,
+) -> str:
+    field = error.field or "estrutura"
+    reason = (
+        error.reason
+        if error.field is not None
+        else "formato incompatível"
+    )
+    return f"registro {record_index}, campo {field}: {reason}"
+
+
+def registrar_falha_parse_xano(
+    error: XanoInvalidResponseError,
+    record_index: int,
+) -> str | None:
+    _record_failure()
+    response = _LAST_RESPONSE.get()
+    if response is None:
+        return error.reference
+    return _log_response_failure(
+        response,
+        _invalid_response_result(error, record_index),
     )
 
 
@@ -506,8 +555,12 @@ def parse_xano_write_response(
 ) -> _R:
     """Interpreta a resposta de uma escrita sem converter 2xx em falha."""
     try:
-        return parser(parse_xano_response_json(response))
+        payload = parse_xano_response_json(response)
+        with adiar_log_falha_xano():
+            return parser(payload)
     except XanoInvalidResponseError as error:
+        if error.reference is None:
+            error.reference = registrar_falha_parse_xano(error, 0)
         raise XanoWriteSucceededWithUnreadableResponse(
             reference=error.reference,
         ) from None
@@ -867,6 +920,7 @@ class XanoClient:
                 ) from None
 
             duration_ms = round((time.perf_counter() - started_at) * 1000)
+            response.extensions["xano_duration_ms"] = duration_ms
             if response.is_error:
                 _record_failure()
                 public_detail, non_json_response, _ = _error_detail(response)

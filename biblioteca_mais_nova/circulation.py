@@ -17,6 +17,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoInvalidResponseError,
     XanoRequestError,
     XanoResponseError,
+    adiar_log_falha_xano,
     parse_xano_response_json,
     parse_xano_write_response,
     xano_message_with_reference,
@@ -103,94 +104,246 @@ def _positive_id(value: object) -> bool:
     return type(value) is int and value > 0
 
 
+def _parse_field(
+    field: str,
+    value: object,
+    parser: Callable[[object], Record],
+    reason: str,
+) -> Record:
+    try:
+        with adiar_log_falha_xano():
+            return parser(value)
+    except XanoInvalidResponseError:
+        raise XanoInvalidResponseError(
+            field=field,
+            reason=reason,
+        ) from None
+
+
 def _parse_loan(value: object) -> Loan:
-    if (
-        not isinstance(value, dict)
-        or "retirado_em" not in value
-        or "vence_em" not in value
-    ):
+    if not isinstance(value, dict):
         raise _response_error()
+    for field in ("retirado_em", "vence_em"):
+        if field not in value:
+            raise XanoInvalidResponseError(
+                field=field,
+                reason="campo obrigatório ausente",
+            )
 
     loan: Loan = {
-        "id": parse_xano_id(value.get("id")),
-        "usuario_id": parse_xano_id(value.get("usuario_id")),
-        "exemplar_id": parse_xano_id(value.get("exemplar_id")),
-        "retirado_em": parse_xano_timestamp(value.get("retirado_em")),
-        "vence_em": parse_xano_timestamp(value.get("vence_em")),
-        "devolvido_em": parse_xano_timestamp(value.get("devolvido_em")),
+        "id": _parse_field(
+            "id", value.get("id"), parse_xano_id, "valor não é um id válido"
+        ),
+        "usuario_id": _parse_field(
+            "usuario_id",
+            value.get("usuario_id"),
+            parse_xano_id,
+            "valor não é um id válido",
+        ),
+        "exemplar_id": _parse_field(
+            "exemplar_id",
+            value.get("exemplar_id"),
+            parse_xano_id,
+            "valor não é um id válido",
+        ),
+        "retirado_em": _parse_field(
+            "retirado_em",
+            value.get("retirado_em"),
+            parse_xano_timestamp,
+            "valor não é uma data válida",
+        ),
+        "vence_em": _parse_field(
+            "vence_em",
+            value.get("vence_em"),
+            parse_xano_timestamp,
+            "valor não é uma data válida",
+        ),
+        "devolvido_em": _parse_field(
+            "devolvido_em",
+            value.get("devolvido_em"),
+            parse_xano_timestamp,
+            "valor não é uma data válida",
+        ),
     }
     request_id = value.get("solicitacao_id")
-    loan["solicitacao_id"] = parse_optional_xano_id(request_id)
+    loan["solicitacao_id"] = _parse_field(
+        "solicitacao_id",
+        request_id,
+        parse_optional_xano_id,
+        "valor não é um id válido ou ausência (0/null)",
+    )
     return loan
 
 
 def _parse_request(value: object) -> LoanRequest:
-    if (
-        not isinstance(value, dict)
-        or not isinstance(value.get("estado"), str)
-        or value["estado"] not in {"pendente", "em_reserva", "atendida", "recusada"}
-    ):
+    if not isinstance(value, dict):
         raise _response_error()
+    if not isinstance(value.get("estado"), str):
+        raise XanoInvalidResponseError(
+            field="estado",
+            reason="valor precisa ser texto",
+        )
 
     request: LoanRequest = {
-        "id": parse_xano_id(value.get("id")),
-        "usuario_id": parse_xano_id(value.get("usuario_id")),
-        "titulo_id": parse_xano_id(value.get("titulo_id")),
+        "id": _parse_field(
+            "id", value.get("id"), parse_xano_id, "valor não é um id válido"
+        ),
+        "usuario_id": _parse_field(
+            "usuario_id",
+            value.get("usuario_id"),
+            parse_xano_id,
+            "valor não é um id válido",
+        ),
+        "titulo_id": _parse_field(
+            "titulo_id",
+            value.get("titulo_id"),
+            parse_xano_id,
+            "valor não é um id válido",
+        ),
         "estado": value["estado"],
-        "solicitada_em": parse_xano_timestamp(value.get("solicitada_em")),
-        "reserva_id": parse_optional_xano_id(value.get("reserva_id")),
-        "atendida_em": parse_xano_timestamp(value.get("atendida_em")),
+        "solicitada_em": _parse_field(
+            "solicitada_em",
+            value.get("solicitada_em"),
+            parse_xano_timestamp,
+            "valor não é uma data válida",
+        ),
+        "reserva_id": _parse_field(
+            "reserva_id",
+            value.get("reserva_id"),
+            parse_optional_xano_id,
+            "valor não é um id válido ou ausência (0/null)",
+        ),
+        "atendida_em": _parse_field(
+            "atendida_em",
+            value.get("atendida_em"),
+            parse_xano_timestamp,
+            "valor não é uma data válida",
+        ),
     }
     return request
 
 
 def _parse_reservation(value: object) -> Reservation:
-    if (
-        not isinstance(value, dict)
-        or "criada_em" not in value
-        or not isinstance(value.get("estado"), str)
-        or value["estado"]
-        not in {"aguardando", "ofertada", "retirada", "expirada", "recusada"}
-    ):
+    if not isinstance(value, dict):
         raise _response_error()
+    if "criada_em" not in value:
+        raise XanoInvalidResponseError(
+            field="criada_em",
+            reason="campo obrigatório ausente",
+        )
+    if not isinstance(value.get("estado"), str):
+        raise XanoInvalidResponseError(
+            field="estado",
+            reason="valor precisa ser texto",
+        )
 
     return {
-        "id": parse_xano_id(value.get("id")),
-        "usuario_id": parse_xano_id(value.get("usuario_id")),
-        "titulo_id": parse_xano_id(value.get("titulo_id")),
-        "criada_em": parse_xano_timestamp(value.get("criada_em")),
+        "id": _parse_field(
+            "id", value.get("id"), parse_xano_id, "valor não é um id válido"
+        ),
+        "usuario_id": _parse_field(
+            "usuario_id",
+            value.get("usuario_id"),
+            parse_xano_id,
+            "valor não é um id válido",
+        ),
+        "titulo_id": _parse_field(
+            "titulo_id",
+            value.get("titulo_id"),
+            parse_xano_id,
+            "valor não é um id válido",
+        ),
+        "criada_em": _parse_field(
+            "criada_em",
+            value.get("criada_em"),
+            parse_xano_timestamp,
+            "valor não é uma data válida",
+        ),
         "estado": value["estado"],
-        "exemplar_id": parse_optional_xano_id(value.get("exemplar_id")),
-        "ofertada_em": parse_xano_timestamp(value.get("ofertada_em")),
-        "expira_em": parse_xano_timestamp(value.get("expira_em")),
-        "expira_em_sao_paulo": _parse_local_timestamp(
-            value.get("expira_em_sao_paulo")
+        "exemplar_id": _parse_field(
+            "exemplar_id",
+            value.get("exemplar_id"),
+            parse_optional_xano_id,
+            "valor não é um id válido ou ausência (0/null)",
+        ),
+        "ofertada_em": _parse_field(
+            "ofertada_em",
+            value.get("ofertada_em"),
+            parse_xano_timestamp,
+            "valor não é uma data válida",
+        ),
+        "expira_em": _parse_field(
+            "expira_em",
+            value.get("expira_em"),
+            parse_xano_timestamp,
+            "valor não é uma data válida",
+        ),
+        "expira_em_sao_paulo": _parse_field(
+            "expira_em_sao_paulo",
+            value.get("expira_em_sao_paulo"),
+            _parse_local_timestamp,
+            "valor não é uma data local válida",
         ),
     }
 
 
 def _parse_admin_loan(value: object) -> AdminLoan:
-    if (
-        not isinstance(value, dict)
-        or not isinstance(value.get("usuario_nome"), str)
-        or not value["usuario_nome"].strip()
-        or not isinstance(value.get("titulo"), str)
-        or not value["titulo"].strip()
-        or not isinstance(value.get("autores"), str)
-        or "retirado_em" not in value
-        or "vence_em" not in value
-    ):
+    if not isinstance(value, dict):
         raise _response_error()
+    for field in ("retirado_em", "vence_em"):
+        if field not in value:
+            raise XanoInvalidResponseError(
+                field=field,
+                reason="campo obrigatório ausente",
+            )
+    for field in ("usuario_nome", "titulo", "autores"):
+        if not isinstance(value.get(field), str):
+            raise XanoInvalidResponseError(
+                field=field,
+                reason="valor precisa ser texto",
+            )
+        if field != "autores" and not value[field].strip():
+            raise XanoInvalidResponseError(
+                field=field,
+                reason="valor não pode ser vazio",
+            )
     return {
-        "id": parse_xano_id(value.get("id")),
-        "usuario_id": parse_xano_id(value.get("usuario_id")),
+        "id": _parse_field(
+            "id", value.get("id"), parse_xano_id, "valor não é um id válido"
+        ),
+        "usuario_id": _parse_field(
+            "usuario_id",
+            value.get("usuario_id"),
+            parse_xano_id,
+            "valor não é um id válido",
+        ),
         "usuario_nome": value["usuario_nome"],
-        "titulo_id": parse_xano_id(value.get("titulo_id")),
+        "titulo_id": _parse_field(
+            "titulo_id",
+            value.get("titulo_id"),
+            parse_xano_id,
+            "valor não é um id válido",
+        ),
         "titulo": value["titulo"],
         "autores": value["autores"],
-        "exemplar_id": parse_xano_id(value.get("exemplar_id")),
-        "retirado_em": parse_xano_timestamp(value.get("retirado_em")),
-        "vence_em": parse_xano_timestamp(value.get("vence_em")),
+        "exemplar_id": _parse_field(
+            "exemplar_id",
+            value.get("exemplar_id"),
+            parse_xano_id,
+            "valor não é um id válido",
+        ),
+        "retirado_em": _parse_field(
+            "retirado_em",
+            value.get("retirado_em"),
+            parse_xano_timestamp,
+            "valor não é uma data válida",
+        ),
+        "vence_em": _parse_field(
+            "vence_em",
+            value.get("vence_em"),
+            parse_xano_timestamp,
+            "valor não é uma data válida",
+        ),
     }
 
 

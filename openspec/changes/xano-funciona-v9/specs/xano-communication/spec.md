@@ -11,7 +11,7 @@ O sistema MUST interpretar listas de respostas autenticadas sem rejeitar registr
 
 #### Scenario: Valores compatíveis
 - **WHEN** um registro contém identificador inteiro ou numérico em texto, data ISO ou numérica em segundos/milissegundos, booleano `true`/`false`, `1`/`0` ou `"true"`/`"false"`, ou texto opcional nulo
-- **THEN** a interface normaliza esses valores; datas `null` e `0` significam ausência de data, e campos opcionais ausentes resultam em `None`
+- **THEN** a interface normaliza esses valores; datas e IDs opcionais `null` e `0` significam ausência (`None`), IDs obrigatórios continuam positivos, campos opcionais ausentes resultam em `None`, e estados textuais não reconhecidos são preservados sem descartar o registro
 
 #### Scenario: Registro ilegível
 - **WHEN** um registro não pode ser interpretado sem invalidar os demais
@@ -35,6 +35,10 @@ O sistema MUST tratar escrita HTTP 2xx com resposta ilegível como concluída co
 #### Scenario: Escrita incerta não é repetida
 - **WHEN** uma escrita termina sem corpo interpretável
 - **THEN** nenhuma repetição automática de POST ou PATCH é iniciada
+
+#### Scenario: Erro estrutural identifica o campo
+- **WHEN** uma resposta 2xx contém um registro incompatível com o contrato
+- **THEN** o log sanitizado indica índice do registro, campo e motivo em um único bloco por chamada, com duração medida e ação/perfil da sessão quando disponíveis
 
 ### Requirement: Diagnóstico no site respeita sessão, perfil e privacidade
 O sistema MUST oferecer a usuários autenticados um relatório somente leitura que execute apenas consultas públicas ou autorizadas ao próprio perfil.

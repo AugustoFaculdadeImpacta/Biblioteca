@@ -603,7 +603,7 @@ def test_incompatible_success_shape_is_logged_with_reference(monkeypatch, capsys
     output = capsys.readouterr().err
     assert error.value.reference is not None
     assert f"ref={error.value.reference}" in output
-    assert "resposta 2xx ilegível ou incompatível" in output
+    assert "registro 0, campo estrutura: formato incompatível" in output
 
 
 def test_failure_logging_can_be_disabled(monkeypatch, capsys):

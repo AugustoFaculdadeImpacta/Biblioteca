@@ -1,6 +1,7 @@
 import asyncio
 import json
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -219,11 +220,55 @@ def test_loan_parser_accepts_null_zero_and_timestamp_returned_values(
     assert records[0]["devolvido_em"] == expected
 
 
+def test_optional_circulation_ids_and_timestamps_treat_zero_as_absent(monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    loan = _loan_records(0)[0]
+    loan["solicitacao_id"] = 0
+    loan["retirado_em"] = 0
+    loan["vence_em"] = 0
+    reservation = _reservation_records()[0]
+    reservation["exemplar_id"] = 0
+    reservation["ofertada_em"] = 0
+    reservation["expira_em"] = 0
+
+    def service_with(payload, service):
+        return asyncio.run(
+            service(
+                "token",
+                transport=httpx.MockTransport(
+                    lambda _request: httpx.Response(200, json=[payload])
+                ),
+            )
+        )[0]
+
+    parsed_loan = service_with(loan, list_my_loans)
+    parsed_reservation = service_with(reservation, list_my_reservations)
+
+    assert parsed_loan["solicitacao_id"] is None
+    assert parsed_loan["retirado_em"] is None
+    assert parsed_loan["vence_em"] is None
+    assert parsed_loan["devolvido_em"] is None
+    assert parsed_reservation["exemplar_id"] is None
+    assert parsed_reservation["ofertada_em"] is None
+    assert parsed_reservation["expira_em"] is None
+
+
 def test_personal_services_skip_individually_unreadable_records(monkeypatch):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
     malformed_cases = [
         (list_my_loans, [{"id": 1, "devolvido_em": 0}]),
-        (list_my_requests, [{"id": 1, "estado": "inexistente"}]),
+        (
+            list_my_requests,
+            [
+                {
+                    "id": 1,
+                    "usuario_id": 9,
+                    "titulo_id": 14,
+                    "estado": "pendente",
+                    "reserva_id": -1,
+                }
+            ],
+        ),
         (
             list_my_requests,
             [{**_request_records()[0], "estado": []}],
@@ -338,6 +383,174 @@ def test_request_service_sends_only_title_id_to_openapi_post(monkeypatch):
     assert requests[0].url.path == "/Biblioteca/solicitacoes-emprestimo"
     assert json.loads(requests[0].content) == {"titulo_id": 14}
     assert requests[0].headers["Authorization"] == "Bearer token-de-teste"
+
+
+def test_xano_request_examples_parse_zero_as_absent_for_post_and_list(monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    post_payload = {
+        "id": 44,
+        "usuario_id": 84,
+        "titulo_id": 50,
+        "solicitada_em": 1795621677771,
+        "estado": "pendente",
+        "reserva_id": 0,
+        "atendida_em": 0,
+    }
+    list_payload = [
+        {
+            "id": 32,
+            "usuario_id": 84,
+            "titulo_id": 38,
+            "solicitada_em": 1795366927556,
+            "estado": "pendente",
+            "reserva_id": 0,
+            "atendida_em": 0,
+        },
+        {
+            "id": 33,
+            "usuario_id": 84,
+            "titulo_id": 56,
+            "solicitada_em": 1795539975848,
+            "estado": "pendente",
+            "reserva_id": 0,
+            "atendida_em": 0,
+        },
+    ]
+
+    def handle(request):
+        if request.method == "POST":
+            return httpx.Response(200, json=post_payload)
+        return httpx.Response(200, json=list_payload)
+
+    transport = httpx.MockTransport(handle)
+    created = asyncio.run(request_title_loan(50, "token-test", transport=transport))
+    records = asyncio.run(list_my_requests("token-test", transport=transport))
+
+    assert created == {
+        "id": 44,
+        "titulo_id": 50,
+        "estado": "pendente",
+        "reserva_id": None,
+    }
+    assert [record["id"] for record in records] == [32, 33]
+    assert [record["estado"] for record in records] == ["pendente", "pendente"]
+    assert [record["reserva_id"] for record in records] == [None, None]
+    assert [record["atendida_em"] for record in records] == [None, None]
+    assert records.skipped_count == 0
+
+
+@pytest.mark.parametrize("unknown_state", ["aguardando análise", "estado_novo"])
+def test_request_parser_preserves_unknown_state_text(monkeypatch, unknown_state):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    payload = {
+        "id": 44,
+        "usuario_id": 84,
+        "titulo_id": 50,
+        "estado": unknown_state,
+        "reserva_id": 0,
+        "atendida_em": None,
+    }
+    records = asyncio.run(
+        list_my_requests(
+            "token",
+            transport=httpx.MockTransport(
+                lambda _request: httpx.Response(200, json=[payload])
+            ),
+        )
+    )
+    assert records[0]["estado"] == unknown_state
+
+
+def test_invalid_records_log_one_field_specific_block_with_real_duration(
+    monkeypatch,
+    capsys,
+):
+    import biblioteca_mais_nova.xano_client as xano_client
+
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    invalid_requests = [
+        {
+            "id": 44,
+            "usuario_id": 84,
+            "titulo_id": 50,
+            "estado": "pendente",
+            "reserva_id": -1,
+            "atendida_em": 0,
+        },
+        {
+            "id": 45,
+            "usuario_id": 84,
+            "titulo_id": 51,
+            "estado": "pendente",
+            "reserva_id": -2,
+            "atendida_em": 0,
+        },
+    ]
+
+    def handle(_request):
+        time.sleep(0.02)
+        return httpx.Response(200, json=invalid_requests)
+
+    records = asyncio.run(
+        list_my_requests(
+            "token",
+            transport=httpx.MockTransport(handle),
+        )
+    )
+    log = capsys.readouterr().err
+
+    assert records == []
+    assert records.skipped_count == 2
+    assert log.count("[ERRO xano]") == 1
+    assert "registro 0, campo reserva_id: valor não é um id válido" in log
+    assert "chamada: GET /minhas/solicitacoes -> 200 em " in log
+    elapsed = re.search(r"-> 200 em (\d+) ms", log)
+    assert elapsed is not None
+    assert int(elapsed.group(1)) >= 10
+    assert "perfil: estudante" in log
+
+    response = httpx.Response(
+        200,
+        json=[],
+        request=httpx.Request("GET", "https://api.example.test/diag"),
+    )
+    response.extensions["xano_duration_ms"] = 184
+    xano_client._log_response_failure(response, "teste local de duração")
+    assert "-> 200 em 184 ms" in capsys.readouterr().err
+
+    invalid_post = {
+        "id": 44,
+        "usuario_id": 84,
+        "titulo_id": 50,
+        "estado": "pendente",
+        "reserva_id": -1,
+        "atendida_em": 0,
+    }
+
+    def invalid_post_response(_request):
+        time.sleep(0.02)
+        return httpx.Response(200, json=invalid_post)
+
+    async def send_invalid_post():
+        with xano_client.contexto_evento_xano(
+            "reservar_livro",
+            "estudante",
+        ):
+            with pytest.raises(XanoWriteSucceededWithUnreadableResponse):
+                await request_title_loan(
+                    50,
+                    "token",
+                    transport=httpx.MockTransport(invalid_post_response),
+                )
+
+    asyncio.run(send_invalid_post())
+    post_log = capsys.readouterr().err
+    assert post_log.count("[ERRO xano]") == 1
+    assert "ação: reservar_livro | perfil: estudante" in post_log
+    assert "registro 0, campo reserva_id: valor não é um id válido" in post_log
+    elapsed = re.search(r"-> 200 em (\d+) ms", post_log)
+    assert elapsed is not None
+    assert int(elapsed.group(1)) >= 10
 
 
 def test_request_service_reports_unreadable_success_without_retry(monkeypatch):

@@ -1291,10 +1291,14 @@ class State(rx.State):
         write_succeeded = False
         try:
             try:
-                result = await request_title_loan(
-                    title_id,
-                    self._session_token,
-                )
+                with contexto_evento_xano(
+                    "reservar_livro",
+                    self._session_profile,
+                ):
+                    result = await request_title_loan(
+                        title_id,
+                        self._session_token,
+                    )
             except XanoWriteSucceededWithUnreadableResponse as error:
                 write_succeeded = True
                 self.student_request_uncertain_title_id = title_id
@@ -1355,31 +1359,35 @@ class State(rx.State):
         self.student_library_requires_login = False
         self.student_library_skipped = 0
         try:
-            loans = await list_my_loans(self._session_token)
-            requests = await list_my_requests(self._session_token)
-            reservations = await list_my_reservations(self._session_token)
-            titles = await list_public_titles()
-            uncertain_title_id = self.student_request_uncertain_title_id
-            if (
-                uncertain_title_id is not None
-                and not self._student_library_manual_retry
+            with contexto_evento_xano(
+                "carregar_reservas",
+                self._session_profile,
             ):
-                for retry_delay in (1.5, 1.5):
-                    request_confirmed = any(
-                        request["titulo_id"] == uncertain_title_id
-                        and request["estado"] in {"pendente", "em_reserva"}
-                        for request in requests
-                    )
-                    reservation_confirmed = any(
-                        reservation["titulo_id"] == uncertain_title_id
-                        and reservation["estado"] in {"aguardando", "ofertada"}
-                        for reservation in reservations
-                    )
-                    if request_confirmed or reservation_confirmed:
-                        break
-                    await asyncio.sleep(retry_delay)
-                    requests = await list_my_requests(self._session_token)
-                    reservations = await list_my_reservations(self._session_token)
+                loans = await list_my_loans(self._session_token)
+                requests = await list_my_requests(self._session_token)
+                reservations = await list_my_reservations(self._session_token)
+                titles = await list_public_titles()
+                uncertain_title_id = self.student_request_uncertain_title_id
+                if (
+                    uncertain_title_id is not None
+                    and not self._student_library_manual_retry
+                ):
+                    for retry_delay in (1.5, 1.5):
+                        request_confirmed = any(
+                            request["titulo_id"] == uncertain_title_id
+                            and request["estado"] in {"pendente", "em_reserva"}
+                            for request in requests
+                        )
+                        reservation_confirmed = any(
+                            reservation["titulo_id"] == uncertain_title_id
+                            and reservation["estado"] in {"aguardando", "ofertada"}
+                            for reservation in reservations
+                        )
+                        if request_confirmed or reservation_confirmed:
+                            break
+                        await asyncio.sleep(retry_delay)
+                        requests = await list_my_requests(self._session_token)
+                        reservations = await list_my_reservations(self._session_token)
         except (XanoConfigurationError, XanoRequestError, XanoResponseError) as error:
             self.student_library_message = catalog_error_message(error)
             self.student_library_has_error = True
