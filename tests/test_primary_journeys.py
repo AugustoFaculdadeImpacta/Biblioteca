@@ -58,6 +58,16 @@ def _title_entry(title_id: int, *, copies: list[dict] | None = None) -> dict:
     }
 
 
+def _assert_error_reference(message: str, expected: str) -> None:
+    prefix = f"{expected} (ref. "
+    assert message.startswith(prefix)
+    reference = message[len(prefix) :]
+    assert len(reference) == 6
+    assert reference.endswith(")")
+    assert reference[:-1].isalnum()
+    assert reference[:-1].isupper()
+
+
 def test_student_login_catalog_request_and_library_use_one_mock_transport(
     monkeypatch,
 ):
@@ -297,14 +307,23 @@ def test_home_sections_use_catalog_data_and_explicit_empty_error_states(
 
 
 def test_home_separates_title_and_category_failures(monkeypatch):
-    async def failed_categories():
-        raise XanoResponseError(503)
+    title_reads = 0
+    category_reads = 0
 
     async def public_titles():
+        nonlocal title_reads
+        title_reads += 1
         return [_title_entry(81)]
 
+    async def categories():
+        nonlocal category_reads
+        category_reads += 1
+        if category_reads == 1:
+            raise XanoResponseError(503)
+        return [{"id": 7, "nome": "Literatura"}]
+
     monkeypatch.setattr(frontend, "list_public_titles", public_titles)
-    monkeypatch.setattr(frontend, "list_categories", failed_categories)
+    monkeypatch.setattr(frontend, "list_categories", categories)
 
     async def verify():
         async with frontend.app.modify_state(
@@ -322,6 +341,110 @@ def test_home_separates_title_and_category_failures(monkeypatch):
             assert state.home_categories_has_error is True
             assert state.home_featured_titles
             assert "Tentar de novo" in repr(frontend.index())
+
+            await state.retry_home_categories()
+
+            assert title_reads == 1
+            assert category_reads == 2
+            assert state.home_titles_has_error is False
+            assert state.home_categories_has_error is False
+            assert state.public_catalog_has_error is False
+            assert state.home_category_count == 1
+
+    asyncio.run(verify())
+
+
+def test_home_title_retry_preserves_categories_and_only_reloads_titles(
+    monkeypatch,
+):
+    title_reads = 0
+    category_reads = 0
+
+    async def titles():
+        nonlocal title_reads
+        title_reads += 1
+        if title_reads == 1:
+            raise XanoResponseError(503)
+        return [_title_entry(82)]
+
+    async def categories():
+        nonlocal category_reads
+        category_reads += 1
+        return [{"id": 8, "nome": "Ciências"}]
+
+    monkeypatch.setattr(frontend, "list_public_titles", titles)
+    monkeypatch.setattr(frontend, "list_categories", categories)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(
+                ident=f"home-title-retry-{uuid4()}",
+                cls=rx.State,
+            )
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state.public_catalog_categories = [
+                {"id": 8, "nome": "Ciências"}
+            ]
+
+            await state.load_public_catalog()
+
+            assert state.home_titles_has_error is True
+            assert state.home_categories_has_error is False
+            assert state.home_category_count == 1
+            assert title_reads == 1
+            assert category_reads == 1
+
+            await state.retry_home_titles()
+
+            assert title_reads == 2
+            assert category_reads == 1
+            assert state.home_titles_has_error is False
+            assert state.home_categories_has_error is False
+            assert state.public_catalog_has_error is False
+            assert state.home_total_titles == 1
+            assert state.home_category_count == 1
+
+    asyncio.run(verify())
+
+
+def test_home_indicators_start_loading_without_serial_wait(monkeypatch):
+    titles_started = asyncio.Event()
+    categories_started = asyncio.Event()
+    release_titles = asyncio.Event()
+
+    async def titles():
+        titles_started.set()
+        await release_titles.wait()
+        return []
+
+    async def categories():
+        categories_started.set()
+        return []
+
+    monkeypatch.setattr(frontend, "list_public_titles", titles)
+    monkeypatch.setattr(frontend, "list_categories", categories)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(
+                ident=f"home-concurrent-{uuid4()}",
+                cls=rx.State,
+            )
+        ) as root:
+            state = await root.get_state(frontend.State)
+            load = asyncio.create_task(state.load_public_catalog())
+            await asyncio.wait_for(
+                asyncio.gather(
+                    titles_started.wait(),
+                    categories_started.wait(),
+                ),
+                timeout=1,
+            )
+            assert state.home_titles_pending is True
+            assert state.home_categories_pending is True
+            release_titles.set()
+            await load
 
     asyncio.run(verify())
 
@@ -703,7 +826,7 @@ def test_student_request_http_error_matrix_is_safe_and_not_retried(
             await state.request_catalog_title(81)
 
             assert state.student_request_has_error is True
-            assert state.student_request_message == message
+            _assert_error_reference(state.student_request_message, message)
             assert state.student_request_pending is False
             assert "registrada" not in state.student_request_message
             assert private_detail not in state.student_request_message
@@ -776,16 +899,20 @@ def test_student_request_uncertain_result_is_not_reported_or_retried(
             assert state.student_request_has_error is True
             if failure == "transport":
                 assert state.student_request_pending is False
-                assert state.student_request_message == (
+                expected_message = (
                     "Não foi possível conectar ao Xano. "
                     "Verifique a conexão e tente novamente."
                 )
             else:
                 assert state.student_request_pending is True
-                assert state.student_request_message == (
+                expected_message = (
                     "Não foi possível confirmar a solicitação. "
                     "Confira Reservas antes de tentar novamente."
                 )
+            _assert_error_reference(
+                state.student_request_message,
+                expected_message,
+            )
             assert "registrada" not in state.student_request_message
             serialized = json.dumps(state.dict(), default=str)
             assert token not in serialized

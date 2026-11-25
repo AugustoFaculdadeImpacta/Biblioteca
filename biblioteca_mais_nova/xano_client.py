@@ -707,7 +707,6 @@ def _error_detail(
             "recurso",
             "reserva",
             "reservas",
-            "senha",
             "titulo",
             "usuario",
         }

@@ -132,6 +132,14 @@ def invalidar_cache_catalogo_publico() -> None:
     _PUBLIC_CACHE.clear()
 
 
+def invalidar_cache_titulos_publicos() -> None:
+    _PUBLIC_CACHE.pop("titulos_publicos", None)
+
+
+def invalidar_cache_categorias_publicas() -> None:
+    _PUBLIC_CACHE.pop("categorias", None)
+
+
 def limpar_cache_catalogo_publico() -> None:
     """Uso exclusivo em testes para isolar o estado em memória."""
     invalidar_cache_catalogo_publico()

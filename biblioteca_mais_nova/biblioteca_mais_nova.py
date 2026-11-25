@@ -46,9 +46,11 @@ from biblioteca_mais_nova.catalog import (
     create_copy,
     create_title,
     get_public_title,
+    invalidar_cache_categorias_publicas,
     list_admin_catalog,
     list_categories,
     list_public_titles,
+    invalidar_cache_titulos_publicos,
     update_title,
     invalidar_cache_catalogo_publico,
 )
@@ -205,8 +207,12 @@ class State(rx.State):
     public_catalog_message: str = ""
     public_catalog_has_error: bool = False
     public_catalog_pending: bool = True
+    home_titles_pending: bool = True
+    home_categories_pending: bool = True
     home_titles_has_error: bool = False
     home_categories_has_error: bool = False
+    home_titles_error_message: str = ""
+    home_categories_error_message: str = ""
     public_catalog_search: str = ""
     public_catalog_category_id: str = ""
     public_catalog_only_available: bool = False
@@ -923,25 +929,66 @@ class State(rx.State):
     @diagnosticar_pagina_xano("catalogo")
     async def load_public_catalog(self):
         self.public_catalog_pending = True
+        self.home_titles_pending = True
+        self.home_categories_pending = True
         self.public_catalog_message = ""
         self.public_catalog_has_error = False
         self.home_titles_has_error = False
         self.home_categories_has_error = False
+        self.home_titles_error_message = ""
+        self.home_categories_error_message = ""
         self.public_catalog_categories_skipped = 0
         titles: list[dict[str, Any]] | None = None
         categories: list[dict[str, Any]] | None = None
-        title_error: Exception | None = None
-        category_error: Exception | None = None
+
+        async def fetch_titles() -> list[dict[str, Any]] | Exception:
+            try:
+                return await list_public_titles()
+            except (
+                XanoConfigurationError,
+                XanoRequestError,
+                XanoResponseError,
+            ) as error:
+                return error
+
+        async def fetch_categories() -> list[dict[str, Any]] | Exception:
+            try:
+                return await list_categories()
+            except (
+                XanoConfigurationError,
+                XanoRequestError,
+                XanoResponseError,
+            ) as error:
+                return error
+
         try:
-            titles = await list_public_titles()
-        except (XanoConfigurationError, XanoRequestError, XanoResponseError) as error:
-            title_error = error
-            self.home_titles_has_error = True
-        try:
-            categories = await list_categories()
-        except (XanoConfigurationError, XanoRequestError, XanoResponseError) as error:
-            category_error = error
-            self.home_categories_has_error = True
+            title_result, category_result = await asyncio.gather(
+                fetch_titles(),
+                fetch_categories(),
+            )
+            if isinstance(title_result, Exception):
+                self.home_titles_has_error = True
+                self.home_titles_error_message = catalog_error_message(
+                    title_result
+                )
+            else:
+                titles = title_result
+                self.home_titles_has_error = False
+
+            if isinstance(category_result, Exception):
+                self.home_categories_has_error = True
+                self.home_categories_error_message = catalog_error_message(
+                    category_result
+                )
+            else:
+                categories = category_result
+                self.home_categories_has_error = False
+
+            self.home_titles_pending = False
+        finally:
+            self.home_titles_pending = False
+            self.home_categories_pending = False
+            self.public_catalog_pending = False
 
         if titles is not None:
             self.public_catalog_entries = titles
@@ -952,16 +999,77 @@ class State(rx.State):
                 "skipped_count",
                 0,
             )
-        if title_error is not None or category_error is not None:
-            first_error = title_error or category_error
-            self.public_catalog_message = catalog_error_message(first_error)
-            self.public_catalog_has_error = True
-        else:
-            self.public_catalog_message = ""
-            self.public_catalog_has_error = False
-        self.public_catalog_pending = False
+        self._sync_public_catalog_errors()
         if titles is not None:
             return State.resolve_public_catalog_covers
+
+    @rx.event
+    @diagnosticar_pagina_xano("home_titulos")
+    async def retry_home_titles(self):
+        if self.home_titles_pending:
+            return
+        self.home_titles_pending = True
+        titles: list[dict[str, Any]] | None = None
+        self.home_titles_error_message = ""
+        try:
+            invalidar_cache_titulos_publicos()
+            titles = await list_public_titles()
+        except (
+            XanoConfigurationError,
+            XanoRequestError,
+            XanoResponseError,
+        ) as error:
+            self.home_titles_has_error = True
+            self.home_titles_error_message = catalog_error_message(error)
+        finally:
+            self.home_titles_pending = False
+
+        if titles is not None:
+            self.public_catalog_entries = titles
+            self.home_titles_has_error = False
+        self._sync_public_catalog_errors()
+        if titles is not None:
+            return State.resolve_public_catalog_covers
+
+    @rx.event
+    @diagnosticar_pagina_xano("home_categorias")
+    async def retry_home_categories(self):
+        if self.home_categories_pending:
+            return
+        self.home_categories_pending = True
+        categories: list[dict[str, Any]] | None = None
+        self.home_categories_error_message = ""
+        try:
+            invalidar_cache_categorias_publicas()
+            categories = await list_categories()
+        except (
+            XanoConfigurationError,
+            XanoRequestError,
+            XanoResponseError,
+        ) as error:
+            self.home_categories_has_error = True
+            self.home_categories_error_message = catalog_error_message(error)
+        finally:
+            self.home_categories_pending = False
+
+        if categories is not None:
+            self.public_catalog_categories = categories
+            self.public_catalog_categories_skipped = getattr(
+                categories,
+                "skipped_count",
+                0,
+            )
+            self.home_categories_has_error = False
+        self._sync_public_catalog_errors()
+
+    def _sync_public_catalog_errors(self) -> None:
+        self.public_catalog_has_error = (
+            self.home_titles_has_error or self.home_categories_has_error
+        )
+        self.public_catalog_message = (
+            self.home_titles_error_message
+            or self.home_categories_error_message
+        )
 
     @rx.event
     async def retry_public_catalog(self):
@@ -4326,58 +4434,79 @@ def home_stat_card(value: rx.Var[int], label: str) -> rx.Component:
     )
 
 
+def home_pending_stat_card(label: str) -> rx.Component:
+    return rx.el.div(
+        rx.el.strong("…", class_name="hero-stat-value"),
+        rx.text(label, class_name="hero-stat-label"),
+        rx.text("Carregando…", role="status"),
+        class_name="hero-stat-card",
+    )
+
+
 def home_indicators() -> rx.Component:
     return rx.el.div(
         rx.cond(
-            State.home_titles_has_error,
-            rx.el.div(
-                rx.el.strong("—", class_name="hero-stat-value"),
-                rx.text("Títulos", class_name="hero-stat-label"),
-                rx.button(
-                    conteudo_acao("atualizar_lista", "Tentar de novo"),
-                    type="button",
-                    on_click=State.retry_public_catalog,
-                    class_name="nav-logout",
-                    **atributos_acao("atualizar_lista", "Tentar de novo"),
+            State.home_titles_pending,
+            home_pending_stat_card("Títulos"),
+            rx.cond(
+                State.home_titles_has_error,
+                rx.el.div(
+                    rx.el.strong("—", class_name="hero-stat-value"),
+                    rx.text("Títulos", class_name="hero-stat-label"),
+                    rx.button(
+                        conteudo_acao("atualizar_lista", "Tentar de novo"),
+                        type="button",
+                        on_click=State.retry_home_titles,
+                        class_name="nav-logout",
+                        **atributos_acao("atualizar_lista", "Tentar de novo"),
+                    ),
+                    class_name="hero-stat-card",
                 ),
-                class_name="hero-stat-card",
-            ),
-            home_stat_card(State.home_total_titles, "Títulos"),
-        ),
-        rx.cond(
-            State.home_titles_has_error,
-            rx.el.div(
-                rx.el.strong("—", class_name="hero-stat-value"),
-                rx.text("Exemplares disponíveis", class_name="hero-stat-label"),
-                rx.button(
-                    conteudo_acao("atualizar_lista", "Tentar de novo"),
-                    type="button",
-                    on_click=State.retry_public_catalog,
-                    class_name="nav-logout",
-                    **atributos_acao("atualizar_lista", "Tentar de novo"),
-                ),
-                class_name="hero-stat-card",
-            ),
-            home_stat_card(
-                State.home_available_copies,
-                "Exemplares disponíveis",
+                home_stat_card(State.home_total_titles, "Títulos"),
             ),
         ),
         rx.cond(
-            State.home_categories_has_error,
-            rx.el.div(
-                rx.el.strong("—", class_name="hero-stat-value"),
-                rx.text("Categorias", class_name="hero-stat-label"),
-                rx.button(
-                    conteudo_acao("atualizar_lista", "Tentar de novo"),
-                    type="button",
-                    on_click=State.retry_public_catalog,
-                    class_name="nav-logout",
-                    **atributos_acao("atualizar_lista", "Tentar de novo"),
+            State.home_titles_pending,
+            home_pending_stat_card("Exemplares disponíveis"),
+            rx.cond(
+                State.home_titles_has_error,
+                rx.el.div(
+                    rx.el.strong("—", class_name="hero-stat-value"),
+                    rx.text("Exemplares disponíveis", class_name="hero-stat-label"),
+                    rx.button(
+                        conteudo_acao("atualizar_lista", "Tentar de novo"),
+                        type="button",
+                        on_click=State.retry_home_titles,
+                        class_name="nav-logout",
+                        **atributos_acao("atualizar_lista", "Tentar de novo"),
+                    ),
+                    class_name="hero-stat-card",
                 ),
-                class_name="hero-stat-card",
+                home_stat_card(
+                    State.home_available_copies,
+                    "Exemplares disponíveis",
+                ),
             ),
-            home_stat_card(State.home_category_count, "Categorias"),
+        ),
+        rx.cond(
+            State.home_categories_pending,
+            home_pending_stat_card("Categorias"),
+            rx.cond(
+                State.home_categories_has_error,
+                rx.el.div(
+                    rx.el.strong("—", class_name="hero-stat-value"),
+                    rx.text("Categorias", class_name="hero-stat-label"),
+                    rx.button(
+                        conteudo_acao("atualizar_lista", "Tentar de novo"),
+                        type="button",
+                        on_click=State.retry_home_categories,
+                        class_name="nav-logout",
+                        **atributos_acao("atualizar_lista", "Tentar de novo"),
+                    ),
+                    class_name="hero-stat-card",
+                ),
+                home_stat_card(State.home_category_count, "Categorias"),
+            ),
         ),
         class_name="hero-stat-grid",
     )
@@ -5229,26 +5358,10 @@ def index() -> rx.Component:
                         spacing="3",
                         class_name="hero-copy-wrap",
                     ),
-                    rx.cond(
-                        State.public_catalog_pending,
-                        rx.text(
-                            "Carregando indicadores do acervo...",
-                            role="status",
-                            class_name="home-stat-status",
-                        ),
-                        rx.cond(
-                            State.public_catalog_has_error,
-                            rx.text(
-                                "Indicadores do acervo indisponíveis.",
-                                role="status",
-                                class_name="home-stat-status",
-                            ),
-                            rx.el.aside(
-                                home_indicators(),
-                                aria_label="Estatísticas do catálogo público",
-                                class_name="hero-stat-panel",
-                            ),
-                        ),
+                    rx.el.aside(
+                        home_indicators(),
+                        aria_label="Estatísticas do catálogo público",
+                        class_name="hero-stat-panel",
                     ),
                     class_name="hero-layout",
                 ),
