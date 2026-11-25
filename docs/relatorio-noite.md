@@ -7,6 +7,7 @@
 - Xano CLI confirmou workspace `151966`, branch `v1` live e `allow_push=false`. Nenhum push, alteração de preferência, leitura de registros reais ou escrita remota foi feito. A publicação do endpoint divergente depende de atualização e publicação manual no painel.
 - Validação local: `reflex compile --dry` passou; `pytest --ignore=evaluation -q` aprovou 377 testes; `openspec validate xano-funciona-v9 --strict` passou e `openspec validate --specs --strict` aprovou 10 specs. A tentativa de pytest sem exclusão não coletou `evaluation/reflex-poc/tests/test_mock_api.py` porque `fastapi` não está instalado; essa pasta é excluída pelo script oficial.
 - O Xano Developer MCP não concluiu a negociação para validar os oito XanoScript; portanto, essa validação e a confirmação de runtime permanecem pendentes. Não foi executado build de produção nem robô visual.
+- O teste anterior foi refeito porque o bloqueio agora precisa durar até o fim da releitura após um POST incerto, e não apenas durante o POST; a nova regressão tenta uma segunda chamada enquanto a releitura está suspensa e confirma que não há segundo POST.
 
 ## Atualização — estabiliza-xano-v8, 2026-11-24
 

@@ -730,20 +730,6 @@ def test_student_request_treats_unreadable_success_as_success_and_refreshes(
     async def empty_records(_token):
         return []
 
-    async def delayed_request(_token):
-        nonlocal request_reads
-        request_reads += 1
-        if request_reads == 1:
-            return []
-        return [
-            {
-                "id": 9,
-                "usuario_id": 7,
-                "titulo_id": 14,
-                "estado": "pendente",
-            }
-        ]
-
     async def public_titles():
         return []
 
@@ -861,6 +847,93 @@ def test_student_request_stays_locked_until_refresh_confirms_unreadable_write(
     output = capsys.readouterr().err
     assert "[ERRO xano] ref=E7F3A" in output
     assert "releitura 3x não achou o pedido" in output
+
+
+def test_student_request_cannot_be_submitted_again_while_pending(monkeypatch):
+    writes = []
+    request_reads = 0
+
+    async def unreadable_write(title_id, token):
+        writes.append((title_id, token))
+        raise XanoWriteSucceededWithUnreadableResponse(reference="E7F3A")
+
+    async def empty_records(_token):
+        return []
+
+    async def delayed_request(_token):
+        nonlocal request_reads
+        request_reads += 1
+        if request_reads == 1:
+            return []
+        return [
+            {
+                "id": 9,
+                "usuario_id": 7,
+                "titulo_id": 14,
+                "estado": "pendente",
+            }
+        ]
+
+    async def public_titles():
+        return []
+
+    monkeypatch.setattr(frontend, "request_title_loan", unreadable_write)
+    monkeypatch.setattr(frontend, "list_my_loans", empty_records)
+    monkeypatch.setattr(frontend, "list_my_reservations", empty_records)
+    monkeypatch.setattr(frontend, "list_public_titles", public_titles)
+
+    async def verify():
+        reread_started = asyncio.Event()
+        continue_read = asyncio.Event()
+
+        async def delayed_request(_token):
+            nonlocal request_reads
+            request_reads += 1
+            if request_reads == 1:
+                return []
+            reread_started.set()
+            await continue_read.wait()
+            return [
+                {
+                    "id": 9,
+                    "usuario_id": 7,
+                    "titulo_id": 14,
+                    "estado": "pendente",
+                }
+            ]
+
+        monkeypatch.setattr(frontend, "list_my_requests", delayed_request)
+
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"student-request-pending-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-estudante", "estudante")
+            state.public_catalog_detail = {"id": 14}
+            first_submission = asyncio.create_task(
+                state.request_catalog_title(14)
+            )
+            try:
+                await asyncio.wait_for(reread_started.wait(), timeout=5)
+                assert state.student_request_pending is True
+                assert request_reads == 2
+
+                await state.request_catalog_title(14)
+
+                assert writes == [(14, "token-estudante")]
+                assert state.student_request_pending is True
+                assert request_reads == 2
+            finally:
+                continue_read.set()
+            await asyncio.wait_for(first_submission, timeout=2)
+
+            assert writes == [(14, "token-estudante")]
+            assert request_reads == 2
+            assert state.student_request_pending is False
+            assert state.student_request_has_error is False
+            assert state.student_request_message.startswith("Pedido enviado.")
+
+    asyncio.run(verify())
 
 
 def test_student_request_remains_locked_until_failed_refresh_recovers(monkeypatch):
