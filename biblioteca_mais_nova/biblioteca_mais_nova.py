@@ -7684,15 +7684,19 @@ app = rx.App(
         },
         ".accessibility-menu-trigger": {
             "background_color": "transparent",
-            "color": "var(--brand-text)",
+            "color": "var(--button-subtle-text)",
         },
         ".profile-menu-trigger": {
             "background_color": "transparent",
             "color": "var(--brand-text)",
         },
-        ".profile-menu-trigger:hover, .accessibility-menu-trigger:hover": {
+        ".profile-menu-trigger:hover": {
             "background_color": "var(--bg-soft)",
             "color": "var(--brand-text)",
+        },
+        ".accessibility-menu-trigger:hover": {
+            "background_color": "var(--bg-soft)",
+            "color": "var(--button-subtle-text)",
         },
         ".profile-menu-trigger::-webkit-details-marker, .accessibility-menu-trigger::-webkit-details-marker": {
             "display": "none",

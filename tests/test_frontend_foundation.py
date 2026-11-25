@@ -120,8 +120,9 @@ def test_shared_header_and_footer_follow_the_restored_visual_hierarchy():
         "transparent"
     )
     assert app.style[".accessibility-menu-trigger"]["color"] == (
-        app.style[".profile-menu-trigger"]["color"]
+        "var(--button-subtle-text)"
     )
+    assert app.style[".profile-menu-trigger"]["color"] == "var(--brand-text)"
     assert app.style[".site-footer"]["flex_wrap"] == "wrap"
 
 

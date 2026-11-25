@@ -106,6 +106,51 @@ def test_header_nav_and_footer_tokens_meet_text_contrast():
     assert footer["color"] == "var(--text)"
 
 
+def test_header_profile_and_accessibility_actions_meet_wcag_aa_in_every_state():
+    controls = {
+        "perfil": (
+            ".profile-menu-trigger",
+            ".profile-menu-trigger:hover",
+            "--brand-text",
+        ),
+        "acessibilidade": (
+            ".accessibility-menu-trigger",
+            ".accessibility-menu-trigger:hover",
+            "--button-subtle-text",
+        ),
+    }
+
+    for theme_selector in (".a11y-shell", ".a11y-shell.a11y-dark"):
+        theme = frontend.app.style[theme_selector]
+        for label, (base_selector, hover_selector, text_token) in controls.items():
+            foreground = theme[text_token]
+            backgrounds = (
+                theme["--bg-panel"],
+                theme["--bg-soft"],
+                theme["--bg-panel"],
+            )
+            assert all(
+                _contrast_ratio(foreground, background) >= 4.5
+                for background in backgrounds
+            ), f"{label} não atinge WCAG AA em {theme_selector}"
+            assert frontend.app.style[base_selector]["color"] == (
+                f"var({text_token})"
+            )
+            assert frontend.app.style[hover_selector]["color"] == (
+                f"var({text_token})"
+            )
+            assert frontend.app.style[base_selector]["background_color"] == (
+                "transparent"
+            )
+            assert frontend.app.style[hover_selector]["background_color"] == (
+                "var(--bg-soft)"
+            )
+
+    assert frontend.app.style[":focus-visible"]["outline"].startswith(
+        "3px solid "
+    )
+
+
 def test_page_container_layout_is_stable():
     style = frontend.app.style
 
