@@ -12,6 +12,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoTimeoutError,
     XanoRequestError,
     XanoResponseError,
+    XanoWriteSucceededWithUnreadableResponse,
     diagnosticar_pagina_xano,
     parse_xano_response_json,
     xano_public_error_message,
@@ -443,3 +444,175 @@ def test_xano_limits_simultaneous_requests_to_three(monkeypatch):
     asyncio.run(load_many())
 
     assert transport.maximum == 3
+
+
+def test_failure_block_is_always_written_and_redacts_private_values(
+    monkeypatch, capsys
+):
+    token = "token-super-secreto"
+    email = "pessoa.privada@example.test"
+    password = "senha-super-secreta"
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test/grupo")
+    monkeypatch.delenv("BIBLIOTECA_LOG_ERROS", raising=False)
+    monkeypatch.delenv("BIBLIOTECA_DIAGNOSTICO", raising=False)
+    client = XanoClient.from_environment(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                429,
+                json={
+                    "code": "limite",
+                    "message": "Limite de pedidos atingido.",
+                    "access_token": token,
+                    "senha": password,
+                    "email": email,
+                },
+            )
+        )
+    )
+
+    with pytest.raises(XanoResponseError) as error:
+        asyncio.run(
+            client.request(
+                "POST",
+                "/solicitacoes-emprestimo",
+                token=token,
+                json={"titulo_id": 41, "email": email, "senha": password},
+            )
+        )
+
+    output = capsys.readouterr().err
+    assert error.value.reference is not None
+    assert f"ref={error.value.reference}" in output
+    assert "ação: reservar_livro | perfil: estudante" in output
+    assert "chamada: POST /solicitacoes-emprestimo -> 429" in output
+    assert "email" in output
+    assert "senha" in output
+    assert "titulo_id" in output
+    assert "Limite de pedidos atingido." in output
+    assert token not in output
+    assert email not in output
+    assert password not in output
+    assert "api.example.test" not in output
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_result"),
+    [
+        ("timeout", "tempo esgotado"),
+        ("connection", "falha de conexão"),
+    ],
+)
+def test_transport_failure_blocks_include_reference_and_no_host(
+    monkeypatch, capsys, failure, expected_result
+):
+    token = "token-de-transporte"
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    monkeypatch.delenv("BIBLIOTECA_LOG_ERROS", raising=False)
+
+    def fail(request):
+        error = (
+            httpx.ReadTimeout(
+                f"timeout com Bearer {token} em https://api.example.test",
+                request=request,
+            )
+            if failure == "timeout"
+            else httpx.ConnectError(
+                f"falha com Authorization Bearer {token} "
+                "https://api.example.test",
+                request=request,
+            )
+        )
+        raise error
+
+    client = XanoClient.from_environment(
+        transport=httpx.MockTransport(fail)
+    )
+    expected_error = XanoTimeoutError if failure == "timeout" else XanoRequestError
+
+    with pytest.raises(expected_error) as error:
+        asyncio.run(
+            client.request(
+                "POST",
+                "/solicitacoes-emprestimo",
+                token=token,
+                json={"titulo_id": 41},
+            )
+        )
+
+    output = capsys.readouterr().err
+    assert error.value.reference is not None
+    assert f"ref={error.value.reference}" in output
+    assert expected_result in output
+    assert token not in output
+    assert "api.example.test" not in output
+
+
+@pytest.mark.parametrize("body", ["", '{"resposta":'])
+def test_unreadable_success_response_is_logged_with_reference(
+    monkeypatch, capsys, body
+):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    monkeypatch.delenv("BIBLIOTECA_LOG_ERROS", raising=False)
+    client = XanoClient.from_environment(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                content=body.encode(),
+                headers={"content-type": "application/json"},
+            )
+        )
+    )
+    async def parse_response():
+        response = await client.request(
+            "POST",
+            "/solicitacoes-emprestimo",
+            json={"titulo_id": 41},
+        )
+        return parse_xano_response_json(response)
+
+    with pytest.raises(XanoInvalidResponseError) as error:
+        asyncio.run(parse_response())
+
+    output = capsys.readouterr().err
+    assert error.value.reference is not None
+    assert f"ref={error.value.reference}" in output
+    assert "resposta 2xx ilegível" in output
+
+
+def test_incompatible_success_shape_is_logged_with_reference(monkeypatch, capsys):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    monkeypatch.delenv("BIBLIOTECA_LOG_ERROS", raising=False)
+    client = XanoClient.from_environment(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, json={"wrong": "shape"})
+        )
+    )
+    def reject_shape(_value):
+        raise XanoInvalidResponseError()
+
+    async def parse_response():
+        response = await client.request("GET", "/minhas/reservas")
+        return xano_client.parse_xano_write_response(response, reject_shape)
+
+    with pytest.raises(XanoWriteSucceededWithUnreadableResponse) as error:
+        asyncio.run(parse_response())
+
+    output = capsys.readouterr().err
+    assert error.value.reference is not None
+    assert f"ref={error.value.reference}" in output
+    assert "resposta 2xx ilegível ou incompatível" in output
+
+
+def test_failure_logging_can_be_disabled(monkeypatch, capsys):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    monkeypatch.setenv("BIBLIOTECA_LOG_ERROS", "0")
+    client = XanoClient.from_environment(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(503, json={"message": "indisponível"})
+        )
+    )
+
+    with pytest.raises(XanoResponseError):
+        asyncio.run(client.request("POST", "/solicitacoes-emprestimo"))
+
+    assert capsys.readouterr().err == ""

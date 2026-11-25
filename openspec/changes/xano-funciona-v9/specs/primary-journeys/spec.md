@@ -48,3 +48,10 @@ A página inicial MUST apresentar estatísticas calculadas exclusivamente dos da
 #### Scenario: Popularidade sem contagem disponível
 - **WHEN** a API ou os dados já carregados não fornecem contagens de empréstimos por título
 - **THEN** a home não exibe uma seção “Livros que mais saem” nem infere popularidade a partir de disponibilidade
+
+### Requirement: Controles do cabeçalho mantêm contraste acessível
+O texto dos controles “Perfil” e “Acessibilidade” MUST manter contraste mínimo de 4,5:1 contra o fundo nos temas claro e escuro, em repouso, hover e foco, usando tokens de tema sem alterar a geometria aprovada.
+
+#### Scenario: Contraste do cabeçalho
+- **WHEN** o cabeçalho é renderizado em tema claro ou escuro
+- **THEN** os rótulos dos dois controles atingem pelo menos 4,5:1 em repouso, hover e foco

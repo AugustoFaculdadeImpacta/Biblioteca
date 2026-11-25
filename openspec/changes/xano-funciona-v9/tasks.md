@@ -40,3 +40,13 @@
 
 - Revisar e aprovar os artefatos antes de iniciar Apply.
 - Depois de Apply e Verify aprovados, sincronizar specs, arquivar a Change e enviar commits sem force.
+
+## 7. Diagnóstico de falhas em chamadas Xano
+
+- [ ] A. Emitir sempre no stderr um bloco de erro sanitizado e correlacionável para falhas HTTP, transporte, timeout, 2xx ilegível e resultado inesperado; incluir ação, perfil, metadados, chaves enviadas e resposta limitada; integrar o handler de exceções do backend Reflex; permitir desligamento por `BIBLIOTECA_LOG_ERROS=0` e manter sucessos sob `BIBLIOTECA_DIAGNOSTICO=1`. Testar cada classe e provar que tokens, e-mails e senhas não aparecem.
+- [ ] B. Acrescentar a referência do terminal a mensagens de erro de botão e mostrar mensagens curtas e seguras dos 4xx do Xano. Testar vínculo da referência e filtragem de mensagens.
+- [ ] C. Em POST 2xx ilegível de solicitação, reler imediatamente, +1,5 s e +3 s; confirmar somente se encontrar o título, jamais repetir POST, manter o botão bloqueado até terminar e fazer “Tentar de novo” apenas reler listas. Testar segunda releitura com pedido, ausência, JSON incompatível, 429, 5xx e timeout.
+- [ ] D. Testar que desativação envia `ativo` como booleano `false`; comparar linha a linha o PATCH local com `api\biblioteca\catalogo\titulos\titulo_id_PATCH.xs` da cópia existente e documentar exatamente o comportamento de `$input.ativo` até `db.patch`, qualquer descarte de `false`, correção local e passos manuais de aplicação/teste sem publicar.
+- [ ] E. Recriar teste equivalente que impede uma segunda solicitação durante a escrita e até o fim da releitura, verificando que nenhum segundo POST é enviado; registrar em uma linha do relatório por que o teste antigo foi substituído.
+- [ ] F. Ajustar somente tokens de cor de “Acessibilidade” para preservar posição, tamanho e formato; calcular e testar contraste >=4,5:1 para Perfil e Acessibilidade em temas claro/escuro, repouso/hover/foco.
+- [ ] G. Concluir tarefas pendentes locais da v9 para resumo independente da home, “Testar conexão” para usuário logado e documentação comparativa com a cópia remota existente; atualizar `docs/relatorio-noite.md`, validar specs com `--strict`, executar `.\.venv\Scripts\python.exe -m reflex compile --dry` e pytest em sequência. Não escrever no Xano nem fazer novo pull; validar e arquivar somente se todas as tarefas puderem ser concluídas, caso contrário deixar Change aberta com bloqueio explícito.

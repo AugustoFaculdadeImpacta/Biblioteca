@@ -125,6 +125,29 @@ def test_shared_header_and_footer_follow_the_restored_visual_hierarchy():
     assert app.style[".site-footer"]["flex_wrap"] == "wrap"
 
 
+def test_backend_exception_hook_logs_a_sanitized_traceback(monkeypatch, capsys):
+    token = "token-nao-pode-aparecer"
+    email = "pessoa.privada@example.test"
+    password = "senha-nao-pode-aparecer"
+    monkeypatch.delenv("BIBLIOTECA_LOG_ERROS", raising=False)
+
+    try:
+        raise RuntimeError(
+            f"falha Authorization: Bearer {token}; email={email}; "
+            f"password={password}"
+        )
+    except RuntimeError as error:
+        result = app.backend_exception_handler(error)
+
+    output = capsys.readouterr().err
+    assert result is not None
+    assert "[ERRO xano] ref=" in output
+    assert "Traceback" in output
+    assert token not in output
+    assert email not in output
+    assert password not in output
+
+
 def test_dark_and_high_contrast_tokens_meet_wcag_aa():
     dark = app.style[".a11y-shell.a11y-dark"]
     assert _contrast_ratio(dark["--slate-900"], dark["--bg-page"]) >= 4.5

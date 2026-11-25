@@ -73,3 +73,44 @@ As definições Xano publicadas para catálogo, solicitações de empréstimo e 
 #### Scenario: Publicação delimitada no workspace autorizado
 - **WHEN** as definições são publicadas após confirmação do workspace `151966`, da branch `v1` marcada como live e do ambiente
 - **THEN** somente `titulo.xs`, `reserva.xs`, `titulos_id_PATCH.xs`, `admin/acervo_GET.xs`, `solicitacoes_POST.xs`, `minhas_solicitacoes_GET.xs`, `minhas_GET.xs` e `reservas_POST.xs` são sincronizados, e a conferência posterior confirma essas versões sem importar registros ou variáveis de ambiente
+
+### Requirement: Falhas Xano são rastreáveis e sanitizadas
+O backend MUST escrever no stderr um bloco de diagnóstico para cada falha de transporte, status HTTP de erro, resposta 2xx ilegível ou resultado inesperado, salvo quando `BIBLIOTECA_LOG_ERROS=0`. Sucessos MUST permanecer silenciosos, exceto quando `BIBLIOTECA_DIAGNOSTICO=1`.
+
+#### Scenario: Falha HTTP ou de transporte
+- **WHEN** uma chamada Xano falha com 4xx/5xx, timeout ou erro de conexão
+- **THEN** o stderr contém referência, horário, ação, perfil, método e caminho sem host, status e duração, content-type, tamanho, chaves enviadas e corpo recebido sanitizado, com flush imediato
+
+#### Scenario: Resposta ilegível ou resultado inesperado
+- **WHEN** a chamada retorna 2xx ilegível, ou a releitura esperada não confirma a operação
+- **THEN** o stderr identifica o resultado e usa a mesma referência exibida na interface
+
+#### Scenario: Higienização do diagnóstico
+- **WHEN** conteúdo contém autorização, token, senha ou e-mail
+- **THEN** nenhum segredo ou e-mail é registrado; valores do corpo enviado são omitidos, exceto o booleano `ativo`
+
+#### Scenario: Desligar logs de falha
+- **WHEN** `BIBLIOTECA_LOG_ERROS=0`
+- **THEN** blocos de falha deixam de ser escritos, sem alterar o resultado funcional das chamadas
+
+#### Scenario: Erro inesperado em evento Reflex
+- **WHEN** manipulador de evento do backend lança exceção não prevista
+- **THEN** o handler do Reflex registra traceback higienizado no stderr e preserva o tratamento padrão da exceção
+
+### Requirement: Mensagens de ação relacionam interface e diagnóstico
+Mensagens de erro apresentadas após ações MUST terminar com a referência do diagnóstico correspondente. Mensagens de 4xx retornadas pelo Xano podem ser apresentadas quando curtas e livres de e-mail e números longos.
+
+#### Scenario: Erro de botão
+- **WHEN** uma ação iniciada por botão falha
+- **THEN** a mensagem visível termina com `(ref. XXXXX)` usando a mesma referência do bloco do terminal
+
+#### Scenario: Detalhe curto e seguro do Xano
+- **WHEN** um 4xx inclui mensagem de até 140 caracteres sem e-mail ou sequência numérica longa
+- **THEN** a interface mostra essa mensagem em português simples junto da referência
+
+### Requirement: Diagnóstico de desativação identifica o valor persistido
+O sistema MUST enviar `ativo` como booleano JSON e fornecer evidência sanitizada do valor enviado, da resposta e da releitura do acervo.
+
+#### Scenario: Desativação
+- **WHEN** usuário autorizado confirma desativação
+- **THEN** o corpo contém `ativo: false` booleano; a releitura confirma `ativo=false` ou o diagnóstico registra enviado, resposta e releitura para localizar a divergência

@@ -2,10 +2,14 @@
 
 import asyncio
 import contextvars
+import json
 import logging
 import os
+import re
+import sys
 import threading
 import time
+import traceback
 from collections.abc import Awaitable, Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -28,6 +32,12 @@ _RETRYABLE_STATUSES = {429, 502, 503, 504}
 _sleep = asyncio.sleep
 _PAGE_DIAGNOSTICS: contextvars.ContextVar["_PageDiagnostics | None"] = (
     contextvars.ContextVar("xano_page_diagnostics", default=None)
+)
+_LAST_RESPONSE: contextvars.ContextVar[httpx.Response | None] = contextvars.ContextVar(
+    "xano_last_response", default=None
+)
+_EVENT_CONTEXT: contextvars.ContextVar[tuple[str, str] | None] = contextvars.ContextVar(
+    "xano_event_context", default=None
 )
 _SEMAPHORES: WeakKeyDictionary[
     asyncio.AbstractEventLoop, asyncio.Semaphore
@@ -84,9 +94,25 @@ SAFE_ERROR_MESSAGES = {
 class XanoConfigurationError(ValueError):
     """Configuração ausente ou inválida para acessar o Xano."""
 
+    def __init__(self, message: str) -> None:
+        self.reference = _emit_failure(
+            method="CONFIG",
+            path="(configuração Xano)",
+            status="sem_resposta",
+            duration_ms=0,
+            response=None,
+            request=None,
+            result="configuração indisponível",
+        )
+        super().__init__(message)
+
 
 class XanoRequestError(RuntimeError):
     """Falha sanitizada ao acessar o Xano."""
+
+    def __init__(self, message: str, *, reference: str | None = None) -> None:
+        self.reference = reference
+        super().__init__(message)
 
 
 class XanoTimeoutError(XanoRequestError):
@@ -99,21 +125,41 @@ class XanoInvalidResponseError(XanoRequestError):
     def __init__(
         self,
         message: str = "O Xano respondeu em formato inesperado.",
+        *,
+        reference: str | None = None,
     ) -> None:
         _record_failure()
-        super().__init__(message)
+        response = _LAST_RESPONSE.get()
+        if reference is None and response is not None:
+            reference = _log_response_failure(
+                response,
+                "resposta 2xx ilegível ou incompatível",
+            )
+        super().__init__(message, reference=reference)
 
 
 class XanoWriteSucceededWithUnreadableResponse(Exception):
     """Escrita 2xx concluída cujo corpo não pôde ser interpretado."""
 
+    def __init__(self, *, reference: str | None = None) -> None:
+        self.reference = reference
+        super().__init__()
+
 
 class XanoNonJsonResponseError(XanoInvalidResponseError):
     """Resposta que não contém JSON quando o contrato exige JSON."""
 
-    def __init__(self, status_code: int) -> None:
+    def __init__(
+        self,
+        status_code: int,
+        *,
+        reference: str | None = None,
+    ) -> None:
         self.status_code = status_code
-        super().__init__("O Xano devolveu uma página de erro.")
+        super().__init__(
+            "O Xano devolveu uma página de erro.",
+            reference=reference,
+        )
 
 
 class XanoResponseError(XanoRequestError):
@@ -125,11 +171,207 @@ class XanoResponseError(XanoRequestError):
         public_detail: str | None = None,
         *,
         non_json_response: bool = False,
+        reference: str | None = None,
     ) -> None:
         self.status_code = status_code
         self.public_detail = public_detail
         self.non_json_response = non_json_response
-        super().__init__(f"O serviço Xano retornou um erro HTTP {status_code}.")
+        super().__init__(
+            f"O serviço Xano retornou um erro HTTP {status_code}.",
+            reference=reference,
+        )
+
+
+@contextmanager
+def contexto_evento_xano(action: str, profile: str) -> Generator[None, None, None]:
+    token = _EVENT_CONTEXT.set((action, profile))
+    try:
+        yield
+    finally:
+        _EVENT_CONTEXT.reset(token)
+
+
+def _new_reference() -> str:
+    return os.urandom(4).hex()[:5].upper()
+
+
+def _sanitize_diagnostic(value: str) -> str:
+    value = re.sub(r"https?://[^\s\"'<>]+", "[URL omitida]", value)
+    value = re.sub(r"(?i)\bBearer\s+[A-Za-z0-9._~+/-]+=*", "Bearer [omitido]", value)
+    value = re.sub(
+        r"(?i)(authorization\s*[:=]\s*)[^\s,;\"']+",
+        r"\1[omitido]",
+        value,
+    )
+    value = re.sub(
+        r"(?i)([\"']?(?:access_token|refresh_token|token|password|senha|"
+        r"password_hash|authorization)[\"']?\s*[:=]\s*[\"']?)[^\"'\s,}]+",
+        r"\1[omitido]",
+        value,
+    )
+    value = re.sub(
+        r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
+        "[e-mail omitido]",
+        value,
+    )
+    return value
+
+
+def _request_action_profile(
+    method: str,
+    path: str,
+    request: httpx.Request | None = None,
+) -> tuple[str, str]:
+    context = _EVENT_CONTEXT.get()
+    if context is not None:
+        return context
+
+    sent = _request_json(request)
+    if method == "POST" and path == "/solicitacoes-emprestimo":
+        return "reservar_livro", "estudante"
+    if method == "PATCH" and re.fullmatch(r"/catalogo/titulos/\d+", path):
+        if sent.get("ativo") is False:
+            return "desativar_titulo", "bibliotecario"
+        return "atualizar_titulo", "bibliotecario"
+    if path.startswith("/minhas/") or path == "/solicitacoes-emprestimo":
+        return f"ler_{path.rsplit('/', 1)[-1]}", "estudante"
+    if path.startswith("/admin/"):
+        return f"{method.lower()}_{path.strip('/').replace('/', '_')}", "bibliotecario/admin"
+    return f"{method.lower()}_{path.strip('/').replace('/', '_') or 'xano'}", "não identificado"
+
+
+def _request_json(request: httpx.Request | None) -> dict[str, object]:
+    if request is None:
+        return {}
+    try:
+        data = json.loads(request.content)
+    except (UnicodeDecodeError, json.JSONDecodeError, RuntimeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _sent_keys(request: httpx.Request | None) -> str:
+    payload = _request_json(request)
+    if not payload:
+        return "nenhum"
+    keys = sorted(str(key) for key in payload)
+    if type(payload.get("ativo")) is bool:
+        keys = [key for key in keys if key != "ativo"]
+        keys.append(f"ativo={str(payload['ativo']).lower()}")
+    return ", ".join(keys)
+
+
+def _response_details(response: httpx.Response | None) -> tuple[str, str, str, str]:
+    if response is None:
+        return "", "nenhum", "nenhuma", ""
+    raw = response.content.decode("utf-8", errors="replace")
+    try:
+        body = json.loads(raw) if raw else None
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        body = None
+
+    if isinstance(body, list):
+        top = "lista"
+        keys: list[str] = []
+    elif isinstance(body, dict):
+        top = "objeto"
+        keys = [str(key) for key in list(body)[:20]]
+    else:
+        top = "nenhum"
+        keys = []
+
+    xano_message = ""
+    if isinstance(body, dict) and "code" in body and "message" in body:
+        xano_message = (
+            "Xano disse: code="
+            + _sanitize_diagnostic(str(body["code"]))[:80]
+            + " message="
+            + _sanitize_diagnostic(str(body["message"]))[:140]
+        )
+
+    safe_raw = _sanitize_diagnostic(raw)
+    return safe_raw[:300], top, ", ".join(keys) or "nenhuma", xano_message
+
+
+def _emit_failure(
+    *,
+    method: str,
+    path: str,
+    status: int | str,
+    duration_ms: int,
+    response: httpx.Response | None,
+    request: httpx.Request | None,
+    result: str,
+    reference: str | None = None,
+    traceback_text: str | None = None,
+) -> str:
+    reference = reference or _new_reference()
+    if os.environ.get("BIBLIOTECA_LOG_ERROS") == "0":
+        return reference
+
+    action, profile = _request_action_profile(method, path, request)
+    content_type = _content_type(response) if response is not None else "-"
+    response_size = len(response.content) if response is not None else 0
+    snippet, top, keys, xano_message = _response_details(response)
+    block = [
+        f"[ERRO xano] ref={reference} {datetime.now().astimezone():%Y-%m-%d %H:%M:%S}",
+        f"  ação: {_sanitize_diagnostic(action)} | perfil: {_sanitize_diagnostic(profile)}",
+        (
+            f"  chamada: {method} {path} -> {status} em {duration_ms} ms | "
+            f"content-type: {content_type or '-'} | tamanho: {response_size}"
+        ),
+        f"  enviado (chaves): {_sent_keys(request)}",
+        f"  recebido: {snippet or '[vazio]'} | topo JSON: {top} | chaves: {keys}",
+    ]
+    if xano_message:
+        block.append(f"  {xano_message}")
+    block.append(f"  resultado: {_sanitize_diagnostic(result)}")
+    if traceback_text:
+        block.extend(
+            "  " + line
+            for line in _sanitize_diagnostic(traceback_text).rstrip().splitlines()
+        )
+    block.append("  dica: no painel do Xano, abra o Request History desta chamada")
+    print("\n".join(block), file=sys.stderr, flush=True)
+    return reference
+
+
+def _log_response_failure(response: httpx.Response, result: str) -> str:
+    try:
+        request = response.request
+    except RuntimeError:
+        request = None
+    method = request.method if request is not None else "RESPOSTA"
+    path = request.url.path if request is not None else "(resposta sem chamada)"
+    return _emit_failure(
+        method=method,
+        path=path,
+        status=response.status_code,
+        duration_ms=0,
+        response=response,
+        request=request,
+        result=result,
+    )
+
+
+def registrar_excecao_backend(exception: Exception) -> None:
+    details = "".join(
+        traceback.format_exception(
+            type(exception),
+            exception,
+            exception.__traceback__,
+        )
+    )
+    _emit_failure(
+        method="EVENTO",
+        path="(backend Reflex)",
+        status="exceção",
+        duration_ms=0,
+        response=None,
+        request=None,
+        result=f"exceção inesperada: {type(exception).__name__}",
+        traceback_text=details,
+    )
 
 
 @dataclass(slots=True)
@@ -179,11 +421,22 @@ def parse_xano_response_json(response: httpx.Response) -> object:
     """Interpreta JSON do Xano sem expor o corpo de uma resposta inválida."""
     content_type = _content_type(response)
     if content_type and not _is_json_content_type(content_type):
-        raise XanoNonJsonResponseError(response.status_code) from None
+        reference = _log_response_failure(
+            response,
+            "resposta 2xx ilegível: content-type não JSON",
+        )
+        raise XanoNonJsonResponseError(
+            response.status_code,
+            reference=reference,
+        ) from None
     try:
         return response.json()
     except ValueError:
-        raise XanoInvalidResponseError() from None
+        reference = _log_response_failure(
+            response,
+            "resposta 2xx ilegível: JSON ausente ou inválido",
+        )
+        raise XanoInvalidResponseError(reference=reference) from None
 
 
 def parse_xano_write_response(
@@ -193,8 +446,10 @@ def parse_xano_write_response(
     """Interpreta a resposta de uma escrita sem converter 2xx em falha."""
     try:
         return parser(parse_xano_response_json(response))
-    except XanoInvalidResponseError:
-        raise XanoWriteSucceededWithUnreadableResponse() from None
+    except XanoInvalidResponseError as error:
+        raise XanoWriteSucceededWithUnreadableResponse(
+            reference=error.reference,
+        ) from None
 
 
 def xano_public_error_message(error: Exception) -> str | None:
@@ -312,23 +567,36 @@ def _log_request(
     )
 
 
-def _error_detail(response: httpx.Response) -> tuple[str | None, bool]:
+def _error_detail(
+    response: httpx.Response,
+) -> tuple[str | None, bool, str | None]:
     content_type = _content_type(response)
     if content_type and not _is_json_content_type(content_type):
-        return None, True
+        return None, True, None
     try:
         body = response.json()
     except ValueError:
         if _is_json_content_type(content_type):
-            return "O Xano respondeu em formato inesperado.", False
-        return None, True
+            return "O Xano respondeu em formato inesperado.", False, None
+        return None, True, None
     if not isinstance(body, dict):
-        return "O Xano respondeu em formato inesperado.", False
+        return "O Xano respondeu em formato inesperado.", False, None
+    raw_message = body.get("message")
+    if not isinstance(raw_message, str):
+        raw_message = None
     for key in ("message", "error", "detail"):
         detail = body.get(key)
-        if isinstance(detail, str) and detail in SAFE_ERROR_MESSAGES:
-            return SAFE_ERROR_MESSAGES[detail], False
-    return None, False
+        if not isinstance(detail, str):
+            continue
+        if detail in SAFE_ERROR_MESSAGES:
+            return SAFE_ERROR_MESSAGES[detail], False, raw_message
+        if (
+            len(detail) <= 140
+            and not re.search(r"(?i)\b\S+@\S+\b", detail)
+            and not re.search(r"\d{5,}", detail)
+        ):
+            return _sanitize_diagnostic(detail), False, raw_message
+    return None, False, raw_message
 
 
 @dataclass(slots=True)
@@ -417,6 +685,7 @@ class XanoClient:
         url = self._base_url.join(endpoint.path.lstrip("/"))
         if endpoint.query:
             url = url.copy_with(query=endpoint.query.encode())
+        _LAST_RESPONSE.set(None)
         headers = {"Authorization": f"Bearer {token}"} if token else {}
         request_method = method.upper()
 
@@ -438,50 +707,56 @@ class XanoClient:
             except httpx.TimeoutException as error:
                 duration_ms = round((time.perf_counter() - started_at) * 1000)
                 _record_failure()
-                _log_request(
+                request = getattr(error, "request", None)
+                reference = _emit_failure(
                     method=request_method,
                     path=endpoint.path,
                     status="sem_resposta",
                     duration_ms=duration_ms,
                     response=None,
-                    attempt=attempt,
-                    cause=type(error).__name__,
+                    request=request,
+                    result=f"tempo esgotado: {type(error).__name__}",
                 )
                 if request_method == "GET" and attempt <= _MAX_RETRIES:
                     await _sleep(_RETRY_DELAYS[attempt - 1])
                     continue
                 raise XanoTimeoutError(
-                    "O serviço Xano excedeu o tempo limite."
+                    "O serviço Xano excedeu o tempo limite.",
+                    reference=reference,
                 ) from None
             except httpx.RequestError as error:
                 duration_ms = round((time.perf_counter() - started_at) * 1000)
                 _record_failure()
-                _log_request(
+                request = getattr(error, "request", None)
+                reference = _emit_failure(
                     method=request_method,
                     path=endpoint.path,
                     status="sem_resposta",
                     duration_ms=duration_ms,
                     response=None,
-                    attempt=attempt,
-                    cause=type(error).__name__,
+                    request=request,
+                    result=f"falha de conexão: {type(error).__name__}",
                 )
                 if request_method == "GET" and attempt <= _MAX_RETRIES:
                     await _sleep(_RETRY_DELAYS[attempt - 1])
                     continue
                 raise XanoRequestError(
-                    "Não foi possível se comunicar com o serviço Xano."
+                    "Não foi possível se comunicar com o serviço Xano.",
+                    reference=reference,
                 ) from None
 
             duration_ms = round((time.perf_counter() - started_at) * 1000)
             if response.is_error:
                 _record_failure()
-                _log_request(
+                public_detail, non_json_response, _ = _error_detail(response)
+                reference = _emit_failure(
                     method=request_method,
                     path=endpoint.path,
                     status=response.status_code,
                     duration_ms=duration_ms,
                     response=response,
-                    attempt=attempt,
+                    request=response.request,
+                    result=f"resposta HTTP {response.status_code}",
                 )
                 if (
                     request_method == "GET"
@@ -494,13 +769,14 @@ class XanoClient:
                     )
                     await _sleep(delay)
                     continue
-                public_detail, non_json_response = _error_detail(response)
                 raise XanoResponseError(
                     response.status_code,
                     public_detail,
                     non_json_response=non_json_response,
+                    reference=reference,
                 )
 
+            _LAST_RESPONSE.set(response)
             _log_request(
                 method=request_method,
                 path=endpoint.path,
@@ -511,7 +787,18 @@ class XanoClient:
             )
             return response
 
-        raise XanoRequestError("Não foi possível concluir a chamada ao Xano.")
+        raise XanoRequestError(
+            "Não foi possível concluir a chamada ao Xano.",
+            reference=_emit_failure(
+                method=request_method,
+                path=endpoint.path,
+                status="sem_resposta",
+                duration_ms=0,
+                response=None,
+                request=None,
+                result="tentativas esgotadas",
+            ),
+        )
 
 
 def _record_failure() -> None:

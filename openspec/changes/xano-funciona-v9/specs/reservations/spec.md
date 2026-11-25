@@ -27,4 +27,16 @@ A interface MUST bloquear nova submissão de reserva desde o início da tentativ
 
 #### Scenario: Gravação fica visível após atraso
 - **WHEN** a primeira leitura após uma escrita 2xx ilegível ainda não mostra a solicitação ou reserva
-- **THEN** o sistema faz até duas releituras GET com intervalos curtos, confirma somente quando encontra o registro correspondente e nunca repete a escrita
+- **THEN** o sistema faz até duas releituras GET adicionais após 1,5 s e 3 s desde a primeira, confirma somente quando encontra o registro correspondente e nunca repete a escrita
+
+#### Scenario: Pedido visível na segunda leitura
+- **WHEN** o POST retorna 2xx ilegível e a segunda releitura encontra o pedido para o título solicitado
+- **THEN** a interface confirma “Pedido enviado” e libera a ação conforme os dados atualizados
+
+#### Scenario: Pedido não aparece após três leituras
+- **WHEN** o POST retorna 2xx ilegível e nenhuma das três leituras encontra o pedido
+- **THEN** a interface mostra erro com referência, mantém o botão bloqueado e o terminal registra a ausência sem repetir POST
+
+#### Scenario: Tentar de novo na página Reservas
+- **WHEN** estudante aciona “Tentar de novo” após resultado incerto
+- **THEN** o sistema somente relê solicitações e reservas, sem criar outro POST
