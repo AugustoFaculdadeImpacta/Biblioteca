@@ -672,11 +672,56 @@ def test_student_request_does_not_retry_uncertain_result(monkeypatch):
     asyncio.run(verify())
 
 
+@pytest.mark.parametrize(
+    "error",
+    [
+        XanoResponseError(429, reference="E4290"),
+        XanoResponseError(503, reference="E5030"),
+        XanoTimeoutError("tempo esgotado", reference="ETIME"),
+    ],
+)
+def test_student_request_http_and_timeout_failures_keep_reference_without_retry(
+    monkeypatch, error
+):
+    writes = []
+
+    async def failed_request(title_id, token):
+        writes.append((title_id, token))
+        raise error
+
+    async def unexpected_read(*_args, **_kwargs):
+        raise AssertionError("Falha na escrita não deve iniciar releitura")
+
+    monkeypatch.setattr(frontend, "request_title_loan", failed_request)
+    monkeypatch.setattr(frontend, "list_my_loans", unexpected_read)
+    monkeypatch.setattr(frontend, "list_my_requests", unexpected_read)
+    monkeypatch.setattr(frontend, "list_my_reservations", unexpected_read)
+    monkeypatch.setattr(frontend, "list_public_titles", unexpected_read)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"student-request-error-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-estudante", "estudante")
+            state.public_catalog_detail = {"id": 14}
+
+            await state.request_catalog_title(14)
+
+            assert writes == [(14, "token-estudante")]
+            assert state.student_request_has_error is True
+            assert f"(ref. {error.reference})" in state.student_request_message
+            assert state.student_request_pending is False
+
+    asyncio.run(verify())
+
+
 def test_student_request_treats_unreadable_success_as_success_and_refreshes(
     monkeypatch,
 ):
     writes = []
     request_reads = 0
+    retry_delays = []
 
     async def unreadable_write(title_id, token):
         writes.append((title_id, token))
@@ -702,11 +747,15 @@ def test_student_request_treats_unreadable_success_as_success_and_refreshes(
     async def public_titles():
         return []
 
+    async def sleep(delay):
+        retry_delays.append(delay)
+
     monkeypatch.setattr(frontend, "request_title_loan", unreadable_write)
     monkeypatch.setattr(frontend, "list_my_loans", empty_records)
     monkeypatch.setattr(frontend, "list_my_requests", delayed_request)
     monkeypatch.setattr(frontend, "list_my_reservations", empty_records)
     monkeypatch.setattr(frontend, "list_public_titles", public_titles)
+    monkeypatch.setattr(frontend.asyncio, "sleep", sleep)
 
     async def verify():
         async with frontend.app.modify_state(
@@ -721,9 +770,11 @@ def test_student_request_treats_unreadable_success_as_success_and_refreshes(
             assert writes == [(14, "token-estudante")]
             assert request_reads == 2
             assert state.student_request_message == (
-                "Sua solicitação foi registrada. A equipe da biblioteca "
+                "Pedido enviado. Sua solicitação foi registrada. "
+                "A equipe da biblioteca "
                 "confirmará a retirada."
             )
+            assert retry_delays == [1.5]
             assert state.student_request_has_error is False
             assert state.student_library_pending is False
             assert state.student_request_pending is False
@@ -732,14 +783,15 @@ def test_student_request_treats_unreadable_success_as_success_and_refreshes(
 
 
 def test_student_request_stays_locked_until_refresh_confirms_unreadable_write(
-    monkeypatch,
+    monkeypatch, capsys
 ):
     writes = []
     request_reads = 0
+    retry_delays = []
 
     async def unreadable_write(title_id, token):
         writes.append((title_id, token))
-        raise XanoWriteSucceededWithUnreadableResponse()
+        raise XanoWriteSucceededWithUnreadableResponse(reference="E7F3A")
 
     async def empty_records(_token):
         return []
@@ -761,11 +813,15 @@ def test_student_request_stays_locked_until_refresh_confirms_unreadable_write(
     async def public_titles():
         return []
 
+    async def sleep(delay):
+        retry_delays.append(delay)
+
     monkeypatch.setattr(frontend, "request_title_loan", unreadable_write)
     monkeypatch.setattr(frontend, "list_my_loans", empty_records)
     monkeypatch.setattr(frontend, "list_my_requests", requests)
     monkeypatch.setattr(frontend, "list_my_reservations", empty_records)
     monkeypatch.setattr(frontend, "list_public_titles", public_titles)
+    monkeypatch.setattr(frontend.asyncio, "sleep", sleep)
 
     async def verify():
         async with frontend.app.modify_state(
@@ -782,9 +838,10 @@ def test_student_request_stays_locked_until_refresh_confirms_unreadable_write(
             assert state.student_request_has_error is True
             assert state.student_request_message == (
                 "Não foi possível confirmar a solicitação. "
-                "Confira Reservas antes de tentar novamente."
+                "Confira Reservas antes de tentar novamente. (ref. E7F3A)"
             )
             assert request_reads == 3
+            assert retry_delays == [1.5, 1.5]
 
             await state.request_catalog_title(14)
             assert writes == [(14, "token-estudante")]
@@ -795,11 +852,15 @@ def test_student_request_stays_locked_until_refresh_confirms_unreadable_write(
             assert state.student_request_pending is False
             assert state.student_request_has_error is False
             assert state.student_request_message == (
-                "Sua solicitação foi registrada. A equipe da biblioteca "
+                "Pedido enviado. Sua solicitação foi registrada. "
+                "A equipe da biblioteca "
                 "confirmará a retirada."
             )
 
     asyncio.run(verify())
+    output = capsys.readouterr().err
+    assert "[ERRO xano] ref=E7F3A" in output
+    assert "releitura 3x não achou o pedido" in output
 
 
 def test_student_request_remains_locked_until_failed_refresh_recovers(monkeypatch):

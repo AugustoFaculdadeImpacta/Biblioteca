@@ -375,6 +375,30 @@ def registrar_excecao_backend(exception: Exception) -> str:
     )
 
 
+def registrar_resultado_xano(
+    *,
+    action: str,
+    profile: str,
+    method: str,
+    path: str,
+    status: int | str,
+    result: str,
+    reference: str | None = None,
+    duration_ms: int = 0,
+) -> str:
+    with contexto_evento_xano(action, profile):
+        return _emit_failure(
+            method=method,
+            path=path,
+            status=status,
+            duration_ms=duration_ms,
+            response=None,
+            request=None,
+            result=result,
+            reference=reference,
+        )
+
+
 @dataclass(slots=True)
 class _PageDiagnostics:
     route: str

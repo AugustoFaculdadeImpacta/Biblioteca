@@ -95,6 +95,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoWriteSucceededWithUnreadableResponse,
     diagnosticar_pagina_xano,
     registrar_excecao_backend,
+    registrar_resultado_xano,
 )
 
 
@@ -224,6 +225,8 @@ class State(rx.State):
     student_reservation_tab: str = "aguardando"
     student_request_pending: bool = False
     student_request_uncertain_title_id: int | None = None
+    _student_request_uncertain_reference: str = ""
+    _student_library_manual_retry: bool = False
     student_request_message: str = ""
     student_request_has_error: bool = False
     librarian_management_pending: bool = False
@@ -345,6 +348,8 @@ class State(rx.State):
         self.mobile_navigation_open = False
         self.student_request_pending = False
         self.student_request_uncertain_title_id = None
+        self._student_request_uncertain_reference = ""
+        self._student_library_manual_retry = False
         self.is_authenticated = False
 
     def _is_librarian(self) -> bool:
@@ -968,7 +973,11 @@ class State(rx.State):
 
     @rx.event
     async def retry_student_library(self):
-        await self.load_student_library()
+        self._student_library_manual_retry = True
+        try:
+            await self.load_student_library()
+        finally:
+            self._student_library_manual_retry = False
 
     @rx.event(background=True)
     async def resolve_public_catalog_covers(self):
@@ -1170,9 +1179,12 @@ class State(rx.State):
                     title_id,
                     self._session_token,
                 )
-            except XanoWriteSucceededWithUnreadableResponse:
+            except XanoWriteSucceededWithUnreadableResponse as error:
                 write_succeeded = True
                 self.student_request_uncertain_title_id = title_id
+                self._student_request_uncertain_reference = (
+                    error.reference or ""
+                )
                 self.student_request_message = (
                     "Atualizando Reservas para confirmar a solicitação."
                 )
@@ -1232,8 +1244,11 @@ class State(rx.State):
             reservations = await list_my_reservations(self._session_token)
             titles = await list_public_titles()
             uncertain_title_id = self.student_request_uncertain_title_id
-            if uncertain_title_id is not None:
-                for retry_delay in (0.25, 0.75):
+            if (
+                uncertain_title_id is not None
+                and not self._student_library_manual_retry
+            ):
+                for retry_delay in (1.5, 1.5):
                     request_confirmed = any(
                         request["titulo_id"] == uncertain_title_id
                         and request["estado"] in {"pendente", "em_reserva"}
@@ -1358,33 +1373,46 @@ class State(rx.State):
             )
             if confirmed_reservation is not None or confirmed_request is not None:
                 self.student_request_uncertain_title_id = None
+                self._student_request_uncertain_reference = ""
                 self.student_request_pending = False
                 self.student_request_has_error = False
                 if confirmed_reservation is not None:
                     self.student_request_message = (
-                        "Sua reserva foi registrada. Confira em Reservas."
+                        "Pedido enviado. Sua reserva foi registrada. "
+                        "Confira em Reservas."
                     )
                 elif (
                     confirmed_request is not None
                     and confirmed_request["estado"] == "em_reserva"
                 ):
                     self.student_request_message = (
-                        "Sua solicitação entrou na fila de reservas."
+                        "Pedido enviado. Sua solicitação entrou na fila de reservas."
                     )
                 else:
                     self.student_request_message = (
-                        "Sua solicitação foi registrada. A equipe da biblioteca "
-                        "confirmará a retirada."
+                        "Pedido enviado. Sua solicitação foi registrada. "
+                        "A equipe da biblioteca confirmará a retirada."
                     )
             else:
                 self.student_library_has_error = True
+                reference = registrar_resultado_xano(
+                    action="reservar_livro",
+                    profile="estudante",
+                    method="GET",
+                    path="/minhas/solicitacoes e /minhas/reservas",
+                    status="2xx",
+                    result="releitura 3x não achou o pedido",
+                    reference=self._student_request_uncertain_reference or None,
+                    duration_ms=3000,
+                )
+                self._student_request_uncertain_reference = reference
                 self.student_library_message = (
                     "Ainda não foi possível confirmar a solicitação. "
-                    "Atualize Reservas antes de tentar novamente."
+                    f"Atualize Reservas antes de tentar novamente. (ref. {reference})"
                 )
                 self.student_request_message = (
                     "Não foi possível confirmar a solicitação. "
-                    "Confira Reservas antes de tentar novamente."
+                    f"Confira Reservas antes de tentar novamente. (ref. {reference})"
                 )
                 self.student_request_has_error = True
         else:
