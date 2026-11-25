@@ -730,6 +730,20 @@ def test_student_request_treats_unreadable_success_as_success_and_refreshes(
     async def empty_records(_token):
         return []
 
+    async def delayed_request(_token):
+        nonlocal request_reads
+        request_reads += 1
+        if request_reads == 1:
+            return []
+        return [
+            {
+                "id": 9,
+                "usuario_id": 7,
+                "titulo_id": 14,
+                "estado": "pendente",
+            }
+        ]
+
     async def public_titles():
         return []
 

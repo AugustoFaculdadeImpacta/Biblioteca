@@ -64,8 +64,7 @@ def _assert_error_reference(message: str, expected: str) -> None:
     reference = message[len(prefix) :]
     assert len(reference) == 6
     assert reference.endswith(")")
-    assert reference[:-1].isalnum()
-    assert reference[:-1].isupper()
+    assert set(reference[:-1]) <= set("0123456789ABCDEF")
 
 
 def test_student_login_catalog_request_and_library_use_one_mock_transport(

@@ -14,11 +14,13 @@
 
 ## 3. Resumo da home
 
-- [ ] 3.1 Tornar independentes o carregamento, erro, valor “—” e retry de cada indicador; testar falha isolada e preservação dos demais resultados.
+- [x] 3.1 Tornar independentes o carregamento, erro, valor “—” e retry de cada indicador; testar falha isolada e preservação dos demais resultados.
+  - Evidência: commit `dcc06a6`; `pytest tests\test_primary_journeys.py -q` — `17 passed` (inclui início concorrente e retry independente); `pytest tests\test_xano_client.py -q` — `32 passed` (detalhe interno não exposto).
 
 ## 4. Diagnóstico pelo Perfil
 
-- [ ] 4.1 Adicionar diagnóstico somente leitura para usuários autenticados, com chamadas autorizadas pelo perfil, validação estrutural e relatório copiável sem valores sensíveis; documentar em `docs/diagnostico-xano.md` e testar 200 válido/inválido, 403, 404, 429, não JSON e sanitização.
+- [x] 4.1 Adicionar diagnóstico somente leitura para usuários autenticados, com chamadas autorizadas pelo perfil, validação estrutural e relatório copiável sem valores sensíveis; documentar em `docs/diagnostico-xano.md` e testar 200 válido/inválido, 403, 404, 429, não JSON e sanitização.
+  - Evidência: commit `5d27808`; `pytest --ignore=evaluation -q` — `404 passed`, incluindo validação por perfil, 200 válido/inválido, 403/404/429, não JSON e sanitização; `.\.venv\Scripts\python.exe -m reflex compile --dry` — sucesso.
 
 ## 5. Comparação de contratos Xano
 
@@ -56,3 +58,5 @@
 - [x] F. Ajustar somente tokens de cor de “Acessibilidade” para preservar posição, tamanho e formato; calcular e testar contraste >=4,5:1 para Perfil e Acessibilidade em temas claro/escuro, repouso/hover/foco.
   - Evidência: commit `9421d01`; `pytest tests\test_layout_v5.py tests\test_frontend_foundation.py -q` — `29 passed`; contraste calculado (repouso/foco; hover): Perfil claro 11,85/10,78:1 e escuro 9,17/7,84:1; Acessibilidade claro 14,00/12,73:1 e escuro 13,34/11,40:1.
 - [ ] G. Concluir tarefas pendentes locais da v9 para resumo independente da home, “Testar conexão” para usuário logado e documentação comparativa com a cópia remota existente; atualizar `docs/relatorio-noite.md`, validar specs com `--strict`, executar `.\.venv\Scripts\python.exe -m reflex compile --dry` e pytest em sequência. Não escrever no Xano nem fazer novo pull; validar e arquivar somente se todas as tarefas puderem ser concluídas, caso contrário deixar Change aberta com bloqueio explícito.
+  - Evidência parcial (2026-11-25): tarefas locais 3.1, 4.1 e 5.2 concluídas; compile dry passou; `pytest --ignore=evaluation -q` — `404 passed`; Change válida com `--strict` e 10 specs aprovadas. O requisito de contraste foi classificado como `ADDED`, pois ainda não existe na spec consolidada.
+  - Bloqueio: 5.3 permanece sem validação XanoScript bem-sucedida pelo MCP (a tentativa anterior expirou na negociação); 5.4 está impedida por `allow_push=false`. Não houve escrita no Xano nem novo pull; a Change fica aberta e não será arquivada.

@@ -1,5 +1,13 @@
 # Relatório de execução noturna
 
+## Atualização — diagnóstico no Perfil e verificação v9, 2026-11-25
+
+- Tarefas locais 3.1 e 4.1 concluídas. O resumo da home mantém carregamento e retry independentes; o Perfil oferece diagnóstico somente leitura restrito ao perfil, com relatório copiável sem valores pessoais. A comparação de contratos de 5.2 já está documentada em `docs/xano-diferencas.md`.
+- Commit do diagnóstico: `5d27808` (`Adiciona diagnóstico Xano no Perfil`). `.\.venv\Scripts\python.exe -m reflex compile --dry` passou; `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q` — `404 passed`.
+- A suíte encontrou e motivou duas correções de teste sem reduzir suas verificações: referências hexadecimais podem ser compostas só por dígitos, e o teste de confirmação de reserva precisava recuperar sua fixture de releitura atrasada.
+- `openspec validate xano-funciona-v9 --strict` considerou a Change válida; `openspec validate --specs --strict` aprovou 10 specs. O delta do contraste foi classificado como requisito novo (`ADDED`), pois não existe ainda na spec consolidada, e não há aviso de arquivamento na validação.
+- 5.3 continua bloqueada: a tentativa anterior de validação XanoScript pelo MCP expirou na negociação. 5.4 continua bloqueada por `allow_push=false`. Nenhum acesso de escrita ao Xano ou novo pull foi feito nesta retomada; não sincronizei nem arquivei a Change.
+
 ## Atualização — confirmação de solicitação de reserva, 2026-11-24
 
 - O Reflex agora mantém a escrita POST única e, quando seu 2xx não tem corpo interpretável, repete apenas as leituras pessoais de solicitações/reservas: uma leitura inicial e até duas releituras com intervalos curtos. A solicitação continua bloqueada se nenhum registro correspondente aparecer; o teste cobre registro tardio e ausência persistente até atualização manual.

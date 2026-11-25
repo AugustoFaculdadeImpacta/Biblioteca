@@ -49,6 +49,8 @@ A página inicial MUST apresentar estatísticas calculadas exclusivamente dos da
 - **WHEN** a API ou os dados já carregados não fornecem contagens de empréstimos por título
 - **THEN** a home não exibe uma seção “Livros que mais saem” nem infere popularidade a partir de disponibilidade
 
+## ADDED Requirements
+
 ### Requirement: Controles do cabeçalho mantêm contraste acessível
 O texto dos controles “Perfil” e “Acessibilidade” MUST manter contraste mínimo de 4,5:1 contra o fundo nos temas claro e escuro, em repouso, hover e foco, usando tokens de tema sem alterar a geometria aprovada.
 
