@@ -120,6 +120,7 @@ def _diagnostico_desativacao(
     status_code: int,
     body_keys: list[str],
     response_keys: list[str],
+    active_sent: bool,
     active_response: object,
     active_reloaded: object,
 ) -> None:
@@ -131,6 +132,7 @@ def _diagnostico_desativacao(
         f"chaves_corpo={','.join(body_keys)} "
         f"status={status_code} "
         f"chaves_resposta={','.join(response_keys)} "
+        f"ativo_enviado={active_sent!r} "
         f"ativo_resposta={active_response!r} "
         f"ativo_releitura={active_reloaded!r}",
     )
@@ -2667,6 +2669,7 @@ class State(rx.State):
                 ),
                 body_keys=sorted(payload.keys()),
                 response_keys=[],
+                active_sent=active,
                 active_response=None,
                 active_reloaded=None,
             )
@@ -2695,6 +2698,7 @@ class State(rx.State):
                 status_code=200,
                 body_keys=sorted(payload.keys()),
                 response_keys=[],
+                active_sent=active,
                 active_response=None,
                 active_reloaded=active_reloaded,
             )
@@ -2722,6 +2726,7 @@ class State(rx.State):
                     if isinstance(update_result, dict)
                     else []
                 ),
+                active_sent=active,
                 active_response=(
                     update_result.get("ativo")
                     if isinstance(update_result, dict)
@@ -2750,6 +2755,7 @@ class State(rx.State):
                     if isinstance(update_result, dict)
                     else []
                 ),
+                active_sent=active,
                 active_response=(
                     update_result.get("ativo")
                     if isinstance(update_result, dict)
@@ -2772,6 +2778,26 @@ class State(rx.State):
             refreshed_entry["titulo"].get("ativo") is not False
         )
         if refreshed_active != active:
+            active_response = (
+                update_result.get("ativo")
+                if isinstance(update_result, dict)
+                and type(update_result.get("ativo")) is bool
+                else None
+            )
+            reference = registrar_resultado_xano(
+                action="desativar_titulo" if not active else "reativar_titulo",
+                profile="bibliotecario",
+                method="PATCH",
+                path=f"/catalogo/titulos/{title_id}",
+                status=200,
+                result="valor ativo diverge após PATCH e releitura",
+                sent_keys=tuple(sorted((*payload.keys(), "ativo"))),
+                active_diagnostics=(
+                    active,
+                    active_response,
+                    refreshed_active,
+                ),
+            )
             _diagnostico_desativacao(
                 title_id=title_id,
                 status_code=200,
@@ -2781,22 +2807,21 @@ class State(rx.State):
                     if isinstance(update_result, dict)
                     else []
                 ),
-                active_response=(
-                    update_result.get("ativo")
-                    if isinstance(update_result, dict)
-                    else None
-                ),
+                active_sent=active,
+                active_response=active_response,
                 active_reloaded=refreshed_active,
             )
             if not active:
                 self.admin_catalog_message = (
                     "O servidor respondeu, mas o título continua ativo. "
-                    "A atualização do servidor pode não estar publicada"
+                    "A atualização do servidor pode não estar publicada. "
+                    f"(ref. {reference})"
                 )
             else:
                 self.admin_catalog_message = (
                     "O servidor respondeu, mas o título continua desativado. "
-                    "A atualização do servidor pode não estar publicada"
+                    "A atualização do servidor pode não estar publicada. "
+                    f"(ref. {reference})"
                 )
             self.admin_catalog_has_error = True
             self.admin_catalog_confirm_title_id = None
@@ -2816,6 +2841,7 @@ class State(rx.State):
                 if isinstance(update_result, dict)
                 else []
             ),
+            active_sent=active,
             active_response=(
                 update_result.get("ativo")
                 if isinstance(update_result, dict)

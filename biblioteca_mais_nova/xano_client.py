@@ -305,6 +305,8 @@ def _emit_failure(
     result: str,
     reference: str | None = None,
     traceback_text: str | None = None,
+    active_diagnostics: tuple[bool, bool | None, bool | None] | None = None,
+    sent_keys: tuple[str, ...] | None = None,
 ) -> str:
     reference = reference or _new_reference()
     if os.environ.get("BIBLIOTECA_LOG_ERROS") == "0":
@@ -321,12 +323,42 @@ def _emit_failure(
             f"  chamada: {method} {path} -> {status} em {duration_ms} ms | "
             f"content-type: {content_type or '-'} | tamanho: {response_size}"
         ),
-        f"  enviado (chaves): {_sent_keys(request)}",
+        (
+            "  enviado (chaves): "
+            + (
+                ", ".join(_sanitize_diagnostic(key) for key in sent_keys)
+                if sent_keys is not None
+                else _sent_keys(request)
+            )
+        ),
         f"  recebido: {snippet or '[vazio]'} | topo JSON: {top} | chaves: {keys}",
     ]
     if xano_message:
         block.append(f"  {xano_message}")
     block.append(f"  resultado: {_sanitize_diagnostic(result)}")
+    if active_diagnostics is not None:
+        active_sent, active_response, active_reloaded = active_diagnostics
+        values = (
+            str(active_sent).lower(),
+            (
+                str(active_response).lower()
+                if active_response is not None
+                else "nenhum"
+            ),
+            (
+                str(active_reloaded).lower()
+                if active_reloaded is not None
+                else "nenhum"
+            ),
+        )
+        block.append(
+            "  ativo: enviado="
+            + values[0]
+            + " | resposta="
+            + values[1]
+            + " | releitura="
+            + values[2]
+        )
     if traceback_text:
         block.extend(
             "  " + line
@@ -385,6 +417,8 @@ def registrar_resultado_xano(
     result: str,
     reference: str | None = None,
     duration_ms: int = 0,
+    active_diagnostics: tuple[bool, bool | None, bool | None] | None = None,
+    sent_keys: tuple[str, ...] | None = None,
 ) -> str:
     with contexto_evento_xano(action, profile):
         return _emit_failure(
@@ -396,6 +430,8 @@ def registrar_resultado_xano(
             request=None,
             result=result,
             reference=reference,
+            active_diagnostics=active_diagnostics,
+            sent_keys=sent_keys,
         )
 
 

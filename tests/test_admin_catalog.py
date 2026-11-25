@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from uuid import uuid4
 
 import httpx
@@ -182,7 +183,9 @@ def test_title_deactivation_reports_http_and_connection_errors(
     asyncio.run(verify())
 
 
-def test_title_deactivation_detects_apparent_success(monkeypatch):
+def test_title_deactivation_detects_apparent_success(monkeypatch, capsys):
+    messages = []
+
     async def update(title_id, payload, token, *, active=None):
         assert active is False
         return {"id": title_id, "ativo": False}
@@ -208,13 +211,23 @@ def test_title_deactivation_detects_apparent_success(monkeypatch):
             await state.set_title_active(81, False)
 
             assert state.admin_catalog_title_action_error is True
-            assert state.admin_catalog_title_action_message == (
+            assert state.admin_catalog_title_action_message.startswith(
                 "O servidor respondeu, mas o título continua ativo. "
-                "A atualização do servidor pode não estar publicada"
+                "A atualização do servidor pode não estar publicada. "
             )
+            assert re.search(
+                r"\(ref\. [A-Z0-9]{5}\)$",
+                state.admin_catalog_title_action_message,
+            )
+            messages.append(state.admin_catalog_title_action_message)
             assert state.admin_catalog_display_entries[0]["ativo"] is True
 
     asyncio.run(verify())
+    reference = messages[0].rpartition("(ref. ")[2].rstrip(")")
+    output = capsys.readouterr().err
+    assert f"[ERRO xano] ref={reference}" in output
+    assert "enviado (chaves):" in output
+    assert "ativo: enviado=false | resposta=false | releitura=true" in output
 
 
 def test_deactivation_diagnostic_is_opt_in_and_never_prints_secrets(
@@ -420,14 +433,17 @@ def test_update_title_reuses_patch_and_only_sends_approved_fields(monkeypatch):
         )
     )
 
-    assert result == {"id": 81}
+    assert result == {"id": 81, "ativo": False}
     assert requests[0].method == "PATCH"
     assert requests[0].url.path == "/catalogo/titulos/81"
-    assert json.loads(requests[0].content) == {
+    sent_body = json.loads(requests[0].content)
+    assert sent_body == {
         "titulo": "Novo título",
         "autores": "Autoria",
         "ativo": False,
     }
+    assert type(sent_body["ativo"]) is bool
+    assert sent_body["ativo"] is False
     assert "Authorization" in requests[0].headers
 
 

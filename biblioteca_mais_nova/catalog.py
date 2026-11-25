@@ -66,6 +66,7 @@ class TitlePayload(TypedDict, total=False):
 
 class Title(TypedDict):
     id: int
+    ativo: NotRequired[bool | None]
 
 
 class TitleCategory(TypedDict):
@@ -452,7 +453,15 @@ async def update_title(
             or title["id"] != title_id
         ):
             raise _response_error()
-        return {"id": title_id}
+        result: Title = {"id": title_id}
+        if "ativo" in title:
+            active_value = title["ativo"]
+            result["ativo"] = (
+                None
+                if active_value is None
+                else parse_xano_bool(active_value)
+            )
+        return result
 
     return parse_xano_write_response(response, parse_result)
 
