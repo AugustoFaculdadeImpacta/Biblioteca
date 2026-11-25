@@ -1289,6 +1289,7 @@ class State(rx.State):
         self.student_request_message = ""
         self.student_request_has_error = False
         write_succeeded = False
+        refresh_after_write = False
         try:
             try:
                 with contexto_evento_xano(
@@ -1301,6 +1302,7 @@ class State(rx.State):
                     )
             except XanoWriteSucceededWithUnreadableResponse as error:
                 write_succeeded = True
+                refresh_after_write = True
                 self.student_request_uncertain_title_id = title_id
                 self._student_request_uncertain_reference = (
                     error.reference or ""
@@ -1310,16 +1312,58 @@ class State(rx.State):
                 )
             else:
                 write_succeeded = True
-                if result["estado"] == "em_reserva":
+                estado = result.get("estado")
+                if estado == "em_reserva":
                     self.student_request_message = (
-                        "Sua solicitação foi registrada na fila de reservas."
+                        "Pedido enviado. Sua solicitação foi registrada "
+                        "na fila de reservas."
                     )
                 else:
                     self.student_request_message = (
-                        "Sua solicitação foi registrada. A equipe da biblioteca "
+                        "Pedido enviado. Sua solicitação foi registrada. "
+                        "A equipe da biblioteca "
                         "confirmará a retirada."
                     )
-            await self.load_student_library()
+                if estado in {"pendente", "em_reserva"}:
+                    self.student_library_requests = [
+                        request
+                        for request in self.student_library_requests
+                        if request["id"] != result["id"]
+                    ]
+                    self.student_library_requests.append(
+                        {
+                            "id": result["id"],
+                            "titulo": self.public_catalog_detail.get(
+                                "titulo",
+                                "Título indisponível",
+                            ),
+                            "href": f"/catalogo/{title_id}",
+                            "estado": _request_status_label(estado),
+                            "solicitada_em": _format_known_timestamp(
+                                result.get("solicitada_em")
+                            ),
+                        }
+                    )
+                else:
+                    self.student_library_requests.append(
+                        {
+                            "id": result["id"],
+                            "titulo": self.public_catalog_detail.get(
+                                "titulo",
+                                "Título indisponível",
+                            ),
+                            "href": f"/catalogo/{title_id}",
+                            "estado": "Solicitação registrada",
+                            "solicitada_em": _format_known_timestamp(
+                                result.get("solicitada_em")
+                            ),
+                        }
+                    )
+                self.student_request_uncertain_title_id = None
+                self._student_request_uncertain_reference = ""
+                self.student_library_has_error = False
+            if refresh_after_write:
+                await self.load_student_library()
         except (
             XanoResponseError,
             XanoTimeoutError,
@@ -1372,7 +1416,7 @@ class State(rx.State):
                     uncertain_title_id is not None
                     and not self._student_library_manual_retry
                 ):
-                    for retry_delay in (1.5, 1.5):
+                    for retry_delay in (1.5, 2.5):
                         request_confirmed = any(
                             request["titulo_id"] == uncertain_title_id
                             and request["estado"] in {"pendente", "em_reserva"}

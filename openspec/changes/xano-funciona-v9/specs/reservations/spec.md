@@ -3,7 +3,11 @@
 ## ADDED Requirements
 
 ### Requirement: A solicitação de reserva impede envios duplicados
-A interface MUST bloquear nova submissão de reserva desde o início da tentativa até que as listas relacionadas terminem de recarregar.
+A interface MUST bloquear nova submissão de reserva desde o início da tentativa até que o resultado confirmado esteja refletido no estado local ou as listas relacionadas terminem de recarregar.
+
+#### Scenario: Resposta POST confirma diretamente o pedido
+- **WHEN** o POST retorna HTTP 2xx com um objeto contendo ID válido e `titulo_id` igual ao título solicitado
+- **THEN** a interface confirma “Pedido enviado” e acrescenta o pedido ao estado local sem reler listas
 
 #### Scenario: Tentativa de reserva pendente
 - **WHEN** estudante inicia uma solicitação de reserva
@@ -27,7 +31,7 @@ A interface MUST bloquear nova submissão de reserva desde o início da tentativ
 
 #### Scenario: Gravação fica visível após atraso
 - **WHEN** a primeira leitura após uma escrita 2xx ilegível ainda não mostra a solicitação ou reserva
-- **THEN** o sistema faz até duas releituras GET adicionais após 1,5 s e 3 s desde a primeira, confirma somente quando encontra o registro correspondente e nunca repete a escrita
+- **THEN** o sistema faz até duas releituras GET adicionais após 1,5 s e 4 s desde o POST, confirma somente quando encontra o registro correspondente e nunca repete a escrita
 
 #### Scenario: Pedido visível na segunda leitura
 - **WHEN** o POST retorna 2xx ilegível e a segunda releitura encontra o pedido para o título solicitado

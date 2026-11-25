@@ -195,6 +195,23 @@ def test_personal_list_accepts_envelope_and_skips_one_unreadable_record(
     assert records.skipped_count == 1
 
 
+def test_request_service_confirms_minimal_post_response_by_ids(monkeypatch):
+    transport = httpx.MockTransport(
+        lambda _request: httpx.Response(
+            200,
+            json={"id": 44, "titulo_id": 50},
+        )
+    )
+    monkeypatch.setenv("BIBLIOTECA_XANO_API_BASE_URL", "https://api.example.test")
+    monkeypatch.setenv("BIBLIOTECA_XANO_API_GROUP", "Biblioteca")
+
+    result = asyncio.run(
+        request_title_loan(50, "token-test", transport=transport)
+    )
+
+    assert result == {"id": 44, "titulo_id": 50}
+
+
 @pytest.mark.parametrize(
     "devolvido_em",
     [None, 0, "2026-11-14T12:00:00Z", 1794312000, 1794312000000],
@@ -431,6 +448,7 @@ def test_xano_request_examples_parse_zero_as_absent_for_post_and_list(monkeypatc
         "titulo_id": 50,
         "estado": "pendente",
         "reserva_id": None,
+        "solicitada_em": "2026-11-25T15:47:57.771000+00:00",
     }
     assert [record["id"] for record in records] == [32, 33]
     assert [record["estado"] for record in records] == ["pendente", "pendente"]
@@ -521,7 +539,7 @@ def test_invalid_records_log_one_field_specific_block_with_real_duration(
     invalid_post = {
         "id": 44,
         "usuario_id": 84,
-        "titulo_id": 50,
+        "titulo_id": 51,
         "estado": "pendente",
         "reserva_id": -1,
         "atendida_em": 0,
@@ -547,7 +565,10 @@ def test_invalid_records_log_one_field_specific_block_with_real_duration(
     post_log = capsys.readouterr().err
     assert post_log.count("[ERRO xano]") == 1
     assert "ação: reservar_livro | perfil: estudante" in post_log
-    assert "registro 0, campo reserva_id: valor não é um id válido" in post_log
+    assert (
+        "registro 0, campo titulo_id: não corresponde ao título solicitado"
+        in post_log
+    )
     elapsed = re.search(r"-> 200 em (\d+) ms", post_log)
     assert elapsed is not None
     assert int(elapsed.group(1)) >= 10
@@ -1054,7 +1075,7 @@ def test_student_request_stays_locked_until_refresh_confirms_unreadable_write(
                 "Confira Reservas antes de tentar novamente. (ref. E7F3A)"
             )
             assert request_reads == 3
-            assert retry_delays == [1.5, 1.5]
+            assert retry_delays == [1.5, 2.5]
 
             await state.request_catalog_title(14)
             assert writes == [(14, "token-estudante")]
@@ -1159,6 +1180,59 @@ def test_student_request_cannot_be_submitted_again_while_pending(monkeypatch):
             assert state.student_request_pending is False
             assert state.student_request_has_error is False
             assert state.student_request_message.startswith("Pedido enviado.")
+
+    asyncio.run(verify())
+
+
+def test_student_request_confirms_direct_response_without_reloading_lists(
+    monkeypatch,
+):
+    writes = []
+
+    async def direct_request(title_id, token):
+        writes.append((title_id, token))
+        return {
+            "id": 44,
+            "titulo_id": title_id,
+            "estado": "pendente",
+            "solicitada_em": "2026-11-24T19:31:02Z",
+        }
+
+    async def unexpected_read(_token):
+        raise AssertionError("Resposta confirmada não deve reler as listas")
+
+    monkeypatch.setattr(frontend, "request_title_loan", direct_request)
+    monkeypatch.setattr(frontend, "list_my_loans", unexpected_read)
+    monkeypatch.setattr(frontend, "list_my_requests", unexpected_read)
+    monkeypatch.setattr(frontend, "list_my_reservations", unexpected_read)
+    monkeypatch.setattr(frontend, "list_public_titles", unexpected_read)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"student-request-direct-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-estudante", "estudante")
+            state.public_catalog_detail = {
+                "id": 14,
+                "titulo": "Livro solicitado",
+            }
+
+            await state.request_catalog_title(14)
+
+            assert writes == [(14, "token-estudante")]
+            assert state.student_request_pending is False
+            assert state.student_request_has_error is False
+            assert state.student_request_message.startswith("Pedido enviado.")
+            assert state.student_library_requests == [
+                {
+                    "id": 44,
+                    "titulo": "Livro solicitado",
+                    "href": "/catalogo/14",
+                    "estado": "Aguardando confirmação da retirada",
+                    "solicitada_em": "24/11/2026 19:31 UTC",
+                }
+            ]
 
     asyncio.run(verify())
 

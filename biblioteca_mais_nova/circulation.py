@@ -60,7 +60,8 @@ class Reservation(TypedDict):
 class LoanRequestResult(TypedDict):
     id: int
     titulo_id: int
-    estado: str
+    estado: NotRequired[str]
+    solicitada_em: NotRequired[str | None]
     reserva_id: NotRequired[int | None]
 
 
@@ -556,19 +557,49 @@ async def request_title_loan(
         json={"titulo_id": title_id},
     )
     def parse_result(value: object) -> LoanRequestResult:
-        result = _parse_request(value)
-        if result["titulo_id"] != title_id:
-            raise _response_error()
-        return {
-            "id": result["id"],
-            "titulo_id": result["titulo_id"],
-            "estado": result["estado"],
-            **(
-                {"reserva_id": result["reserva_id"]}
-                if "reserva_id" in result
-                else {}
-            ),
+        if not isinstance(value, dict):
+            raise XanoInvalidResponseError(
+                field="resposta",
+                reason="esperado objeto",
+            )
+        request_id = _parse_field(
+            "id",
+            value.get("id"),
+            parse_xano_id,
+            "valor não é um id válido",
+        )
+        returned_title_id = _parse_field(
+            "titulo_id",
+            value.get("titulo_id"),
+            parse_xano_id,
+            "valor não é um id válido",
+        )
+        if returned_title_id != title_id:
+            raise XanoInvalidResponseError(
+                field="titulo_id",
+                reason="não corresponde ao título solicitado",
+            )
+        result: LoanRequestResult = {
+            "id": request_id,
+            "titulo_id": returned_title_id,
         }
+        if isinstance(value.get("estado"), str):
+            result["estado"] = value["estado"]
+        if "solicitada_em" in value:
+            try:
+                result["solicitada_em"] = parse_xano_timestamp(
+                    value["solicitada_em"]
+                )
+            except XanoInvalidResponseError:
+                pass
+        if "reserva_id" in value:
+            try:
+                result["reserva_id"] = parse_optional_xano_id(
+                    value["reserva_id"]
+                )
+            except XanoInvalidResponseError:
+                pass
+        return result
 
     return parse_xano_write_response(response, parse_result)
 
