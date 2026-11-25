@@ -363,7 +363,8 @@ def test_unexpected_response_format_is_reported_without_body(monkeypatch, caplog
         asyncio.run(client.request("GET", "/catalogo/titulos"))
 
     assert xano_public_error_message(error.value) == (
-        "O Xano devolveu uma página de erro (código 502)."
+        f"O Xano devolveu uma página de erro (código 502). "
+        f"(ref. {error.value.reference})"
     )
     assert response_body not in caplog.text
     assert response_body not in str(error.value)
@@ -375,7 +376,8 @@ def test_json_parser_distinguishes_non_json_and_incompatible_json():
             httpx.Response(502, text="<html>erro</html>")
         )
     assert xano_public_error_message(non_json.value) == (
-        "O Xano devolveu uma página de erro (código 502)."
+        f"O Xano devolveu uma página de erro (código 502). "
+        f"(ref. {non_json.value.reference})"
     )
 
     with pytest.raises(XanoInvalidResponseError) as invalid_json:
@@ -387,7 +389,8 @@ def test_json_parser_distinguishes_non_json_and_incompatible_json():
             )
         )
     assert xano_public_error_message(invalid_json.value) == (
-        "O Xano respondeu em formato inesperado."
+        f"O Xano respondeu em formato inesperado. "
+        f"(ref. {invalid_json.value.reference})"
     )
 
 
@@ -616,3 +619,39 @@ def test_failure_logging_can_be_disabled(monkeypatch, capsys):
         asyncio.run(client.request("POST", "/solicitacoes-emprestimo"))
 
     assert capsys.readouterr().err == ""
+
+
+@pytest.mark.parametrize(
+    ("server_message", "shown"),
+    [
+        ("Limite de pedidos atingido.", "Limite de pedidos atingido."),
+        ("Conta 123456789 não encontrada.", None),
+        ("Erro para pessoa@example.test.", None),
+    ],
+)
+def test_short_safe_server_message_is_available_but_personal_details_are_not(
+    monkeypatch, capsys, server_message, shown
+):
+    from biblioteca_mais_nova.catalog import catalog_error_message
+
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    client = XanoClient.from_environment(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                400,
+                json={"code": "regra", "message": server_message},
+            )
+        )
+    )
+
+    with pytest.raises(XanoResponseError) as error:
+        asyncio.run(client.request("GET", "/catalogo/titulos"))
+
+    message = catalog_error_message(error.value)
+    assert error.value.reference is not None
+    assert message.endswith(f"(ref. {error.value.reference})")
+    if shown is not None:
+        assert shown in message
+    else:
+        assert server_message not in message
+    assert capsys.readouterr().err.find(error.value.reference) >= 0

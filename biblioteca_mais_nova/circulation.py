@@ -19,6 +19,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoResponseError,
     parse_xano_response_json,
     parse_xano_write_response,
+    xano_message_with_reference,
     xano_public_error_message,
 )
 
@@ -325,26 +326,63 @@ def reservation_request_error_message(error: Exception) -> str:
         return common_message
     if isinstance(error, XanoResponseError):
         if error.status_code == 401:
-            return "[RES-401] Sua sessão expirou, entre de novo"
+            message = "[RES-401] Sua sessão expirou, entre de novo"
+            if error.public_detail:
+                message = f"{message} — {error.public_detail}"
+            return xano_message_with_reference(
+                message,
+                error,
+            )
         if error.status_code == 403:
-            return "[RES-403] Seu perfil não pode reservar"
+            message = "[RES-403] Seu perfil não pode reservar"
+            if error.public_detail:
+                message = f"{message} — {error.public_detail}"
+            return xano_message_with_reference(
+                message,
+                error,
+            )
         if error.status_code == 404:
-            return "[RES-404] Este recurso ainda não está disponível no servidor"
+            message = "[RES-404] Este recurso ainda não está disponível no servidor"
+            if error.public_detail:
+                message = f"{message} — {error.public_detail}"
+            return xano_message_with_reference(
+                message,
+                error,
+            )
         if error.status_code == 409:
             if error.public_detail:
-                return f"[RES-409] {error.public_detail}"
-            return "[RES-409] Há limite ou duplicidade nesta reserva"
+                return xano_message_with_reference(
+                    f"[RES-409] {error.public_detail}",
+                    error,
+                )
+            return xano_message_with_reference(
+                "[RES-409] Há limite ou duplicidade nesta reserva",
+                error,
+            )
         if error.status_code >= 500:
-            return "[RES-5XX] O servidor teve um problema (código 5xx)"
+            return xano_message_with_reference(
+                "[RES-5XX] O servidor teve um problema (código 5xx)",
+                error,
+            )
         if error.public_detail:
-            return f"[RES-{error.status_code}] {error.public_detail}"
-        return f"[RES-{error.status_code}] Não foi possível confirmar a reserva"
+            return xano_message_with_reference(
+                f"[RES-{error.status_code}] {error.public_detail}",
+                error,
+            )
+        return xano_message_with_reference(
+            f"[RES-{error.status_code}] Não foi possível confirmar a reserva",
+            error,
+        )
     if isinstance(error, XanoInvalidResponseError):
-        return "[RES-INVALID] Não foi possível confirmar a reserva"
+        return xano_message_with_reference(
+            "[RES-INVALID] Não foi possível confirmar a reserva",
+            error,
+        )
     if isinstance(error, XanoRequestError):
-        return (
+        return xano_message_with_reference(
             "[RES-NORESPONSE] Não foi possível confirmar a reserva. "
-            "Confira Minhas reservas antes de tentar de novo."
+            "Confira Minhas reservas antes de tentar de novo.",
+            error,
         )
     return "Erro — Não foi possível confirmar a reserva"
 

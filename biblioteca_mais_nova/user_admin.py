@@ -19,6 +19,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoResponseError,
     parse_xano_response_json,
     parse_xano_write_response,
+    xano_message_with_reference,
     xano_public_error_message,
 )
 
@@ -139,10 +140,24 @@ def user_admin_error_message(error: Exception) -> str:
     common_message = xano_public_error_message(error)
     if common_message is not None:
         return common_message
+    if isinstance(error, XanoResponseError) and error.public_detail:
+        return xano_message_with_reference(error.public_detail, error)
     if isinstance(error, XanoResponseError) and error.status_code in {400, 401, 403}:
-        return "Não foi possível concluir a operação. Confira sua permissão e os dados."
+        return xano_message_with_reference(
+            "Não foi possível concluir a operação. Confira sua permissão e os dados.",
+            error,
+        )
     if isinstance(error, XanoConfigurationError):
-        return "A gestão de bibliotecários está temporariamente indisponível."
+        return xano_message_with_reference(
+            "A gestão de bibliotecários está temporariamente indisponível.",
+            error,
+        )
     if isinstance(error, XanoRequestError):
-        return "Não foi possível concluir a operação. Tente novamente mais tarde."
-    return "Ocorreu um erro inesperado. Tente novamente mais tarde."
+        return xano_message_with_reference(
+            "Não foi possível concluir a operação. Tente novamente mais tarde.",
+            error,
+        )
+    return xano_message_with_reference(
+        "Ocorreu um erro inesperado. Tente novamente mais tarde.",
+        error,
+    )

@@ -152,7 +152,8 @@ def test_login_rejections_have_safe_message_and_hide_response(
         )
 
     assert login_error_message(error.value) == (
-        f"O Xano devolveu uma página de erro (código {status_code})."
+        f"O Xano devolveu uma página de erro (código {status_code}). "
+        f"(ref. {error.value.reference})"
     )
     assert detail not in str(error.value)
     assert "api.example.test" not in str(error.value)
@@ -175,6 +176,7 @@ def test_login_distinguishes_allowlisted_disabled_account_detail(
     )
 
     messages = []
+    references = []
     for _ in range(3):
         with pytest.raises(XanoResponseError) as error:
             asyncio.run(
@@ -184,11 +186,13 @@ def test_login_distinguishes_allowlisted_disabled_account_detail(
                 )
             )
         messages.append(login_error_message(error.value))
+        references.append(error.value.reference)
 
     assert messages == [
-        "A conta está desativada. Procure a administração da biblioteca.",
-        "Não foi possível autenticar. Confira os dados e tente novamente.",
-        "Não foi possível autenticar. Confira os dados e tente novamente.",
+        "A conta está desativada. Procure a administração da biblioteca. "
+        f"(ref. {references[0]})",
+        f"Credenciais inválidas. (ref. {references[1]})",
+        f"Credenciais inválidas. (ref. {references[2]})",
     ]
 
 

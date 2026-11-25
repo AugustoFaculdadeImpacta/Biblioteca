@@ -883,10 +883,11 @@ def test_student_request_remains_locked_until_failed_refresh_recovers(monkeypatc
     ],
 )
 def test_student_request_shows_allowlisted_business_error(
-    monkeypatch, server_message, status_code, expected_message
+    monkeypatch, capsys, server_message, status_code, expected_message
 ):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
     requests = []
+    messages = []
 
     def handle(request):
         requests.append(request)
@@ -909,11 +910,18 @@ def test_student_request_shows_allowlisted_business_error(
             await state.request_catalog_title(14)
 
             assert state.student_request_has_error is True
-            assert state.student_request_message == expected_message
+            assert state.student_request_message.startswith(expected_message)
+            messages.append(state.student_request_message)
             assert len(requests) == 1
             assert requests[0].url.path == "/solicitacoes-emprestimo"
 
     asyncio.run(verify())
+    output = capsys.readouterr().err
+    reference = output.split("[ERRO xano] ref=", 1)[1][:5]
+    assert messages[0].endswith(f"(ref. {reference})")
+    if status_code == 409:
+        assert server_message not in messages[0]
+        assert expected_message in messages[0]
 
 
 @pytest.mark.parametrize(

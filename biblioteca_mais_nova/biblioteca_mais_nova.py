@@ -7326,14 +7326,17 @@ dark_theme_tokens = {
 
 
 def _handle_backend_exception(exception: Exception):
-    registrar_excecao_backend(exception)
+    reference = registrar_excecao_backend(exception)
     from reflex_components_sonner.toast import toast
 
     return toast(
         "Ocorreu um erro.",
         level="error",
         fallback_to_alert=True,
-        description="A falha foi registrada no terminal do backend.",
+        description=(
+            "A falha foi registrada no terminal do backend "
+            f"(ref. {reference})."
+        ),
         position="top-center",
         id="backend_error",
         style={"width": "500px", "white-space": "pre-wrap"},

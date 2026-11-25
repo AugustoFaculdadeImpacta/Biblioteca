@@ -18,6 +18,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoResponseError,
     parse_xano_response_json,
     parse_xano_write_response,
+    xano_message_with_reference,
     xano_public_error_message,
 )
 
@@ -126,11 +127,23 @@ def staff_reservation_error_message(error: Exception) -> str:
     if common_message is not None:
         return common_message
     if isinstance(error, XanoResponseError) and error.public_detail:
-        return error.public_detail
+        return xano_message_with_reference(error.public_detail, error)
     if isinstance(error, XanoResponseError) and error.status_code in {401, 403}:
-        return "Seu perfil não tem permissão para realizar esta operação."
+        return xano_message_with_reference(
+            "Seu perfil não tem permissão para realizar esta operação.",
+            error,
+        )
     if isinstance(error, XanoConfigurationError):
-        return "A gestão de reservas está temporariamente indisponível."
+        return xano_message_with_reference(
+            "A gestão de reservas está temporariamente indisponível.",
+            error,
+        )
     if isinstance(error, XanoRequestError):
-        return "Não foi possível concluir a operação. Tente novamente mais tarde."
-    return "Ocorreu um erro inesperado. Tente novamente mais tarde."
+        return xano_message_with_reference(
+            "Não foi possível concluir a operação. Tente novamente mais tarde.",
+            error,
+        )
+    return xano_message_with_reference(
+        "Ocorreu um erro inesperado. Tente novamente mais tarde.",
+        error,
+    )

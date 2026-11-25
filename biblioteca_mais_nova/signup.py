@@ -12,6 +12,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoRequestError,
     XanoResponseError,
     parse_xano_write_response,
+    xano_message_with_reference,
     xano_public_error_message,
 )
 
@@ -93,15 +94,32 @@ def signup_error_message(error: Exception) -> str:
         return common_message
     if isinstance(error, XanoResponseError):
         if error.status_code == 409:
-            return "Este e-mail já está cadastrado. Tente entrar com sua conta."
+            return xano_message_with_reference(
+                "Este e-mail já está cadastrado. Tente entrar com sua conta.",
+                error,
+            )
         if error.status_code == 403 and error.public_detail == (
             "Este e-mail já está cadastrado. Tente entrar com sua conta."
         ):
-            return error.public_detail
+            return xano_message_with_reference(error.public_detail, error)
         if error.status_code == 400:
-            return "Confira os dados informados e tente novamente."
+            return xano_message_with_reference(
+                "Confira os dados informados e tente novamente.",
+                error,
+            )
+        if error.public_detail:
+            return xano_message_with_reference(error.public_detail, error)
     if isinstance(error, XanoConfigurationError):
-        return "O cadastro está temporariamente indisponível. Tente novamente mais tarde."
+        return xano_message_with_reference(
+            "O cadastro está temporariamente indisponível. Tente novamente mais tarde.",
+            error,
+        )
     if isinstance(error, XanoRequestError):
-        return "Não foi possível concluir o cadastro. Tente novamente mais tarde."
-    return "Ocorreu um erro inesperado. Tente novamente mais tarde."
+        return xano_message_with_reference(
+            "Não foi possível concluir o cadastro. Tente novamente mais tarde.",
+            error,
+        )
+    return xano_message_with_reference(
+        "Ocorreu um erro inesperado. Tente novamente mais tarde.",
+        error,
+    )

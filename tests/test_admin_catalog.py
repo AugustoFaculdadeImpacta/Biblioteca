@@ -323,7 +323,8 @@ def test_catalog_error_message_allows_only_known_business_messages(monkeypatch):
             list_admin_catalog("token", transport=transport)
         )
     assert catalog_error_message(blocked.value) == (
-        "O título não pode ser desativado enquanto houver reserva ativa."
+        "O título não pode ser desativado enquanto houver reserva ativa. "
+        f"(ref. {blocked.value.reference})"
     )
 
     with pytest.raises(XanoResponseError) as internal:

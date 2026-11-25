@@ -142,6 +142,7 @@ def test_backend_exception_hook_logs_a_sanitized_traceback(monkeypatch, capsys):
     output = capsys.readouterr().err
     assert result is not None
     assert "[ERRO xano] ref=" in output
+    assert "ref." in repr(result)
     assert "Traceback" in output
     assert token not in output
     assert email not in output

@@ -23,6 +23,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoResponseError,
     parse_xano_response_json,
     parse_xano_write_response,
+    xano_message_with_reference,
     xano_public_error_message,
 )
 
@@ -579,16 +580,34 @@ def catalog_error_message(error: Exception) -> str:
     if common_message is not None:
         return common_message
     if isinstance(error, XanoConfigurationError):
-        return "O acervo está temporariamente indisponível. Tente novamente mais tarde."
+        return xano_message_with_reference(
+            "O acervo está temporariamente indisponível. Tente novamente mais tarde.",
+            error,
+        )
     if isinstance(error, XanoResponseError):
         if error.public_detail:
-            return error.public_detail
+            return xano_message_with_reference(error.public_detail, error)
         if error.status_code == 401:
-            return "Sua sessão expirou ou não é mais válida. Entre novamente para continuar."
+            return xano_message_with_reference(
+                "Sua sessão expirou ou não é mais válida. Entre novamente para continuar.",
+                error,
+            )
         if error.status_code == 403:
-            return "Sua conta não tem permissão para acessar este recurso."
+            return xano_message_with_reference(
+                "Sua conta não tem permissão para acessar este recurso.",
+                error,
+            )
         if error.status_code == 404:
-            return "O recurso não foi encontrado ou a rota ainda não está disponível."
+            return xano_message_with_reference(
+                "O recurso não foi encontrado ou a rota ainda não está disponível.",
+                error,
+            )
         if error.status_code >= 500:
-            return "O serviço Xano está temporariamente indisponível. Tente novamente mais tarde."
-    return "Ocorreu um erro inesperado. Tente novamente mais tarde."
+            return xano_message_with_reference(
+                "O serviço Xano está temporariamente indisponível. Tente novamente mais tarde.",
+                error,
+            )
+    return xano_message_with_reference(
+        "Ocorreu um erro inesperado. Tente novamente mais tarde.",
+        error,
+    )

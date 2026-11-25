@@ -172,7 +172,9 @@ def test_signup_api_errors_have_safe_portuguese_messages(
     with pytest.raises(XanoRequestError) as error:
         asyncio.run(submit_student_signup(payload, transport=transport))
 
-    assert signup_error_message(error.value) == message
+    assert signup_error_message(error.value) == (
+        f"{message} (ref. {error.value.reference})"
+    )
     assert secret_body not in str(error.value)
     assert secret_url not in str(error.value)
     assert secret_body not in caplog.text
@@ -202,7 +204,8 @@ def test_signup_duplicate_access_denied_has_specific_safe_message(
 
     assert error.value.status_code == 403
     assert signup_error_message(error.value) == (
-        "Este e-mail já está cadastrado. Tente entrar com sua conta."
+        "Este e-mail já está cadastrado. Tente entrar com sua conta. "
+        f"(ref. {error.value.reference})"
     )
     assert email not in str(error.value)
     assert email not in caplog.text
@@ -368,7 +371,9 @@ def test_signup_api_failure_does_not_authenticate_session(
                 {"nome": "Ana", "email": "ana@escola.edu.br", "senha": "senha"}
             )
             assert state.signup_has_error is True
-            assert state.signup_message == message
+            assert state.signup_message.startswith(message)
+            assert "(ref. " in state.signup_message
+            assert state.signup_message.endswith(")")
             assert state.is_authenticated is False
             assert state._read_session_token() is None
 
@@ -421,5 +426,8 @@ def test_signup_event_does_not_call_api_for_invalid_email(monkeypatch):
     ],
 )
 def test_signup_error_mapping_does_not_expose_exception_details(error, message):
-    assert signup_error_message(error) == message
+    rendered = signup_error_message(error)
+    assert rendered.startswith(message)
+    if getattr(error, "reference", None):
+        assert rendered.endswith(f"(ref. {error.reference})")
     assert "detalhe interno" not in signup_error_message(error)

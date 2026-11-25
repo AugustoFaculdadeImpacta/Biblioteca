@@ -12,6 +12,7 @@ from biblioteca_mais_nova.xano_client import (
     XanoRequestError,
     XanoResponseError,
     parse_xano_response_json,
+    xano_message_with_reference,
     xano_public_error_message,
 )
 
@@ -99,15 +100,29 @@ def login_error_message(error: Exception) -> str:
         and error.public_detail
         == "A conta está desativada. Procure a administração da biblioteca."
     ):
-        return error.public_detail
+        return xano_message_with_reference(error.public_detail, error)
+    if isinstance(error, XanoResponseError) and error.public_detail:
+        return xano_message_with_reference(error.public_detail, error)
     if isinstance(error, XanoResponseError) and error.status_code in {
         400,
         401,
         403,
     }:
-        return "Não foi possível autenticar. Confira os dados e tente novamente."
+        return xano_message_with_reference(
+            "Não foi possível autenticar. Confira os dados e tente novamente.",
+            error,
+        )
     if isinstance(error, XanoConfigurationError):
-        return "O login está temporariamente indisponível. Tente novamente mais tarde."
+        return xano_message_with_reference(
+            "O login está temporariamente indisponível. Tente novamente mais tarde.",
+            error,
+        )
     if isinstance(error, XanoRequestError):
-        return "Não foi possível concluir o login. Tente novamente mais tarde."
-    return "Ocorreu um erro inesperado. Tente novamente mais tarde."
+        return xano_message_with_reference(
+            "Não foi possível concluir o login. Tente novamente mais tarde.",
+            error,
+        )
+    return xano_message_with_reference(
+        "Ocorreu um erro inesperado. Tente novamente mais tarde.",
+        error,
+    )

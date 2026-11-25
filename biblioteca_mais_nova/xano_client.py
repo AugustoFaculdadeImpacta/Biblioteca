@@ -10,6 +10,7 @@ import sys
 import threading
 import time
 import traceback
+import unicodedata
 from collections.abc import Awaitable, Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -354,7 +355,7 @@ def _log_response_failure(response: httpx.Response, result: str) -> str:
     )
 
 
-def registrar_excecao_backend(exception: Exception) -> None:
+def registrar_excecao_backend(exception: Exception) -> str:
     details = "".join(
         traceback.format_exception(
             type(exception),
@@ -362,7 +363,7 @@ def registrar_excecao_backend(exception: Exception) -> None:
             exception.__traceback__,
         )
     )
-    _emit_failure(
+    return _emit_failure(
         method="EVENTO",
         path="(backend Reflex)",
         status="exceção",
@@ -452,33 +453,60 @@ def parse_xano_write_response(
         ) from None
 
 
+def xano_message_with_reference(message: str, error: Exception) -> str:
+    reference = getattr(error, "reference", None)
+    if not isinstance(reference, str) or not reference:
+        return message
+    suffix = f"(ref. {reference})"
+    if message.endswith(suffix):
+        return message
+    return f"{message} {suffix}"
+
+
 def xano_public_error_message(error: Exception) -> str | None:
     """Retorna mensagens públicas comuns sem substituir erros de domínio."""
     if isinstance(error, XanoResponseError):
         if error.status_code == 429:
-            return (
+            message = (
                 "O Xano limitou as requisições por alguns segundos. "
                 "Aguarde um pouco e tente de novo."
             )
+            if error.public_detail:
+                message = f"{error.public_detail} {message}"
+            return xano_message_with_reference(
+                message,
+                error,
+            )
         if error.non_json_response:
-            return (
+            return xano_message_with_reference(
                 "O Xano devolveu uma página de erro "
-                f"(código {error.status_code})."
+                f"(código {error.status_code}).",
+                error,
             )
         if error.public_detail == "O Xano respondeu em formato inesperado.":
-            return error.public_detail
+            return xano_message_with_reference(error.public_detail, error)
         return None
     if isinstance(error, XanoNonJsonResponseError):
-        return (
+        return xano_message_with_reference(
             "O Xano devolveu uma página de erro "
-            f"(código {error.status_code})."
+            f"(código {error.status_code}).",
+            error,
         )
     if isinstance(error, XanoInvalidResponseError):
-        return "O Xano respondeu em formato inesperado."
+        return xano_message_with_reference(
+            "O Xano respondeu em formato inesperado.",
+            error,
+        )
     if isinstance(error, XanoTimeoutError):
-        return "O Xano demorou para responder. Tente novamente."
+        return xano_message_with_reference(
+            "O Xano demorou para responder. Tente novamente.",
+            error,
+        )
     if isinstance(error, XanoRequestError):
-        return "Não foi possível conectar ao Xano. Verifique a conexão e tente novamente."
+        return xano_message_with_reference(
+            "Não foi possível conectar ao Xano. Verifique a conexão e tente novamente.",
+            error,
+        )
     return None
 
 
@@ -590,10 +618,44 @@ def _error_detail(
             continue
         if detail in SAFE_ERROR_MESSAGES:
             return SAFE_ERROR_MESSAGES[detail], False, raw_message
+        folded = unicodedata.normalize("NFKD", detail)
+        words = re.findall(
+            r"[a-z]+",
+            folded.encode("ascii", errors="ignore").decode("ascii").lower(),
+        )
+        portuguese_markers = {
+            "acesso",
+            "ativo",
+            "biblioteca",
+            "campo",
+            "conta",
+            "credenciais",
+            "dados",
+            "duplicada",
+            "duplicado",
+            "encontrado",
+            "erro",
+            "estudante",
+            "limite",
+            "nao",
+            "invalida",
+            "invalidas",
+            "invalido",
+            "pedido",
+            "pedidos",
+            "perfil",
+            "recurso",
+            "reserva",
+            "reservas",
+            "senha",
+            "titulo",
+            "usuario",
+        }
         if (
             len(detail) <= 140
             and not re.search(r"(?i)\b\S+@\S+\b", detail)
             and not re.search(r"\d{5,}", detail)
+            and any(word in portuguese_markers for word in words)
         ):
             return _sanitize_diagnostic(detail), False, raw_message
     return None, False, raw_message
