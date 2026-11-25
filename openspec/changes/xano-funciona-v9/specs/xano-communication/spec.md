@@ -54,3 +54,22 @@ O sistema MUST oferecer a usuários autenticados um relatório somente leitura q
 #### Scenario: Falha de chamada diagnóstica
 - **WHEN** uma chamada retorna erro HTTP ou resposta não JSON
 - **THEN** o diagnóstico registra o status e a condição de formato sem expor o corpo da resposta nem valores sensíveis
+
+### Requirement: Contratos de catálogo e circulação publicados correspondem às definições locais aprovadas
+As definições Xano publicadas para catálogo, solicitações de empréstimo e reservas MUST corresponder aos arquivos locais aprovados, sem alterar objetos ou dados fora do escopo confirmado para a publicação.
+
+#### Scenario: Desativação de título
+- **WHEN** bibliotecário ou admin autorizado envia `PATCH /catalogo/titulos/{titulo_id}` com `ativo=false`
+- **THEN** o endpoint persiste `ativo=false`, sua resposta inclui o identificador e o estado, e `GET /admin/acervo` retorna o título com `titulo.ativo=false`
+
+#### Scenario: Confirmação de solicitação depois da escrita
+- **WHEN** estudante envia `POST /solicitacoes-emprestimo` para um título elegível
+- **THEN** o pedido persistido fica visível em `GET /minhas/solicitacoes` com estado `pendente` ou `em_reserva`, ou a reserva associada fica visível em `GET /minhas/reservas` com estado `aguardando` ou `ofertada`, vinculada ao mesmo `titulo_id`
+
+#### Scenario: Criação e consulta direta de reserva
+- **WHEN** estudante autorizado cria uma reserva por `POST /reservas`
+- **THEN** a reserva persistida fica visível em `GET /minhas/reservas` para o mesmo estudante e título, com estado permitido pelo fluxo
+
+#### Scenario: Publicação delimitada no workspace autorizado
+- **WHEN** as definições são publicadas após confirmação do workspace `151966`, da branch `v1` marcada como live e do ambiente
+- **THEN** somente `titulo.xs`, `reserva.xs`, `titulos_id_PATCH.xs`, `admin/acervo_GET.xs`, `solicitacoes_POST.xs`, `minhas_solicitacoes_GET.xs`, `minhas_GET.xs` e `reservas_POST.xs` são sincronizados, e a conferência posterior confirma essas versões sem importar registros ou variáveis de ambiente

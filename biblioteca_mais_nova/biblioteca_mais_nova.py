@@ -1230,9 +1230,34 @@ class State(rx.State):
             requests = await list_my_requests(self._session_token)
             reservations = await list_my_reservations(self._session_token)
             titles = await list_public_titles()
+            uncertain_title_id = self.student_request_uncertain_title_id
+            if uncertain_title_id is not None:
+                for retry_delay in (0.25, 0.75):
+                    request_confirmed = any(
+                        request["titulo_id"] == uncertain_title_id
+                        and request["estado"] in {"pendente", "em_reserva"}
+                        for request in requests
+                    )
+                    reservation_confirmed = any(
+                        reservation["titulo_id"] == uncertain_title_id
+                        and reservation["estado"] in {"aguardando", "ofertada"}
+                        for reservation in reservations
+                    )
+                    if request_confirmed or reservation_confirmed:
+                        break
+                    await asyncio.sleep(retry_delay)
+                    requests = await list_my_requests(self._session_token)
+                    reservations = await list_my_reservations(self._session_token)
         except (XanoConfigurationError, XanoRequestError, XanoResponseError) as error:
             self.student_library_message = catalog_error_message(error)
             self.student_library_has_error = True
+            if self.student_request_uncertain_title_id is not None:
+                self.student_request_message = (
+                    reservation_request_error_message(error)
+                    if not isinstance(error, XanoConfigurationError)
+                    else "[RES-SERVICE] O servidor de reservas está temporariamente indisponível"
+                )
+                self.student_request_has_error = True
             if isinstance(error, XanoResponseError) and error.status_code == 401:
                 self._clear_session_token()
                 self.student_library_requires_login = True

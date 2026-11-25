@@ -18,9 +18,13 @@ A interface MUST bloquear nova submissão de reserva desde o início da tentativ
 - **THEN** uma nova solicitação pode ser iniciada conforme o estado atualizado
 
 #### Scenario: Escrita ilegível ainda não aparece nas listas
-- **WHEN** a escrita recebe HTTP 2xx sem resposta interpretável e a releitura ainda não mostra a solicitação ou reserva
+- **WHEN** a escrita recebe HTTP 2xx sem resposta interpretável e as releituras limitadas ainda não mostram a solicitação ou reserva
 - **THEN** a interface não afirma que o pedido foi confirmado, mantém nova submissão bloqueada e oferece atualizar as listas antes de tentar novamente
 
 #### Scenario: Escrita ilegível confirmada pela releitura
 - **WHEN** a escrita recebe HTTP 2xx sem resposta interpretável e a releitura encontra a solicitação ou reserva do título
 - **THEN** a interface confirma o resultado sem repetir a escrita e libera uma nova ação conforme o estado atualizado
+
+#### Scenario: Gravação fica visível após atraso
+- **WHEN** a primeira leitura após uma escrita 2xx ilegível ainda não mostra a solicitação ou reserva
+- **THEN** o sistema faz até duas releituras GET com intervalos curtos, confirma somente quando encontra o registro correspondente e nunca repete a escrita

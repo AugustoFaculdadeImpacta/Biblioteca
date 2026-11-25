@@ -676,6 +676,7 @@ def test_student_request_treats_unreadable_success_as_success_and_refreshes(
     monkeypatch,
 ):
     writes = []
+    request_reads = 0
 
     async def unreadable_write(title_id, token):
         writes.append((title_id, token))
@@ -684,7 +685,11 @@ def test_student_request_treats_unreadable_success_as_success_and_refreshes(
     async def empty_records(_token):
         return []
 
-    async def matching_request(_token):
+    async def delayed_request(_token):
+        nonlocal request_reads
+        request_reads += 1
+        if request_reads == 1:
+            return []
         return [
             {
                 "id": 9,
@@ -699,7 +704,7 @@ def test_student_request_treats_unreadable_success_as_success_and_refreshes(
 
     monkeypatch.setattr(frontend, "request_title_loan", unreadable_write)
     monkeypatch.setattr(frontend, "list_my_loans", empty_records)
-    monkeypatch.setattr(frontend, "list_my_requests", matching_request)
+    monkeypatch.setattr(frontend, "list_my_requests", delayed_request)
     monkeypatch.setattr(frontend, "list_my_reservations", empty_records)
     monkeypatch.setattr(frontend, "list_public_titles", public_titles)
 
@@ -714,6 +719,7 @@ def test_student_request_treats_unreadable_success_as_success_and_refreshes(
             await state.request_catalog_title(14)
 
             assert writes == [(14, "token-estudante")]
+            assert request_reads == 2
             assert state.student_request_message == (
                 "Sua solicitação foi registrada. A equipe da biblioteca "
                 "confirmará a retirada."
@@ -741,7 +747,7 @@ def test_student_request_stays_locked_until_refresh_confirms_unreadable_write(
     async def requests(_token):
         nonlocal request_reads
         request_reads += 1
-        if request_reads == 1:
+        if request_reads <= 3:
             return []
         return [
             {
@@ -778,11 +784,14 @@ def test_student_request_stays_locked_until_refresh_confirms_unreadable_write(
                 "Não foi possível confirmar a solicitação. "
                 "Confira Reservas antes de tentar novamente."
             )
+            assert request_reads == 3
 
             await state.request_catalog_title(14)
             assert writes == [(14, "token-estudante")]
+            assert request_reads == 3
 
             await state.retry_student_library()
+            assert request_reads == 4
             assert state.student_request_pending is False
             assert state.student_request_has_error is False
             assert state.student_request_message == (

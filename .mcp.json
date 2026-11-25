@@ -1,6 +1,6 @@
 {
 	"mcpServers": {
-		"Xano Developer MCP": {
+		"Xano Developer": {
 			"type": "stdio",
 			"command": "npx",
 			"args": [

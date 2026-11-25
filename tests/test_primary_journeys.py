@@ -208,6 +208,10 @@ def test_student_login_catalog_request_and_library_use_one_mock_transport(
         "/minhas/solicitacoes",
         "/minhas/reservas",
         "/catalogo/titulos",
+        "/minhas/emprestimos",
+        "/minhas/solicitacoes",
+        "/minhas/reservas",
+        "/catalogo/titulos",
     ]
     assert json.loads(calls[0].content) == {
         "email": "student@example.test",
@@ -742,7 +746,17 @@ def test_student_request_uncertain_result_is_not_reported_or_retried(
             transport=transport,
         )
 
+    async def empty_records(_token):
+        return []
+
+    async def public_titles():
+        return []
+
     monkeypatch.setattr(frontend, "request_title_loan", request_loan)
+    monkeypatch.setattr(frontend, "list_my_loans", empty_records)
+    monkeypatch.setattr(frontend, "list_my_requests", empty_records)
+    monkeypatch.setattr(frontend, "list_my_reservations", empty_records)
+    monkeypatch.setattr(frontend, "list_public_titles", public_titles)
 
     async def verify():
         async with frontend.app.modify_state(
@@ -760,14 +774,18 @@ def test_student_request_uncertain_result_is_not_reported_or_retried(
             await state.request_catalog_title(81)
 
             assert state.student_request_has_error is True
-            assert state.student_request_pending is False
-            expected_message = (
-                "Não foi possível conectar ao Xano. "
-                "Verifique a conexão e tente novamente."
-                if failure == "transport"
-                else "O Xano respondeu em formato inesperado."
-            )
-            assert state.student_request_message == expected_message
+            if failure == "transport":
+                assert state.student_request_pending is False
+                assert state.student_request_message == (
+                    "Não foi possível conectar ao Xano. "
+                    "Verifique a conexão e tente novamente."
+                )
+            else:
+                assert state.student_request_pending is True
+                assert state.student_request_message == (
+                    "Não foi possível confirmar a solicitação. "
+                    "Confira Reservas antes de tentar novamente."
+                )
             assert "registrada" not in state.student_request_message
             serialized = json.dumps(state.dict(), default=str)
             assert token not in serialized

@@ -1,5 +1,13 @@
 # Relatório de execução noturna
 
+## Atualização — confirmação de solicitação de reserva, 2026-11-24
+
+- O Reflex agora mantém a escrita POST única e, quando seu 2xx não tem corpo interpretável, repete apenas as leituras pessoais de solicitações/reservas: uma leitura inicial e até duas releituras com intervalos curtos. A solicitação continua bloqueada se nenhum registro correspondente aparecer; o teste cobre registro tardio e ausência persistente até atualização manual.
+- A comparação estática confirmou que o Reflex envia `titulo_id` e chama os caminhos de leitura publicados. O endpoint live `POST /solicitacoes-emprestimo` ainda diverge da fonte local por não verificar solicitação/reserva ativa duplicada.
+- Xano CLI confirmou workspace `151966`, branch `v1` live e `allow_push=false`. Nenhum push, alteração de preferência, leitura de registros reais ou escrita remota foi feito. A publicação do endpoint divergente depende de atualização e publicação manual no painel.
+- Validação local: `reflex compile --dry` passou; `pytest --ignore=evaluation -q` aprovou 377 testes; `openspec validate xano-funciona-v9 --strict` passou e `openspec validate --specs --strict` aprovou 10 specs. A tentativa de pytest sem exclusão não coletou `evaluation/reflex-poc/tests/test_mock_api.py` porque `fastapi` não está instalado; essa pasta é excluída pelo script oficial.
+- O Xano Developer MCP não concluiu a negociação para validar os oito XanoScript; portanto, essa validação e a confirmação de runtime permanecem pendentes. Não foi executado build de produção nem robô visual.
+
 ## Atualização — estabiliza-xano-v8, 2026-11-24
 
 ### Integração e validação local
