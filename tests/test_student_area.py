@@ -1326,6 +1326,38 @@ def test_student_request_confirms_direct_response_without_reloading_lists(
     asyncio.run(verify())
 
 
+def test_student_request_blocks_duplicate_from_loaded_lists(monkeypatch):
+    writes = []
+
+    async def unexpected_request(title_id, token):
+        writes.append((title_id, token))
+        raise AssertionError("Pedido duplicado não deve enviar POST")
+
+    monkeypatch.setattr(frontend, "request_title_loan", unexpected_request)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"student-request-duplicate-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-estudante", "estudante")
+            state.public_catalog_detail = {"id": 14}
+            state._student_pending_title_ids = [14]
+
+            await state.request_catalog_title(14)
+
+            assert writes == []
+            assert state.student_request_pending is False
+            assert state.student_request_has_error is False
+            assert state.student_request_message == (
+                "Você já tem um pedido para este livro. "
+                "Veja em Reservas."
+            )
+            assert "(ref." not in state.student_request_message
+
+    asyncio.run(verify())
+
+
 def test_student_request_remains_locked_until_failed_refresh_recovers(monkeypatch):
     calls = []
 

@@ -240,6 +240,7 @@ class State(rx.State):
     student_request_pending: bool = False
     student_request_uncertain_title_id: int | None = None
     _student_request_uncertain_reference: str = ""
+    _student_pending_title_ids: list[int] = []
     _student_library_manual_retry: bool = False
     student_request_message: str = ""
     student_request_has_error: bool = False
@@ -363,6 +364,7 @@ class State(rx.State):
         self.student_request_pending = False
         self.student_request_uncertain_title_id = None
         self._student_request_uncertain_reference = ""
+        self._student_pending_title_ids = []
         self._student_library_manual_retry = False
         self.is_authenticated = False
 
@@ -1280,6 +1282,13 @@ class State(rx.State):
             return
         if self.public_catalog_detail.get("id") != title_id:
             return
+        if title_id in self._student_pending_title_ids:
+            self.student_request_message = (
+                "Você já tem um pedido para este livro. "
+                "Veja em Reservas."
+            )
+            self.student_request_has_error = False
+            return
 
         self.student_request_pending = True
         self.student_request_message = ""
@@ -1357,6 +1366,11 @@ class State(rx.State):
                     )
                 self.student_request_uncertain_title_id = None
                 self._student_request_uncertain_reference = ""
+                if title_id not in self._student_pending_title_ids:
+                    self._student_pending_title_ids = [
+                        *self._student_pending_title_ids,
+                        title_id,
+                    ]
                 self.student_library_has_error = False
             if refresh_after_write:
                 await self.load_student_library()
@@ -1407,6 +1421,18 @@ class State(rx.State):
                 requests = await list_my_requests(self._session_token)
                 reservations = await list_my_reservations(self._session_token)
                 titles = await list_public_titles()
+                self._student_pending_title_ids = sorted(
+                    {
+                        request["titulo_id"]
+                        for request in requests
+                        if request["estado"] in {"pendente", "em_reserva"}
+                    }
+                    | {
+                        reservation["titulo_id"]
+                        for reservation in reservations
+                        if reservation["estado"] in {"aguardando", "ofertada"}
+                    }
+                )
                 uncertain_title_id = self.student_request_uncertain_title_id
                 if (
                     uncertain_title_id is not None

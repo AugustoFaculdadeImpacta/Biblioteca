@@ -44,3 +44,7 @@ A interface MUST bloquear nova submissão de reserva desde o início da tentativ
 #### Scenario: Tentar de novo na página Reservas
 - **WHEN** estudante aciona “Tentar de novo” após resultado incerto
 - **THEN** o sistema somente relê solicitações e reservas, sem criar outro POST
+
+#### Scenario: Pedido já carregado para o título
+- **WHEN** as listas carregadas mostram pedido pendente/aprovado ou reserva ativa do estudante para o mesmo título
+- **THEN** o sistema não envia POST e mostra “Você já tem um pedido para este livro. Veja em Reservas.” sem referência de erro
