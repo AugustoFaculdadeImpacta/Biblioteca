@@ -106,6 +106,114 @@ def limpar_cache_autenticado() -> None:
         _AUTHENTICATED_CACHE_GENERATIONS.clear()
 
 
+_xano_limiter_clock = time.monotonic
+_XANO_LIMIT_LOCK = threading.RLock()
+_XANO_REQUEST_TIMES: dict[str, list[float]] = {}
+_XANO_PAUSE_UNTIL: dict[str, float] = {}
+_XANO_WAITERS: dict[str, list[tuple[int, int, asyncio.Future[None]]]] = {}
+_XANO_WAITER_SEQUENCE = 0
+
+
+def _xano_limit_config() -> tuple[int, float]:
+    try:
+        limit = int(os.environ.get("BIBLIOTECA_XANO_LIMITE_REQ", "8"))
+    except ValueError:
+        limit = 8
+    try:
+        window = float(os.environ.get("BIBLIOTECA_XANO_JANELA_S", "20"))
+    except ValueError:
+        window = 20.0
+    return max(limit, 1), max(window, 0.1)
+
+
+def _limpar_limitador_xano() -> None:
+    with _XANO_LIMIT_LOCK:
+        _XANO_REQUEST_TIMES.clear()
+        _XANO_PAUSE_UNTIL.clear()
+        _XANO_WAITERS.clear()
+
+
+def _xano_host(base_url: httpx.URL) -> str:
+    return f"{base_url.host}:{base_url.port or (443 if base_url.scheme == 'https' else 80)}"
+
+
+def _xano_priority(method: str, path: str) -> int:
+    if method.upper() in {"POST", "PATCH", "DELETE"}:
+        return 300
+    event_context = _EVENT_CONTEXT.get()
+    if event_context is not None:
+        return 200
+    if path.startswith("/catalogo/capa") or "/resumo" in path:
+        return 100
+    return 150
+
+
+def _drain_xano_waiters(host: str) -> None:
+    now = _xano_limiter_clock()
+    limit, window = _xano_limit_config()
+    with _XANO_LIMIT_LOCK:
+        times = _XANO_REQUEST_TIMES.setdefault(host, [])
+        cutoff = now - window
+        while times and times[0] <= cutoff:
+            times.pop(0)
+        pause_until = _XANO_PAUSE_UNTIL.get(host, 0.0)
+        if pause_until > now:
+            return
+        waiters = _XANO_WAITERS.setdefault(host, [])
+        waiters[:] = [
+            waiter for waiter in waiters
+            if not waiter[2].done()
+        ]
+        waiters.sort(key=lambda waiter: (-waiter[0], waiter[1]))
+        while len(times) < limit and waiters:
+            _, _, future = waiters.pop(0)
+            times.append(now)
+            if not future.done():
+                future.set_result(None)
+
+
+def _pausar_xano(host: str, seconds: float) -> None:
+    until = _xano_limiter_clock() + max(seconds, 0.0) + 1.0
+    with _XANO_LIMIT_LOCK:
+        current = _XANO_PAUSE_UNTIL.get(host, 0.0)
+        _XANO_PAUSE_UNTIL[host] = max(current, until)
+
+
+async def _adquirir_slot_xano(
+    host: str,
+    priority: int,
+) -> bool:
+    global _XANO_WAITER_SEQUENCE
+    loop = asyncio.get_running_loop()
+    future: asyncio.Future[None] = loop.create_future()
+    started = _xano_limiter_clock()
+    with _XANO_LIMIT_LOCK:
+        _XANO_WAITER_SEQUENCE += 1
+        sequence = _XANO_WAITER_SEQUENCE
+        _XANO_WAITERS.setdefault(host, []).append(
+            (priority, sequence, future)
+        )
+    _drain_xano_waiters(host)
+    await asyncio.sleep(0)
+    try:
+        while not future.done():
+            await _sleep(0.05)
+            _drain_xano_waiters(host)
+            if not future.done() and _xano_limiter_clock() - started >= 25.0:
+                return False
+    except asyncio.TimeoutError:
+        _drain_xano_waiters(host)
+        if _xano_limiter_clock() - started >= 25.0:
+            with _XANO_LIMIT_LOCK:
+                waiters = _XANO_WAITERS.get(host, [])
+                waiters[:] = [
+                    waiter for waiter in waiters
+                    if waiter[2] is not future
+                ]
+            return False
+    return True
+
+
 async def _cached_authenticated_get(
     scope: tuple[str, str],
     path: str,
@@ -688,12 +796,12 @@ def xano_public_error_message(error: Exception) -> str | None:
     """Retorna mensagens públicas comuns sem substituir erros de domínio."""
     if isinstance(error, XanoResponseError):
         if error.status_code == 429:
+            _, window = _xano_limit_config()
+            wait_seconds = max(1, round(window))
             message = (
-                "O Xano limitou as requisições por alguns segundos. "
-                "Aguarde um pouco e tente de novo."
+                "O Xano permite só 10 chamadas a cada 20 segundos no plano atual. "
+                f"Aguarde cerca de {wait_seconds} s e tente de novo."
             )
-            if error.public_detail:
-                message = f"{error.public_detail} {message}"
             return xano_message_with_reference(
                 message,
                 error,
@@ -1011,9 +1119,27 @@ class XanoClient:
         headers = {"Authorization": f"Bearer {token}"} if token else {}
         request_method = method.upper()
 
+        host = _xano_host(self._base_url)
+        priority = _xano_priority(request_method, endpoint.path)
+        retried_429 = False
         for attempt in range(1, _MAX_RETRIES + 2):
             started_at = time.perf_counter()
             _record_attempt()
+            if not await _adquirir_slot_xano(host, priority):
+                raise XanoTimeoutError(
+                    "O limite de espera do Xano foi excedido.",
+                    reference=_emit_failure(
+                        method=request_method,
+                        path=endpoint.path,
+                        status="sem_resposta",
+                        duration_ms=round(
+                            (time.perf_counter() - started_at) * 1000
+                        ),
+                        response=None,
+                        request=None,
+                        result="espera máxima de 25 s excedida",
+                    ),
+                )
             try:
                 async with _get_semaphore():
                     async with httpx.AsyncClient(
@@ -1081,6 +1207,15 @@ class XanoClient:
                     request=response.request,
                     result=f"resposta HTTP {response.status_code}",
                 )
+                if response.status_code == 429:
+                    _, window = _xano_limit_config()
+                    _pausar_xano(host, window)
+                    if (
+                        request_method == "GET"
+                        and not retried_429
+                    ):
+                        retried_429 = True
+                        continue
                 if (
                     request_method == "GET"
                     and response.status_code in _RETRYABLE_STATUSES

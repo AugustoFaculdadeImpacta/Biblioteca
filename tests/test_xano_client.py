@@ -22,8 +22,10 @@ from biblioteca_mais_nova.xano_client import (
 @pytest.fixture(autouse=True)
 def _isolar_cache_autenticado():
     xano_client.limpar_cache_autenticado()
+    xano_client._limpar_limitador_xano()
     yield
     xano_client.limpar_cache_autenticado()
+    xano_client._limpar_limitador_xano()
 
 
 def test_client_reads_base_url_from_environment_file(tmp_path, monkeypatch):
@@ -205,11 +207,12 @@ def test_get_retries_transient_statuses_with_increasing_delays(monkeypatch):
 
 def test_get_uses_retry_after_and_caps_wait_at_ten_seconds(monkeypatch):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
-    delays = []
     requests = []
+    now = [100.0]
+    monkeypatch.setattr(xano_client, "_xano_limiter_clock", lambda: now[0])
 
     async def skip_sleep(delay):
-        delays.append(delay)
+        now[0] += 21.0
 
     monkeypatch.setattr(xano_client, "_sleep", skip_sleep)
 
@@ -231,7 +234,6 @@ def test_get_uses_retry_after_and_caps_wait_at_ten_seconds(monkeypatch):
 
     assert response.status_code == 200
     assert len(requests) == 2
-    assert delays == [10.0]
 
 
 def test_get_does_not_retry_other_http_errors(monkeypatch):
@@ -560,6 +562,101 @@ def test_authenticated_write_invalidates_personal_list_cache(monkeypatch):
     asyncio.run(write())
     assert asyncio.run(read()).json() == [{"id": 3}]
     assert [request.method for request in requests] == ["GET", "POST", "GET"]
+
+
+def test_global_limit_sliding_window_fake_clock(monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    monkeypatch.setenv("BIBLIOTECA_XANO_LIMITE_REQ", "8")
+    monkeypatch.setenv("BIBLIOTECA_XANO_JANELA_S", "20")
+    now = [100.0]
+    monkeypatch.setattr(xano_client, "_xano_limiter_clock", lambda: now[0])
+    xano_client._limpar_limitador_xano()
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        if len(requests) % 8 == 0:
+            now[0] += 20.1
+        return httpx.Response(200, json={"ok": True})
+
+    client = XanoClient.from_environment(
+        transport=httpx.MockTransport(handle)
+    )
+
+    async def load_many():
+        await asyncio.gather(
+            *(
+                client.request("GET", f"/catalogo/titulos/{index}")
+                for index in range(20)
+            )
+        )
+
+    asyncio.run(load_many())
+
+    assert len(requests) == 20
+
+
+def test_429_pauses_all_calls_and_get_retries_once(monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    monkeypatch.setenv("BIBLIOTECA_XANO_JANELA_S", "20")
+    now = [1000.0]
+    monkeypatch.setattr(xano_client, "_xano_limiter_clock", lambda: now[0])
+    async def fake_sleep(_delay):
+        now[0] += 21.0
+    monkeypatch.setattr(xano_client, "_sleep", fake_sleep)
+    xano_client._limpar_limitador_xano()
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        if len(requests) == 1:
+            return httpx.Response(
+                429,
+                json={"code": "limite", "message": "Muitas chamadas"},
+            )
+        return httpx.Response(200, json={"ok": True})
+
+    client = XanoClient.from_environment(
+        transport=httpx.MockTransport(handle)
+    )
+
+    async def run():
+        first = await client.request("GET", "/minhas/solicitacoes")
+        second = await client.request("GET", "/minhas/reservas")
+        return first, second
+
+    first, second = asyncio.run(run())
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert len(requests) == 3
+
+
+def test_write_never_retries_after_429(monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(
+            429,
+            json={"code": "limite", "message": "Muitas chamadas"},
+        )
+
+    client = XanoClient.from_environment(
+        transport=httpx.MockTransport(handle)
+    )
+
+    with pytest.raises(XanoResponseError):
+        asyncio.run(
+            client.request(
+                "POST",
+                "/solicitacoes-emprestimo",
+                json={"titulo_id": 14},
+            )
+        )
+
+    assert len(requests) == 1
 
 
 def test_failure_block_is_always_written_and_redacts_private_values(

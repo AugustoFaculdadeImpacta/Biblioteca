@@ -59,6 +59,21 @@ O sistema MUST compartilhar GETs idênticos simultâneos e reutilizar por até 2
 - **WHEN** um GET recebe HTTP 2xx com estrutura incompatível
 - **THEN** a falha é registrada sem repetir a chamada HTTP
 
+### Requirement: Chamadas ao Xano respeitam uma janela deslizante global
+O sistema MUST compartilhar por host um limitador assíncrono configurável de oito requisições por 20 segundos por padrão, com espera máxima de 25 segundos e prioridade para escritas e leituras acionadas pelo usuário.
+
+#### Scenario: Janela excedida
+- **WHEN** 20 chamadas simultâneas usam o mesmo host
+- **THEN** no máximo oito são admitidas em cada janela deslizante configurada
+
+#### Scenario: Resposta 429
+- **WHEN** o Xano responde 429
+- **THEN** todas as chamadas do host são pausadas até o fim da janela mais um segundo, somente GET é repetido uma vez e escrita não é repetida
+
+#### Scenario: Prioridade
+- **WHEN** uma escrita ou leitura acionada pelo usuário espera ao lado de carregamento em segundo plano
+- **THEN** a escrita e a leitura acionada pelo usuário são admitidas antes do trabalho em segundo plano
+
 ### Requirement: Diagnóstico no site respeita sessão, perfil e privacidade
 O sistema MUST oferecer a usuários autenticados um relatório somente leitura que execute apenas consultas públicas ou autorizadas ao próprio perfil.
 

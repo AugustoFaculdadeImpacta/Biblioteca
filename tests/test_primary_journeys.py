@@ -802,8 +802,8 @@ def test_librarian_creates_catalog_and_registers_pickup_through_mock_transport(
         ),
         (
             429,
-            "O Xano limitou as requisições por alguns segundos. "
-            "Aguarde um pouco e tente de novo.",
+            "O Xano permite só 10 chamadas a cada 20 segundos no plano atual. "
+            "Aguarde cerca de 20 s e tente de novo.",
         ),
         (
             500,

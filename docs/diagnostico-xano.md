@@ -106,6 +106,16 @@ esperas de 0,5 s, 1,5 s e 3 s. Um cabeçalho `Retry-After` substitui a espera
 correspondente e é limitado a 10 s. O tempo de espera ocorre fora do limite de
 concorrência. `POST`, `PATCH` e `DELETE` nunca são repetidos automaticamente.
 
+Além desse limite de concorrência, o processo mantém uma janela deslizante
+por host do Xano. O padrão é oito requisições em 20 segundos,
+configurável por `BIBLIOTECA_XANO_LIMITE_REQ` e
+`BIBLIOTECA_XANO_JANELA_S`. Chamadas aguardam em uma fila assíncrona com
+espera máxima de 25 segundos; escritas têm prioridade sobre leituras e uma
+leitura acionada pelo usuário tem prioridade sobre trabalho em segundo plano.
+Ao receber 429, todas as chamadas daquele host entram em pausa até o fim da
+janela mais um segundo. Somente uma releitura `GET` tenta novamente; escritas
+nunca são repetidas.
+
 ## Mensagens apresentadas
 
 - HTTP 429: “O Xano limitou as requisições por alguns segundos. Aguarde um pouco

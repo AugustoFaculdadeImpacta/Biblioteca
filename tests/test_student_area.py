@@ -687,8 +687,8 @@ def test_student_library_formats_timezone_and_detects_only_active_overdue_loans(
         ),
         (
             XanoResponseError(429),
-            "O Xano limitou as requisições por alguns segundos. "
-            "Aguarde um pouco e tente de novo.",
+            "O Xano permite só 10 chamadas a cada 20 segundos no plano atual. "
+            "Aguarde cerca de 20 s e tente de novo.",
         ),
     ],
 )
@@ -898,8 +898,8 @@ def test_student_library_loads_only_session_data_and_deduplicates_linked_reserve
         ),
         (
             XanoResponseError(429),
-            "O Xano limitou as requisições por alguns segundos. "
-            "Aguarde um pouco e tente de novo.",
+            "O Xano permite só 10 chamadas a cada 20 segundos no plano atual. "
+            "Aguarde cerca de 20 s e tente de novo.",
         ),
     ],
 )
