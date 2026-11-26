@@ -1,5 +1,31 @@
 # Relatório de execução noturna
 
+## Atualização — fechamento da retomada H–N, 2026-11-26
+
+- Branch: `trabalho-autopilot`. Nenhuma chamada remota, pull, sincronização,
+  publicação ou alteração no Xano foi feita nesta retomada.
+- H: payloads reais de solicitação passaram a aceitar `reserva_id=0`,
+  `atendida_em=0`, datas em segundos/milissegundos e estados textuais
+  desconhecidos sem rejeitar o registro.
+- I: o POST confirmável por `id` e `titulo_id` acrescenta o pedido ao estado
+  local e não relê listas; corpo incerto mantém no máximo duas releituras.
+- J: GETs pessoais idênticos usam single-flight e cache de 20 segundos por
+  sessão. A escrita invalida o cache e respostas 2xx incompatíveis não repetem.
+- K: o host Xano usa janela deslizante compartilhada de oito chamadas por
+  20 segundos por padrão, fila assíncrona e pausa global após 429. Escritas não
+  são repetidas.
+- L e M: pedidos já carregados bloqueiam o POST; “Tentar de novo” continua
+  sendo uma releitura única. O procedimento manual de limpeza está em
+  `docs/xano-limpeza-pedidos.md`.
+- Evidência local: `.\\.venv\\Scripts\\python.exe -m reflex compile --dry`
+  passou; `.\\.venv\\Scripts\\python.exe -m pytest --ignore=evaluation -q`
+  aprovou `420 passed` em 652,25 s.
+- OpenSpec: a Change `xano-funciona-v9` passou em `--strict`; as 10 specs
+  consolidadas passaram em `--strict`.
+- Permanecem explicitamente bloqueadas as tarefas remotas 5.3 e 5.4:
+  validação/push não concluídos por MCP e `allow_push=false`. Não há
+  sincronização nem archive nesta execução.
+
 ## Atualização — diagnóstico no Perfil e verificação v9, 2026-11-25
 
 - Tarefas locais 3.1 e 4.1 concluídas. O resumo da home mantém carregamento e retry independentes; o Perfil oferece diagnóstico somente leitura restrito ao perfil, com relatório copiável sem valores pessoais. A comparação de contratos de 5.2 já está documentada em `docs/xano-diferencas.md`.
