@@ -12,7 +12,6 @@ from biblioteca_mais_nova.xano_client import (
     parse_xano_write_response,
 )
 
-
 class LibraryRulesPayload(TypedDict):
     limite_emprestimos_ativos: int
     limite_pedidos_em_aberto: int
@@ -21,6 +20,17 @@ class LibraryRulesPayload(TypedDict):
     exigir_autorizacao_bibliotecaria: bool
     prazo_emprestimo_dias: int
     prazo_retirada_horas: int
+
+
+DEFAULT_LIBRARY_RULES: LibraryRulesPayload = {
+    "limite_emprestimos_ativos": 3,
+    "limite_pedidos_em_aberto": 3,
+    "permitir_pedido_com_reserva_ativa": True,
+    "bloquear_com_atraso": True,
+    "exigir_autorizacao_bibliotecaria": True,
+    "prazo_emprestimo_dias": 14,
+    "prazo_retirada_horas": 48,
+}
 
 
 class LibraryRules(LibraryRulesPayload, total=False):

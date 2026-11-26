@@ -80,6 +80,15 @@ from biblioteca_mais_nova.user_admin import (
     set_librarian_active,
     user_admin_error_message,
 )
+from biblioteca_mais_nova.library_rules import (
+    DEFAULT_LIBRARY_RULES,
+    LibraryRules,
+    LibraryRulesPayload,
+    LibraryRulesValidationError,
+    get_library_rules,
+    update_library_rules,
+    validate_library_rules,
+)
 from biblioteca_mais_nova.staff_reservations import (
     StaffReservationValidationError,
     create_staff_reservation,
@@ -102,6 +111,7 @@ from biblioteca_mais_nova.xano_client import (
     diagnosticar_pagina_xano,
     registrar_excecao_backend,
     registrar_resultado_xano,
+    xano_public_error_message,
 )
 
 
@@ -118,6 +128,21 @@ def _timestamp_is_past(
         if deadline.tzinfo is None:
             deadline = deadline.replace(tzinfo=timezone.utc)
     return deadline < now
+
+
+def _library_rule_integer(field: str, value: float) -> int:
+    if type(value) is int:
+        return value
+    if type(value) is float and value.is_integer():
+        return int(value)
+    raise LibraryRulesValidationError(
+        field,
+        f"{field} deve ser um número inteiro.",
+    )
+
+
+def _library_rules_error_message(error: Exception) -> str:
+    return xano_public_error_message(error) or str(error)
 
 
 def _diagnostico_desativacao(
@@ -253,6 +278,22 @@ class State(rx.State):
     librarian_management_confirm_id: int | None = None
     managed_librarians: list[dict[str, Any]] = []
     librarian_management_skipped: int = 0
+    library_rules_pending: bool = False
+    library_rules_saving: bool = False
+    library_rules_loaded: bool = False
+    library_rules_read_only: bool = False
+    library_rules_has_error: bool = False
+    library_rules_message: str = ""
+    library_rules_updated_at: str = ""
+    library_rules_updated_by: str = ""
+    library_rules_saved_values: dict[str, int | bool] = {}
+    library_rules_active_loan_limit: float = 3.0
+    library_rules_open_request_limit: float = 3.0
+    library_rules_allow_active_reservation: bool = True
+    library_rules_block_overdue: bool = True
+    library_rules_require_librarian_authorization: bool = True
+    library_rules_loan_period_days: float = 14.0
+    library_rules_pickup_period_hours: float = 48.0
     staff_reservation_pending: bool = False
     staff_reservation_message: str = ""
     staff_reservation_has_error: bool = False
@@ -835,6 +876,15 @@ class State(rx.State):
         if not self._is_admin_management_view():
             self.route_guard_notice = (
                 "Esta página está disponível somente na visão Administrador."
+            )
+        return rx.redirect("/")
+
+    def _redirect_non_real_admin(self):
+        if not self._session_token:
+            return rx.redirect("/login")
+        if not self._is_admin():
+            self.route_guard_notice = (
+                "Esta página está disponível somente para admins."
             )
         return rx.redirect("/")
 
@@ -1745,6 +1795,210 @@ class State(rx.State):
             self.librarian_management_has_error = True
         finally:
             self.librarian_management_pending = False
+
+    def _apply_library_rules(self, rules: LibraryRules) -> None:
+        self.library_rules_active_loan_limit = float(
+            rules["limite_emprestimos_ativos"]
+        )
+        self.library_rules_open_request_limit = float(
+            rules["limite_pedidos_em_aberto"]
+        )
+        self.library_rules_allow_active_reservation = rules[
+            "permitir_pedido_com_reserva_ativa"
+        ]
+        self.library_rules_block_overdue = rules["bloquear_com_atraso"]
+        self.library_rules_require_librarian_authorization = rules[
+            "exigir_autorizacao_bibliotecaria"
+        ]
+        self.library_rules_loan_period_days = float(rules["prazo_emprestimo_dias"])
+        self.library_rules_pickup_period_hours = float(
+            rules["prazo_retirada_horas"]
+        )
+        self.library_rules_saved_values = {
+            "limite_emprestimos_ativos": rules["limite_emprestimos_ativos"],
+            "limite_pedidos_em_aberto": rules["limite_pedidos_em_aberto"],
+            "permitir_pedido_com_reserva_ativa": rules[
+                "permitir_pedido_com_reserva_ativa"
+            ],
+            "bloquear_com_atraso": rules["bloquear_com_atraso"],
+            "exigir_autorizacao_bibliotecaria": rules[
+                "exigir_autorizacao_bibliotecaria"
+            ],
+            "prazo_emprestimo_dias": rules["prazo_emprestimo_dias"],
+            "prazo_retirada_horas": rules["prazo_retirada_horas"],
+        }
+        self.library_rules_updated_at = rules.get("atualizado_em") or ""
+        self.library_rules_updated_by = rules.get("atualizado_por") or ""
+        self.library_rules_loaded = True
+
+    def _library_rules_form_payload(self) -> LibraryRulesPayload:
+        return validate_library_rules(
+            {
+                "limite_emprestimos_ativos": _library_rule_integer(
+                    "limite_emprestimos_ativos",
+                    self.library_rules_active_loan_limit,
+                ),
+                "limite_pedidos_em_aberto": _library_rule_integer(
+                    "limite_pedidos_em_aberto",
+                    self.library_rules_open_request_limit,
+                ),
+                "permitir_pedido_com_reserva_ativa": (
+                    self.library_rules_allow_active_reservation
+                ),
+                "bloquear_com_atraso": self.library_rules_block_overdue,
+                "exigir_autorizacao_bibliotecaria": (
+                    self.library_rules_require_librarian_authorization
+                ),
+                "prazo_emprestimo_dias": _library_rule_integer(
+                    "prazo_emprestimo_dias",
+                    self.library_rules_loan_period_days,
+                ),
+                "prazo_retirada_horas": _library_rule_integer(
+                    "prazo_retirada_horas",
+                    self.library_rules_pickup_period_hours,
+                ),
+            }
+        )
+
+    @rx.event
+    @diagnosticar_pagina_xano("regras")
+    async def load_library_rules(self):
+        if not self._is_admin():
+            return self._redirect_non_real_admin()
+
+        self.library_rules_pending = True
+        self.library_rules_message = ""
+        self.library_rules_has_error = False
+        try:
+            with contexto_evento_xano(
+                "consultar_regras_biblioteca",
+                self._session_profile,
+                self._effective_view_profile(),
+            ):
+                rules = await get_library_rules(self._session_token)
+            self._apply_library_rules(rules)
+            self.library_rules_read_only = False
+        except XanoResponseError as error:
+            if error.status_code in {403, 404}:
+                self._apply_library_rules(DEFAULT_LIBRARY_RULES)
+                self.library_rules_read_only = True
+                self.library_rules_has_error = True
+                self.library_rules_message = (
+                    "As regras ainda não foram publicadas no Xano. "
+                    "Veja docs/publicacao-xano-regras.md."
+                )
+            else:
+                self.library_rules_has_error = True
+                self.library_rules_message = _library_rules_error_message(error)
+        except (
+            LibraryRulesValidationError,
+            XanoConfigurationError,
+            XanoRequestError,
+        ) as error:
+            self.library_rules_has_error = True
+            self.library_rules_message = _library_rules_error_message(error)
+        finally:
+            self.library_rules_pending = False
+
+    @rx.event
+    def set_library_rules_active_loan_limit(self, value: float):
+        self.library_rules_active_loan_limit = value
+
+    @rx.event
+    def set_library_rules_open_request_limit(self, value: float):
+        self.library_rules_open_request_limit = value
+
+    @rx.event
+    def set_library_rules_allow_active_reservation(self, value: bool):
+        self.library_rules_allow_active_reservation = value
+
+    @rx.event
+    def set_library_rules_block_overdue(self, value: bool):
+        self.library_rules_block_overdue = value
+
+    @rx.event
+    def set_library_rules_require_librarian_authorization(self, value: bool):
+        self.library_rules_require_librarian_authorization = value
+
+    @rx.event
+    def set_library_rules_loan_period_days(self, value: float):
+        self.library_rules_loan_period_days = value
+
+    @rx.event
+    def set_library_rules_pickup_period_hours(self, value: float):
+        self.library_rules_pickup_period_hours = value
+
+    @rx.event
+    def discard_library_rules_changes(self):
+        if not self._is_admin():
+            return self._redirect_non_real_admin()
+        if self.library_rules_read_only or not self.library_rules_saved_values:
+            return
+        saved = self.library_rules_saved_values
+        self.library_rules_active_loan_limit = float(
+            saved["limite_emprestimos_ativos"]
+        )
+        self.library_rules_open_request_limit = float(
+            saved["limite_pedidos_em_aberto"]
+        )
+        self.library_rules_allow_active_reservation = bool(
+            saved["permitir_pedido_com_reserva_ativa"]
+        )
+        self.library_rules_block_overdue = bool(saved["bloquear_com_atraso"])
+        self.library_rules_require_librarian_authorization = bool(
+            saved["exigir_autorizacao_bibliotecaria"]
+        )
+        self.library_rules_loan_period_days = float(
+            saved["prazo_emprestimo_dias"]
+        )
+        self.library_rules_pickup_period_hours = float(
+            saved["prazo_retirada_horas"]
+        )
+        self.library_rules_message = ""
+        self.library_rules_has_error = False
+
+    @rx.event
+    async def save_library_rules(self):
+        if not self._is_admin():
+            return self._redirect_non_real_admin()
+        if self.library_rules_read_only:
+            return
+
+        self.library_rules_saving = True
+        self.library_rules_message = ""
+        self.library_rules_has_error = False
+        try:
+            payload = self._library_rules_form_payload()
+            with contexto_evento_xano(
+                "salvar_regras_biblioteca",
+                self._session_profile,
+                self._effective_view_profile(),
+            ):
+                rules = await update_library_rules(
+                    payload,
+                    self._session_token,
+                )
+            self._apply_library_rules(rules)
+            self.library_rules_message = "Regras salvas."
+        except LibraryRulesValidationError as error:
+            self.library_rules_message = str(error)
+            self.library_rules_has_error = True
+        except XanoResponseError as error:
+            if error.status_code in {403, 404}:
+                self._apply_library_rules(DEFAULT_LIBRARY_RULES)
+                self.library_rules_read_only = True
+                self.library_rules_message = (
+                    "As regras ainda não foram publicadas no Xano. "
+                    "Veja docs/publicacao-xano-regras.md."
+                )
+            else:
+                self.library_rules_message = _library_rules_error_message(error)
+            self.library_rules_has_error = True
+        except (XanoConfigurationError, XanoRequestError) as error:
+            self.library_rules_message = _library_rules_error_message(error)
+            self.library_rules_has_error = True
+        finally:
+            self.library_rules_saving = False
 
     @rx.event
     def request_librarian_deactivation(self, librarian_id: int):
@@ -7020,6 +7274,245 @@ def librarian_management() -> rx.Component:
     )
 
 
+def library_rules_page() -> rx.Component:
+    rules_disabled = (
+        State.library_rules_read_only
+        | State.library_rules_pending
+        | State.library_rules_saving
+    )
+    return rx.box(
+        rx.link(
+            conteudo_acao("pular_conteudo"),
+            href="#conteudo-regras",
+            class_name="skip-link",
+            **atributos_acao("pular_conteudo"),
+        ),
+        site_header(),
+        rx.el.main(
+            rx.el.section(
+                rx.heading("Regras da biblioteca", size="7"),
+                rx.text(
+                    "Configure os limites e prazos aplicados pelo servidor "
+                    "da biblioteca."
+                ),
+                rx.cond(
+                    State.library_rules_message != "",
+                    rx.el.p(
+                        State.library_rules_message,
+                        role=rx.cond(
+                            State.library_rules_has_error,
+                            "alert",
+                            "status",
+                        ),
+                        aria_live="polite",
+                        class_name=rx.cond(
+                            State.library_rules_has_error,
+                            "signup-feedback signup-feedback-error",
+                            "signup-feedback signup-feedback-success",
+                        ),
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.library_rules_pending,
+                    rx.text("Carregando regras…", role="status"),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.library_rules_loaded,
+                    rx.fragment(),
+                    rx.cond(
+                        State.library_rules_has_error
+                        & ~State.library_rules_pending,
+                        rx.button(
+                            "Tentar novamente",
+                            type="button",
+                            on_click=State.load_library_rules,
+                            class_name="nav-logout",
+                        ),
+                        rx.fragment(),
+                    ),
+                ),
+                rx.cond(
+                    (State.library_rules_updated_at != "")
+                    & (State.library_rules_updated_by != ""),
+                    rx.text(
+                        "Atualizado em ",
+                        State.library_rules_updated_at,
+                        " por ",
+                        State.library_rules_updated_by,
+                        role="status",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    State.library_rules_loaded,
+                    rx.form(
+                        rx.el.label(
+                            "Limite de empréstimos ativos",
+                            html_for="regra-limite-emprestimos",
+                            class_name="signup-label",
+                        ),
+                        rx.el.input(
+                            id="regra-limite-emprestimos",
+                            type="number",
+                            min=1,
+                            max=20,
+                            step=1,
+                            value=State.library_rules_active_loan_limit,
+                            on_change=State.set_library_rules_active_loan_limit,
+                            disabled=rules_disabled,
+                            class_name="campo",
+                        ),
+                        rx.text(
+                            "Quantos livros o aluno pode ter emprestados "
+                            "ao mesmo tempo."
+                        ),
+                        rx.el.label(
+                            "Limite de pedidos em aberto",
+                            html_for="regra-limite-pedidos",
+                            class_name="signup-label",
+                        ),
+                        rx.el.input(
+                            id="regra-limite-pedidos",
+                            type="number",
+                            min=1,
+                            max=20,
+                            step=1,
+                            value=State.library_rules_open_request_limit,
+                            on_change=State.set_library_rules_open_request_limit,
+                            disabled=rules_disabled,
+                            class_name="campo",
+                        ),
+                        rx.text(
+                            "Quantos pedidos de empréstimo ou reserva podem "
+                            "aguardar ao mesmo tempo."
+                        ),
+                        rx.el.label(
+                            rx.el.input(
+                                id="regra-reserva-ativa",
+                                type="checkbox",
+                                checked=State.library_rules_allow_active_reservation,
+                                on_change=(
+                                    State.set_library_rules_allow_active_reservation
+                                ),
+                                disabled=rules_disabled,
+                                class_name="campo-check",
+                            ),
+                            "Permitir pedido com reserva ativa",
+                            class_name="campo-check-row signup-label",
+                        ),
+                        rx.text(
+                            "Define se o aluno pode pedir um título para o "
+                            "qual já tem uma reserva ativa."
+                        ),
+                        rx.el.label(
+                            rx.el.input(
+                                id="regra-bloquear-atraso",
+                                type="checkbox",
+                                checked=State.library_rules_block_overdue,
+                                on_change=State.set_library_rules_block_overdue,
+                                disabled=rules_disabled,
+                                class_name="campo-check",
+                            ),
+                            "Bloquear com atraso",
+                            class_name="campo-check-row signup-label",
+                        ),
+                        rx.text(
+                            "Impede novos pedidos quando há empréstimo vencido."
+                        ),
+                        rx.el.label(
+                            rx.el.input(
+                                id="regra-exigir-autorizacao",
+                                type="checkbox",
+                                checked=(
+                                    State.library_rules_require_librarian_authorization
+                                ),
+                                on_change=(
+                                    State.set_library_rules_require_librarian_authorization
+                                ),
+                                disabled=rules_disabled,
+                                class_name="campo-check",
+                            ),
+                            "Exigir autorização bibliotecária",
+                            class_name="campo-check-row signup-label",
+                        ),
+                        rx.text(
+                            "Quando ativo, a equipe deve autorizar o pedido "
+                            "antes da retirada."
+                        ),
+                        rx.el.label(
+                            "Prazo de empréstimo (dias)",
+                            html_for="regra-prazo-emprestimo",
+                            class_name="signup-label",
+                        ),
+                        rx.el.input(
+                            id="regra-prazo-emprestimo",
+                            type="number",
+                            min=1,
+                            max=60,
+                            step=1,
+                            value=State.library_rules_loan_period_days,
+                            on_change=State.set_library_rules_loan_period_days,
+                            disabled=rules_disabled,
+                            class_name="campo",
+                        ),
+                        rx.text(
+                            "Quantos dias corridos o empréstimo dura após "
+                            "a retirada."
+                        ),
+                        rx.el.label(
+                            "Prazo de retirada (horas)",
+                            html_for="regra-prazo-retirada",
+                            class_name="signup-label",
+                        ),
+                        rx.el.input(
+                            id="regra-prazo-retirada",
+                            type="number",
+                            min=1,
+                            max=168,
+                            step=1,
+                            value=State.library_rules_pickup_period_hours,
+                            on_change=(
+                                State.set_library_rules_pickup_period_hours
+                            ),
+                            disabled=rules_disabled,
+                            class_name="campo",
+                        ),
+                        rx.text(
+                            "Quanto tempo uma reserva ofertada fica "
+                            "disponível para retirada."
+                        ),
+                        rx.button(
+                            "Salvar regras",
+                            type="submit",
+                            disabled=rules_disabled,
+                            class_name="focus-demo-button",
+                        ),
+                        rx.button(
+                            "Descartar mudanças",
+                            type="button",
+                            on_click=State.discard_library_rules_changes,
+                            disabled=rules_disabled,
+                            class_name="nav-logout",
+                        ),
+                        id="form-regras-biblioteca",
+                        on_submit=State.save_library_rules,
+                        reset_on_submit=False,
+                        class_name="signup-form",
+                    ),
+                    rx.fragment(),
+                ),
+                id="conteudo-regras",
+                class_name="content-section",
+            ),
+            class_name="main-content",
+        ),
+        site_footer(),
+        class_name="app-shell",
+    )
+
+
 def staff_reservation_page() -> rx.Component:
     return rx.box(
         rx.link(
@@ -9764,4 +10257,10 @@ app.add_page(
     route="/admin/circulacao",
     title="Empréstimos e devoluções",
     on_load=State.load_circulation_loans_tab,
+)
+app.add_page(
+    accessible_page(library_rules_page),
+    route="/regras",
+    title="Regras da biblioteca",
+    on_load=State.load_library_rules,
 )
