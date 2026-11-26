@@ -923,10 +923,6 @@ class State(rx.State):
     @diagnosticar_pagina_xano("home")
     async def load_home(self):
         await self.load_public_catalog()
-        if self._session_profile == "estudante":
-            await self.load_student_library()
-        elif self._is_librarian():
-            await self._refresh_circulation_data()
         if self.public_catalog_has_error:
             return None
         return State.resolve_public_catalog_covers
@@ -1415,6 +1411,7 @@ class State(rx.State):
                 if (
                     uncertain_title_id is not None
                     and not self._student_library_manual_retry
+                    and not self.student_request_has_error
                 ):
                     for retry_delay in (1.5, 2.5):
                         request_confirmed = any(

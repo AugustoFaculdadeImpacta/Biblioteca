@@ -11,6 +11,7 @@ import reflex as rx
 from reflex.istate.manager.token import BaseStateToken
 
 import biblioteca_mais_nova.biblioteca_mais_nova as frontend
+import biblioteca_mais_nova.xano_client as xano_client
 from biblioteca_mais_nova.circulation import (
     list_my_loans,
     list_my_requests,
@@ -18,6 +19,13 @@ from biblioteca_mais_nova.circulation import (
     request_title_loan,
     reservation_request_error_message,
 )
+
+
+@pytest.fixture(autouse=True)
+def _isolar_cache_autenticado():
+    xano_client.limpar_cache_autenticado()
+    yield
+    xano_client.limpar_cache_autenticado()
 from biblioteca_mais_nova.xano_client import (
     XanoInvalidResponseError,
     XanoRequestError,
@@ -193,6 +201,26 @@ def test_personal_list_accepts_envelope_and_skips_one_unreadable_record(
     assert records[1]["reserva_id"] is None
     assert records[1]["atendida_em"] is None
     assert records.skipped_count == 1
+
+
+def test_incompatible_successful_list_response_is_not_retried(monkeypatch):
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(200, json=[{"id": 0}])
+
+    records = asyncio.run(
+        list_my_requests(
+            "token-incompatible-list",
+            transport=httpx.MockTransport(handle),
+        )
+    )
+
+    assert records == []
+    assert records.skipped_count == 1
+    assert len(requests) == 1
+    assert requests[0].method == "GET"
 
 
 def test_request_service_confirms_minimal_post_response_by_ids(monkeypatch):
@@ -1180,6 +1208,67 @@ def test_student_request_cannot_be_submitted_again_while_pending(monkeypatch):
             assert state.student_request_pending is False
             assert state.student_request_has_error is False
             assert state.student_request_message.startswith("Pedido enviado.")
+
+    asyncio.run(verify())
+
+
+def test_reopening_reservations_does_not_repeat_uncertain_write_retries(
+    monkeypatch,
+):
+    calls = {"loans": 0, "requests": 0, "reservations": 0, "titles": 0}
+
+    async def records(name):
+        calls[name] += 1
+        return []
+
+    async def loans(_token):
+        return await records("loans")
+
+    async def requests(_token):
+        return await records("requests")
+
+    async def reservations(_token):
+        return await records("reservations")
+
+    async def titles():
+        return await records("titles")
+
+    retry_delays = []
+    original_sleep = asyncio.sleep
+
+    async def unexpected_sleep(delay):
+        if delay > 0:
+            retry_delays.append(delay)
+            return
+        await original_sleep(0)
+
+    monkeypatch.setattr(frontend, "list_my_loans", loans)
+    monkeypatch.setattr(frontend, "list_my_requests", requests)
+    monkeypatch.setattr(frontend, "list_my_reservations", reservations)
+    monkeypatch.setattr(frontend, "list_public_titles", titles)
+    monkeypatch.setattr(frontend.asyncio, "sleep", unexpected_sleep)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"reservations-reopen-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-estudante", "estudante")
+            state.student_request_uncertain_title_id = 14
+            state.student_request_pending = True
+            state.student_request_has_error = True
+
+            await state.load_student_library()
+
+            assert calls == {
+                "loans": 1,
+                "requests": 1,
+                "reservations": 1,
+                "titles": 1,
+            }
+            assert state.student_request_pending is True
+            assert state.student_request_has_error is True
+            assert retry_delays == []
 
     asyncio.run(verify())
 

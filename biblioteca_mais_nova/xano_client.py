@@ -1,7 +1,10 @@
 """Cliente HTTP do Xano executado exclusivamente no backend."""
 
 import asyncio
+import concurrent.futures
 import contextvars
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -30,6 +33,26 @@ _LOGGER = logging.getLogger("biblioteca.xano")
 _MAX_RETRIES = 3
 _RETRY_DELAYS = (0.5, 1.5, 3.0)
 _RETRYABLE_STATUSES = {429, 502, 503, 504}
+_AUTHENTICATED_LIST_PATHS = frozenset(
+    {
+        "/minhas/emprestimos",
+        "/minhas/solicitacoes",
+        "/minhas/reservas",
+    }
+)
+_AUTHENTICATED_GET_CACHE_TTL_SECONDS = 20.0
+_AUTHENTICATED_CACHE_SECRET = os.urandom(32)
+_AUTHENTICATED_CACHE_LOCK = threading.RLock()
+_AUTHENTICATED_GET_CACHE: dict[
+    tuple[str, str, str, int, int],
+    tuple[float, httpx.Response, httpx.AsyncBaseTransport | None],
+] = {}
+_AUTHENTICATED_GET_INFLIGHT: dict[
+    tuple[str, str, str, int, int],
+    concurrent.futures.Future[httpx.Response],
+] = {}
+_AUTHENTICATED_CACHE_GENERATIONS: dict[tuple[str, str], int] = {}
+_cache_clock = time.monotonic
 _sleep = asyncio.sleep
 _PAGE_DIAGNOSTICS: contextvars.ContextVar["_PageDiagnostics | None"] = (
     contextvars.ContextVar("xano_page_diagnostics", default=None)
@@ -50,6 +73,91 @@ _SEMAPHORES: WeakKeyDictionary[
 _SEMAPHORES_LOCK = threading.Lock()
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
+
+
+def _authenticated_cache_scope(
+    base_url: httpx.URL,
+    token: str,
+) -> tuple[str, str]:
+    host = f"{base_url.scheme}://{base_url.host}:{base_url.port or ''}"
+    token_key = hmac.new(
+        _AUTHENTICATED_CACHE_SECRET,
+        token.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return host, token_key
+
+
+def _invalidate_authenticated_get_cache(scope: tuple[str, str]) -> None:
+    with _AUTHENTICATED_CACHE_LOCK:
+        _AUTHENTICATED_CACHE_GENERATIONS[scope] = (
+            _AUTHENTICATED_CACHE_GENERATIONS.get(scope, 0) + 1
+        )
+        for key in tuple(_AUTHENTICATED_GET_CACHE):
+            if key[:2] == scope:
+                del _AUTHENTICATED_GET_CACHE[key]
+
+
+def limpar_cache_autenticado() -> None:
+    """Limpa o cache pessoal de teste ou encerramento de sessão."""
+    with _AUTHENTICATED_CACHE_LOCK:
+        _AUTHENTICATED_GET_CACHE.clear()
+        _AUTHENTICATED_GET_INFLIGHT.clear()
+        _AUTHENTICATED_CACHE_GENERATIONS.clear()
+
+
+async def _cached_authenticated_get(
+    scope: tuple[str, str],
+    path: str,
+    transport_id: int,
+    transport: httpx.AsyncBaseTransport | None,
+    request: Callable[[], Awaitable[httpx.Response]],
+) -> httpx.Response:
+    with _AUTHENTICATED_CACHE_LOCK:
+        generation = _AUTHENTICATED_CACHE_GENERATIONS.get(scope, 0)
+        key = (*scope, path, transport_id, generation)
+        now = _cache_clock()
+        for expired_key, value in tuple(_AUTHENTICATED_GET_CACHE.items()):
+            if value[0] <= now:
+                del _AUTHENTICATED_GET_CACHE[expired_key]
+        cached = _AUTHENTICATED_GET_CACHE.get(key)
+        if cached is not None:
+            if cached[0] > now:
+                return cached[1]
+            del _AUTHENTICATED_GET_CACHE[key]
+
+        shared = _AUTHENTICATED_GET_INFLIGHT.get(key)
+        is_leader = shared is None
+        if shared is None:
+            shared = concurrent.futures.Future()
+            _AUTHENTICATED_GET_INFLIGHT[key] = shared
+
+    if not is_leader:
+        return await asyncio.shield(asyncio.wrap_future(shared))
+
+    try:
+        response = await request()
+    except BaseException as error:
+        with _AUTHENTICATED_CACHE_LOCK:
+            if _AUTHENTICATED_GET_INFLIGHT.get(key) is shared:
+                del _AUTHENTICATED_GET_INFLIGHT[key]
+            shared.set_exception(error)
+        raise
+
+    with _AUTHENTICATED_CACHE_LOCK:
+        if _AUTHENTICATED_GET_INFLIGHT.get(key) is shared:
+            del _AUTHENTICATED_GET_INFLIGHT[key]
+        if (
+            _AUTHENTICATED_CACHE_GENERATIONS.get(scope, 0) == generation
+            and response.is_success
+        ):
+            _AUTHENTICATED_GET_CACHE[key] = (
+                _cache_clock() + _AUTHENTICATED_GET_CACHE_TTL_SECONDS,
+                response,
+                transport,
+            )
+        shared.set_result(response)
+    return response
 
 
 SAFE_ERROR_MESSAGES = {
@@ -838,6 +946,46 @@ class XanoClient:
         )
 
     async def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        token: str | None = None,
+        json: dict[str, object] | None = None,
+    ) -> httpx.Response:
+        request_method = method.upper()
+        endpoint = urlsplit(path)
+        if token is not None:
+            scope = _authenticated_cache_scope(self._base_url, token)
+            if (
+                request_method == "GET"
+                and endpoint.path in _AUTHENTICATED_LIST_PATHS
+                and not endpoint.query
+            ):
+                response = await _cached_authenticated_get(
+                    scope,
+                    endpoint.path,
+                    id(self._transport) if self._transport is not None else 0,
+                    self._transport,
+                    lambda: self._request_uncached(
+                        method,
+                        path,
+                        token=token,
+                        json=json,
+                    ),
+                )
+                _LAST_RESPONSE.set(response)
+                return response
+            if request_method != "GET":
+                _invalidate_authenticated_get_cache(scope)
+        return await self._request_uncached(
+            method,
+            path,
+            token=token,
+            json=json,
+        )
+
+    async def _request_uncached(
         self,
         method: str,
         path: str,

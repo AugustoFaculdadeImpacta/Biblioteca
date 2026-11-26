@@ -19,6 +19,13 @@ from biblioteca_mais_nova.xano_client import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _isolar_cache_autenticado():
+    xano_client.limpar_cache_autenticado()
+    yield
+    xano_client.limpar_cache_autenticado()
+
+
 def test_client_reads_base_url_from_environment_file(tmp_path, monkeypatch):
     monkeypatch.delenv("XANO_API_BASE_URL", raising=False)
     monkeypatch.chdir(tmp_path)
@@ -447,6 +454,112 @@ def test_xano_limits_simultaneous_requests_to_three(monkeypatch):
     asyncio.run(load_many())
 
     assert transport.maximum == 3
+
+
+def test_authenticated_list_gets_are_singleflight_and_cached(monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test/grupo")
+    token = "sessao-auth-cache-test"
+
+    class CountingTransport(httpx.AsyncBaseTransport):
+        def __init__(self):
+            self.calls = 0
+
+        async def handle_async_request(self, request):
+            self.calls += 1
+            await asyncio.sleep(0.02)
+            return httpx.Response(200, json=[{"id": self.calls}])
+
+        async def aclose(self):
+            return None
+
+    transport = CountingTransport()
+    client = XanoClient.from_environment(transport=transport)
+
+    async def load_many():
+        return await asyncio.gather(
+            *(
+                client.request(
+                    "GET",
+                    "/minhas/solicitacoes",
+                    token=token,
+                )
+                for _ in range(12)
+            )
+        )
+
+    responses = asyncio.run(load_many())
+
+    assert transport.calls == 1
+    assert all(response.json() == [{"id": 1}] for response in responses)
+    assert asyncio.run(
+        client.request("GET", "/minhas/solicitacoes", token=token)
+    ).json() == [{"id": 1}]
+    assert transport.calls == 1
+    assert token not in repr(tuple(xano_client._AUTHENTICATED_GET_CACHE))
+
+
+def test_authenticated_list_cache_expires_after_twenty_seconds(monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    now = [100.0]
+    monkeypatch.setattr(xano_client, "_cache_clock", lambda: now[0])
+    requests = []
+
+    def handle_request(request):
+        requests.append(request)
+        return httpx.Response(200, json=[{"id": len(requests)}])
+
+    client = XanoClient.from_environment(
+        transport=httpx.MockTransport(handle_request)
+    )
+
+    async def read():
+        return await client.request(
+            "GET",
+            "/minhas/reservas",
+            token="sessao-cache-ttl",
+        )
+
+    assert asyncio.run(read()).json() == [{"id": 1}]
+    assert asyncio.run(read()).json() == [{"id": 1}]
+    now[0] += 20.1
+    assert asyncio.run(read()).json() == [{"id": 2}]
+    assert len(requests) == 2
+
+
+def test_authenticated_write_invalidates_personal_list_cache(monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    requests = []
+
+    def handle_request(request):
+        requests.append(request)
+        if request.method == "POST":
+            return httpx.Response(204)
+        return httpx.Response(200, json=[{"id": len(requests)}])
+
+    client = XanoClient.from_environment(
+        transport=httpx.MockTransport(handle_request)
+    )
+
+    async def read():
+        return await client.request(
+            "GET",
+            "/minhas/emprestimos",
+            token="sessao-cache-invalidation",
+        )
+
+    async def write():
+        return await client.request(
+            "POST",
+            "/solicitacoes-emprestimo",
+            token="sessao-cache-invalidation",
+            json={"titulo_id": 14},
+        )
+
+    assert asyncio.run(read()).json() == [{"id": 1}]
+    assert asyncio.run(read()).json() == [{"id": 1}]
+    asyncio.run(write())
+    assert asyncio.run(read()).json() == [{"id": 3}]
+    assert [request.method for request in requests] == ["GET", "POST", "GET"]
 
 
 def test_failure_block_is_always_written_and_redacts_private_values(

@@ -9,6 +9,7 @@ from reflex.istate.data import PageData
 from reflex.istate.manager.token import BaseStateToken
 
 import biblioteca_mais_nova.biblioteca_mais_nova as frontend
+import biblioteca_mais_nova.xano_client as xano_client
 from biblioteca_mais_nova.catalog import (
     associate_category,
     create_copy,
@@ -30,6 +31,13 @@ from biblioteca_mais_nova.circulation import (
 )
 from biblioteca_mais_nova.login import submit_login
 from biblioteca_mais_nova.xano_client import XanoResponseError
+
+
+@pytest.fixture(autouse=True)
+def _isolar_cache_autenticado():
+    xano_client.limpar_cache_autenticado()
+    yield
+    xano_client.limpar_cache_autenticado()
 
 
 def _title_entry(title_id: int, *, copies: list[dict] | None = None) -> dict:
@@ -190,7 +198,7 @@ def test_student_login_catalog_request_and_library_use_one_mock_transport(
             await state.request_catalog_title(81)
             assert state.student_request_has_error is False
             assert state.student_request_message.startswith(
-                "Sua solicitação foi registrada."
+                "Pedido enviado."
             )
 
             await state.load_student_library()
@@ -213,10 +221,6 @@ def test_student_login_catalog_request_and_library_use_one_mock_transport(
         "/catalogo/titulos/81",
         "/catalogo/categorias",
         "/solicitacoes-emprestimo",
-        "/minhas/emprestimos",
-        "/minhas/solicitacoes",
-        "/minhas/reservas",
-        "/catalogo/titulos",
         "/minhas/emprestimos",
         "/minhas/solicitacoes",
         "/minhas/reservas",
@@ -263,8 +267,26 @@ def test_home_sections_use_catalog_data_and_explicit_empty_error_states(
     async def failed_public_titles():
         raise XanoResponseError(503)
 
+    async def unexpected_personal_read(_token):
+        raise AssertionError("A home não deve carregar listas autenticadas")
+
+    async def unexpected_staff_read(_state):
+        raise AssertionError("A home não deve carregar listas administrativas")
+
     monkeypatch.setattr(frontend, "list_public_titles", public_titles)
     monkeypatch.setattr(frontend, "list_categories", categories)
+    monkeypatch.setattr(frontend, "list_my_loans", unexpected_personal_read)
+    monkeypatch.setattr(frontend, "list_my_requests", unexpected_personal_read)
+    monkeypatch.setattr(
+        frontend,
+        "list_my_reservations",
+        unexpected_personal_read,
+    )
+    monkeypatch.setattr(
+        frontend.State,
+        "_refresh_circulation_data",
+        unexpected_staff_read,
+    )
 
     async def verify():
         async with frontend.app.modify_state(
@@ -299,6 +321,9 @@ def test_home_sections_use_catalog_data_and_explicit_empty_error_states(
             state._store_session("token-falso-home", "estudante")
             redirect = await state.load_home()
             assert redirect is None
+            assert state.public_catalog_has_error is True
+            state._store_session("token-falso-home", "bibliotecario")
+            await state.load_home()
             assert state.public_catalog_has_error is True
             assert calls["titles"] == 2
 

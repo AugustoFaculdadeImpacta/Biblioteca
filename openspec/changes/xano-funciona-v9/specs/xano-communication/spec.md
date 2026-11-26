@@ -40,6 +40,25 @@ O sistema MUST tratar escrita HTTP 2xx com resposta ilegível como concluída co
 - **WHEN** uma resposta 2xx contém um registro incompatível com o contrato
 - **THEN** o log sanitizado indica índice do registro, campo e motivo em um único bloco por chamada, com duração medida e ação/perfil da sessão quando disponíveis
 
+### Requirement: Leituras pessoais reduzem chamadas redundantes
+O sistema MUST compartilhar GETs idênticos simultâneos e reutilizar por até 20 segundos as listas autenticadas de empréstimos, solicitações e reservas da mesma sessão. Qualquer escrita autenticada MUST invalidar essas respostas em cache; um GET 2xx estruturalmente incompatível MUST NOT ser repetido.
+
+#### Scenario: Carregadores simultâneos
+- **WHEN** carregadores da mesma sessão solicitam simultaneamente a mesma lista pessoal
+- **THEN** todos recebem o resultado da mesma requisição HTTP
+
+#### Scenario: Cache pessoal
+- **WHEN** a mesma sessão solicita a mesma lista novamente dentro de 20 segundos
+- **THEN** o cliente reutiliza a resposta sem outra chamada HTTP
+
+#### Scenario: Escrita invalida as listas pessoais
+- **WHEN** a sessão realiza uma escrita autenticada
+- **THEN** as listas pessoais em cache dessa sessão são invalidadas antes da próxima leitura
+
+#### Scenario: Lista 2xx incompatível
+- **WHEN** um GET recebe HTTP 2xx com estrutura incompatível
+- **THEN** a falha é registrada sem repetir a chamada HTTP
+
 ### Requirement: Diagnóstico no site respeita sessão, perfil e privacidade
 O sistema MUST oferecer a usuários autenticados um relatório somente leitura que execute apenas consultas públicas ou autorizadas ao próprio perfil.
 

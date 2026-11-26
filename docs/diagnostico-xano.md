@@ -36,21 +36,33 @@ externo, evitando resumos duplicados para uma única navegação.
 
 ## Auditoria de chamadas por rota
 
+Cada abertura de página deve iniciar no máximo quatro leituras HTTP. Chamadas
+acionadas explicitamente pelo usuário, como o diagnóstico do Perfil, não fazem
+parte dessa contagem. Respostas 2xx incompatíveis são registradas como erro de
+formato e nunca causam repetição HTTP.
+
 | Rota | Leituras feitas na abertura | Dados pessoais | Reuso/cancelamento |
 | --- | --- | --- | --- |
-| `/` | catálogo público e categorias; consulta pessoal apenas para estudante autenticado ou dados operacionais somente de visão bibliotecária | Empréstimos, pedidos e reservas somente com sessão própria | catálogo/categorias reutilizados por 60 s; indicadores independentes |
-| `/catalogo` | catálogo público e categorias | Nenhum | catálogo/categorias reutilizados por 60 s |
-| `/catalogo/<id>` | título público e categorias | Nenhum | categorias reutilizadas por 60 s; pendência termina em `finally` |
-| `/perfil` | nenhuma chamada automática; “Testar conexão” consulta endpoints públicos e os autorizados ao perfil | Token próprio somente nas leituras privadas; admin inclui contas bibliotecárias | relatório estrutural temporário, sem valores nem persistência |
-| `/reservas` | empréstimos, pedidos e reservas próprios; catálogo para nomes | Somente com token de estudante ou admin em visão estudante | sem cache autenticado; falha encerra `pending` |
-| `/admin/acervo` | categorias e acervo administrativo | Somente com sessão administrativa/bibliotecária | categorias públicas reutilizadas por 60 s; acervo autenticado não é cacheado |
-| `/admin/bibliotecarios` | contas bibliotecárias | Somente com sessão admin | sem cache autenticado |
-| `/admin/reservas` | fila administrativa, reservas, empréstimos e acervo | Somente com sessão bibliotecária/admin | acervo autenticado não é cacheado; pendência encerrada em `finally` |
+| `/` | catálogo público e categorias (até 2) | Nenhum carregamento pessoal ou administrativo automático | catálogo/categorias reutilizados por 60 s |
+| `/catalogo` | catálogo público e categorias (até 2) | Nenhum | catálogo/categorias reutilizados por 60 s |
+| `/catalogo/<id>` | título público e categorias (até 2) | Nenhum | categorias reutilizadas por 60 s; pendência termina em `finally` |
+| `/perfil` | nenhuma chamada automática (0); “Testar conexão” é acionado pelo usuário | Token próprio somente nas leituras privadas; admin inclui contas bibliotecárias | relatório estrutural temporário, sem valores nem persistência |
+| `/reservas` | empréstimos, pedidos e reservas próprios e catálogo para nomes (até 4) | Somente com token de estudante ou admin em visão estudante | cache autenticado de 20 s por sessão; falha encerra `pending` |
+| `/admin/acervo` | categorias e acervo administrativo (até 2) | Somente com sessão administrativa/bibliotecária | categorias públicas reutilizadas por 60 s |
+| `/admin/bibliotecarios` | contas bibliotecárias (1) | Somente com sessão admin | sem cache autenticado |
+| `/admin/reservas` e `/admin/emprestimos` | pedidos, reservas, empréstimos e acervo administrativo (até 4) | Somente com sessão bibliotecária/admin | pendência encerrada em `finally` |
 
 Uma mutação administrativa de título, categoria ou exemplar invalida os caches
 públicos antes da próxima leitura. Navegar entre rotas públicas reutiliza
 catálogo e categorias durante até 60 segundos no processo. Dados pessoais,
-autorizados por token ou perfil, nunca entram nesse cache compartilhado.
+autorizados por token ou perfil, nunca entram no cache público compartilhado.
+
+As listas autenticadas de empréstimos, solicitações e reservas são reutilizadas
+por até 20 segundos somente para a mesma sessão e o mesmo host. A chave usa
+HMAC do token, sem armazená-lo em texto claro; GETs idênticos simultâneos
+compartilham uma requisição HTTP. Qualquer escrita autenticada invalida o cache
+daquela sessão antes da chamada, inclusive quando a resposta da escrita for
+incerta.
 
 ## Diagnóstico somente leitura pelo Perfil
 
@@ -87,12 +99,12 @@ manuais estão em [xano-correcao-ativo.md](./xano-correcao-ativo.md).
 ## Concorrência e repetição
 
 O cliente limita a três as chamadas Xano simultâneas por processo/event loop.
-Somente `GET` é repetido automaticamente, em timeout, falha de conexão e
-respostas HTTP 429, 502, 503 ou 504. A chamada inicial pode ser seguida de até
-três repetições, com esperas de 0,5 s, 1,5 s e 3 s. Um cabeçalho `Retry-After`
-substitui a espera correspondente e é limitado a 10 s. O tempo de espera ocorre
-fora do limite de concorrência. `POST`, `PATCH` e `DELETE` nunca são repetidos
-automaticamente.
+Somente `GET` é repetido automaticamente em timeout, falha de conexão e
+respostas HTTP 429, 502, 503 ou 504. Uma resposta 2xx com formato incompatível
+não é repetida. A chamada inicial pode ser seguida de até três repetições, com
+esperas de 0,5 s, 1,5 s e 3 s. Um cabeçalho `Retry-After` substitui a espera
+correspondente e é limitado a 10 s. O tempo de espera ocorre fora do limite de
+concorrência. `POST`, `PATCH` e `DELETE` nunca são repetidos automaticamente.
 
 ## Mensagens apresentadas
 
