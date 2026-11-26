@@ -29,9 +29,9 @@
 - [x] 5.2 Fazer pull somente leitura das definições para diretório temporário fora do repositório, sem registros ou variáveis; comparar com os oito arquivos aprovados (`titulo.xs`, `reserva.xs`, `titulos_id_PATCH.xs`, `admin/acervo_GET.xs`, `solicitacoes_POST.xs`, `minhas_solicitacoes_GET.xs`, `minhas_GET.xs`, `reservas_POST.xs`) e documentar os contratos, diferenças e recomendação em `docs/xano-diferencas.md`. Revisar `git status` e os diffs antes do push.
   - Evidência (2026-11-24): pull de definições do workspace `151966`/branch `v1` e comparação dos oito objetos concluídos; relatório em `docs/xano-diferencas.md`. Worktree tinha alterações preexistentes fora de `xano/` e desta Change; foram preservadas.
 - [x] 5.3 TRANSFERIDA AO USUÁRIO: validação XanoScript e dry-run de publicação manual. Consulte `docs/xano-diferencas.md` e `docs/xano-correcao-ativo.md`.
-  - Registro da transferência: não foi possível validar o XanoScript pelo MCP e o workspace já tinha `allow_push=false`; nenhum push nem alteração remota foi tentado. Os dry-runs registrados mostraram somente duas atualizações candidatas. A decisão de validar/publicar fica com o usuário.
+  - Registro da transferência: commit `30a23bb`; `openspec validate xano-funciona-v9 --strict` passou. Não foi possível validar o XanoScript pelo MCP e o workspace já tinha `allow_push=false`; nenhum push nem alteração remota foi tentado. Os dry-runs registrados mostraram somente duas atualizações candidatas. A decisão de validar/publicar fica com o usuário.
 - [x] 5.4 TRANSFERIDA AO USUÁRIO: publicação manual dos oito arquivos e conferência posterior. Consulte `docs/xano-diferencas.md` e `docs/xano-correcao-ativo.md`.
-  - Registro da transferência: a publicação não foi executada. As instruções e diferenças conhecidas permanecem em `docs/xano-diferencas.md`; não houve pull adicional, chamada HTTP de escrita, nem mudança de `allow_push`.
+  - Registro da transferência: commit `30a23bb`; `openspec validate xano-funciona-v9 --strict` passou. A publicação não foi executada. As instruções e diferenças conhecidas permanecem em `docs/xano-diferencas.md`; não houve pull adicional, chamada HTTP de escrita, nem mudança de `allow_push`.
 
 ## 6. Verificação local
 
@@ -58,8 +58,8 @@
 - [x] F. Ajustar somente tokens de cor de “Acessibilidade” para preservar posição, tamanho e formato; calcular e testar contraste >=4,5:1 para Perfil e Acessibilidade em temas claro/escuro, repouso/hover/foco.
   - Evidência: commit `9421d01`; `pytest tests\test_layout_v5.py tests\test_frontend_foundation.py -q` — `29 passed`; contraste calculado (repouso/foco; hover): Perfil claro 11,85/10,78:1 e escuro 9,17/7,84:1; Acessibilidade claro 14,00/12,73:1 e escuro 13,34/11,40:1.
 - [x] G. Concluir as partes locais: resumo independente da home, “Testar conexão” para usuário logado, comparação com a cópia remota existente e verificação local. A parte que dependia de publicação no Xano é transferida ao usuário; consulte `docs/xano-diferencas.md` e `docs/xano-correcao-ativo.md`.
-  - Evidência local: tarefas 3.1, 4.1 e 5.2 documentadas acima; compile dry passou e `pytest --ignore=evaluation -q` aprovou 420 testes em 2026-11-26; Change e 10 specs passaram em `--strict`.
-  - Transferência explícita: validação/publicação no Xano e confirmação de runtime não foram feitas. `allow_push=false`; nenhum acesso de escrita ou novo pull foi realizado. O item transferido não representa validação remota.
+  - Evidência local: compile dry passou e `pytest --ignore=evaluation -q` aprovou 420 testes em 2026-11-26; Change e 10 specs passaram em `--strict`.
+  - Transferência: commit `30a23bb`; a validação/publicação no Xano e confirmação de runtime não foram feitas. `allow_push=false`; nenhum acesso de escrita ou novo pull foi realizado. O item transferido não representa validação remota.
 
 ## 8. Correção dos retornos e tráfego Xano
 
