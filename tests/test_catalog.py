@@ -976,7 +976,7 @@ def test_title_detail_actions_follow_effective_role():
             state._store_session("token-title-admin", "admin")
             state.set_admin_view_mode("estudante")
             assert state.active_navigation_role == "Estudante"
-            assert state.is_student is False
+            assert state.is_student is True
 
     asyncio.run(verify_effective_role())
 

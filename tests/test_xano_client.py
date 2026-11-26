@@ -696,7 +696,10 @@ def test_failure_block_is_always_written_and_redacts_private_values(
     output = capsys.readouterr().err
     assert error.value.reference is not None
     assert f"ref={error.value.reference}" in output
-    assert "ação: reservar_livro | perfil: estudante" in output
+    assert (
+        "ação: reservar_livro | perfil real: estudante | visão: estudante"
+        in output
+    )
     assert "chamada: POST /solicitacoes-emprestimo -> 429" in output
     assert "email" in output
     assert "senha" in output
@@ -706,6 +709,26 @@ def test_failure_block_is_always_written_and_redacts_private_values(
     assert email not in output
     assert password not in output
     assert "api.example.test" not in output
+
+
+def test_failure_log_shows_real_admin_profile_and_effective_view(
+    monkeypatch, capsys
+):
+    monkeypatch.delenv("BIBLIOTECA_LOG_ERROS", raising=False)
+    response = httpx.Response(
+        403,
+        json={"message": "Perfil não autorizado."},
+        request=httpx.Request("GET", "https://api.example.test/minhas/reservas"),
+    )
+    with xano_client.contexto_evento_xano(
+        "carregar_reservas",
+        "admin",
+        "estudante",
+    ):
+        xano_client._log_response_failure(response, "perfil não autorizado")
+
+    output = capsys.readouterr().err
+    assert "perfil real: admin | visão: estudante" in output
 
 
 @pytest.mark.parametrize(

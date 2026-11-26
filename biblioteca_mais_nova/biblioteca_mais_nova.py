@@ -147,6 +147,7 @@ def _diagnostico_desativacao(
 class State(rx.State):
     is_authenticated: bool = False
     mobile_navigation_open: bool = False
+    route_guard_notice: str = ""
     signup_message: str = ""
     signup_success_message: str = ""
     signup_has_error: bool = False
@@ -292,6 +293,7 @@ class State(rx.State):
         self._session_name = name.strip()
         self._session_email = email.strip()
         self._admin_view_mode = ""
+        self.route_guard_notice = ""
 
     @rx.var
     def greeting_name(self) -> str:
@@ -360,6 +362,7 @@ class State(rx.State):
         self._session_name = ""
         self._session_email = ""
         self._admin_view_mode = ""
+        self.route_guard_notice = ""
         self.mobile_navigation_open = False
         self.student_request_pending = False
         self.student_request_uncertain_title_id = None
@@ -369,13 +372,35 @@ class State(rx.State):
         self.is_authenticated = False
 
     def _is_librarian(self) -> bool:
-        return bool(self._session_token) and self._session_profile in {
-            "bibliotecario",
-            "admin",
-        }
+        if not self._session_token:
+            return False
+        if self._session_profile == "bibliotecario":
+            return True
+        return (
+            self._session_profile == "admin"
+            and self.admin_view_mode != "estudante"
+        )
 
     def _is_admin(self) -> bool:
         return bool(self._session_token) and self._session_profile == "admin"
+
+    def _is_admin_management_view(self) -> bool:
+        return self._is_admin() and self.admin_view_mode == ""
+
+    def _is_student_view(self) -> bool:
+        if not self._session_token:
+            return False
+        return self._session_profile == "estudante" or (
+            self._is_admin() and self.admin_view_mode == "estudante"
+        )
+
+    def _effective_view_profile(self) -> str:
+        if self._is_admin():
+            return {
+                "estudante": "estudante",
+                "bibliotecaria": "bibliotecario",
+            }.get(self.admin_view_mode, "admin")
+        return self._session_profile
 
     @rx.var
     def is_librarian(self) -> bool:
@@ -387,7 +412,7 @@ class State(rx.State):
 
     @rx.var
     def is_student(self) -> bool:
-        return bool(self._session_token) and self._session_profile == "estudante"
+        return self._is_student_view()
 
     @rx.var
     def filtered_public_catalog(self) -> list[dict[str, Any]]:
@@ -798,12 +823,24 @@ class State(rx.State):
     def _redirect_non_librarian(self):
         if not self._session_token:
             return rx.redirect("/login")
+        if not self._is_librarian():
+            self.route_guard_notice = (
+                "Esta página não está disponível na visão atual."
+            )
         return rx.redirect("/")
 
     def _redirect_non_admin(self):
         if not self._session_token:
             return rx.redirect("/login")
+        if not self._is_admin_management_view():
+            self.route_guard_notice = (
+                "Esta página está disponível somente na visão Administrador."
+            )
         return rx.redirect("/")
+
+    @rx.event
+    def dismiss_route_guard_notice(self):
+        self.route_guard_notice = ""
 
     def _profile_home_path(self) -> str:
         if self._is_admin() and self.admin_view_mode == "estudante":
@@ -1272,7 +1309,7 @@ class State(rx.State):
     async def request_catalog_title(self, title_id: int):
         if not self._session_token:
             return rx.redirect("/login")
-        if self._session_profile != "estudante" or type(title_id) is not int or title_id < 1:
+        if not self._is_student_view() or type(title_id) is not int or title_id < 1:
             self.student_request_message = (
                 "Somente estudantes podem solicitar um empréstimo ou reserva."
             )
@@ -1300,6 +1337,7 @@ class State(rx.State):
                 with contexto_evento_xano(
                     "reservar_livro",
                     self._session_profile,
+                    self._effective_view_profile(),
                 ):
                     result = await request_title_loan(
                         title_id,
@@ -1402,9 +1440,7 @@ class State(rx.State):
     async def load_student_library(self):
         if not self._session_token:
             return rx.redirect("/login")
-        if not self.is_student and not (
-            self._is_admin() and self.admin_view_mode == "estudante"
-        ):
+        if not self._is_student_view():
             return rx.redirect("/")
 
         self.student_library_pending = True
@@ -1416,6 +1452,7 @@ class State(rx.State):
             with contexto_evento_xano(
                 "carregar_reservas",
                 self._session_profile,
+                self._effective_view_profile(),
             ):
                 loans = await list_my_loans(self._session_token)
                 requests = await list_my_requests(self._session_token)
@@ -1683,7 +1720,7 @@ class State(rx.State):
     @rx.event
     @diagnosticar_pagina_xano("contas")
     async def load_librarians(self):
-        if not self._is_admin():
+        if not self._is_admin_management_view():
             return self._redirect_non_admin()
 
         self.librarian_management_pending = True
@@ -1711,7 +1748,7 @@ class State(rx.State):
 
     @rx.event
     def request_librarian_deactivation(self, librarian_id: int):
-        if not self._is_admin():
+        if not self._is_admin_management_view():
             return self._redirect_non_admin()
         self.librarian_management_confirm_id = librarian_id
 
@@ -1721,7 +1758,7 @@ class State(rx.State):
 
     @rx.event
     async def submit_librarian(self, form_data: dict[str, Any]):
-        if not self._is_admin():
+        if not self._is_admin_management_view():
             return self._redirect_non_admin()
 
         self.librarian_management_pending = True
@@ -1778,7 +1815,7 @@ class State(rx.State):
 
     @rx.event
     async def set_librarian_active(self, librarian_id: int, active: bool):
-        if not self._is_admin():
+        if not self._is_admin_management_view():
             return self._redirect_non_admin()
         if type(librarian_id) is not int or librarian_id < 1:
             self.librarian_management_message = (
@@ -1850,7 +1887,7 @@ class State(rx.State):
 
     @rx.event
     def update_librarian_management_search(self, value: str):
-        if not self._is_admin():
+        if not self._is_admin_management_view():
             return self._redirect_non_admin()
         self.librarian_management_search = value
 
@@ -2412,7 +2449,11 @@ class State(rx.State):
         self.connection_diagnostic_results = []
         self.connection_diagnostic_report = ""
         try:
-            with contexto_evento_xano("testar_conexao", self._session_profile):
+            with contexto_evento_xano(
+                "testar_conexao",
+                self._session_profile,
+                self._effective_view_profile(),
+            ):
                 results = await diagnose_xano(
                     self._session_profile,
                     self._session_token,
@@ -2446,7 +2487,7 @@ class State(rx.State):
 
     @rx.event
     async def preview_example_books(self):
-        if not self._is_admin():
+        if not self._is_admin_management_view():
             return self._redirect_non_admin()
         if self.example_seed_pending:
             self.example_seed_message = "Aguarde a operação atual do acervo."
@@ -2478,7 +2519,7 @@ class State(rx.State):
 
     @rx.event
     def request_example_books_import(self):
-        if not self._is_admin():
+        if not self._is_admin_management_view():
             return self._redirect_non_admin()
         if self.example_seed_pending:
             self.example_seed_message = "Aguarde a operação atual do acervo."
@@ -2488,13 +2529,13 @@ class State(rx.State):
 
     @rx.event
     def cancel_example_books_import(self):
-        if not self._is_admin():
+        if not self._is_admin_management_view():
             return self._redirect_non_admin()
         self.example_seed_confirming = False
 
     @rx.event
     async def continue_example_books_import(self):
-        if not self._is_admin():
+        if not self._is_admin_management_view():
             return self._redirect_non_admin()
         if not self.example_seed_can_resume or self.example_seed_pending:
             return
@@ -2502,7 +2543,7 @@ class State(rx.State):
 
     @rx.event
     async def confirm_example_books_import(self):
-        if not self._is_admin():
+        if not self._is_admin_management_view():
             return self._redirect_non_admin()
         if self.example_seed_pending:
             self.example_seed_message = "Aguarde a operação atual do acervo."
@@ -3461,14 +3502,15 @@ def admin_view_status() -> rx.Component:
         State.can_manage_librarians & (State.admin_view_mode != ""),
         rx.el.div(
             rx.el.div(
-                "Modo de visualização: ",
                 rx.cond(
                     State.admin_view_mode == "estudante",
-                    "Estudante",
+                    "Você está agindo como Estudante com a sua conta de admin. "
+                    "Os pedidos feitos aqui ficam no nome do admin.",
                     rx.cond(
                         State.admin_view_mode == "bibliotecaria",
-                        "Bibliotecária",
-                        "Administrador",
+                        "Você está agindo como Bibliotecário com a sua conta de "
+                        "admin. Os pedidos feitos aqui ficam no nome do admin.",
+                        "",
                     ),
                 ),
                 role="status",
@@ -3489,6 +3531,25 @@ def admin_view_status() -> rx.Component:
             role="group",
             aria_label="Modo de visualização atual",
             class_name="admin-view-band",
+        ),
+        rx.fragment(),
+    )
+
+
+def route_guard_notice() -> rx.Component:
+    return rx.cond(
+        State.route_guard_notice != "",
+        rx.el.div(
+            rx.el.span(State.route_guard_notice),
+            rx.button(
+                "Fechar aviso",
+                type="button",
+                on_click=State.dismiss_route_guard_notice,
+                class_name="route-guard-notice-dismiss",
+            ),
+            role="status",
+            aria_live="polite",
+            class_name="route-guard-notice",
         ),
         rx.fragment(),
     )
@@ -3906,6 +3967,16 @@ def profile_menu() -> rx.Component:
                     ),
                     rx.cond(
                         State.can_manage_librarians,
+                        rx.link(
+                            conteudo_acao("regras"),
+                            href="/regras",
+                            class_name="profile-menu-item",
+                            **atributos_acao("regras"),
+                        ),
+                        rx.fragment(),
+                    ),
+                    rx.cond(
+                        State.can_manage_librarians,
                         rx.fragment(
                             rx.el.div(
                                 "Modo de visualização",
@@ -4068,7 +4139,11 @@ def site_header() -> rx.Component:
         ),
         class_name="site-header",
     )
-    return rx.fragment(header, admin_view_status())
+    return rx.fragment(
+        header,
+        admin_view_status(),
+        route_guard_notice(),
+    )
 
 
 def site_footer() -> rx.Component:
@@ -8122,6 +8197,26 @@ app = rx.App(
             "color": "var(--brand-text)",
             "font_size": "0.75rem",
             "white_space": "nowrap",
+        },
+        ".route-guard-notice": {
+            "display": "flex",
+            "align_items": "center",
+            "justify_content": "center",
+            "gap": "0.5rem",
+            "width": "min(72rem, 100%)",
+            "margin": "0 auto 0.75rem",
+            "padding": "0.5rem 0.75rem",
+            "border": "1px solid var(--line)",
+            "border_radius": "0.5rem",
+            "background_color": "var(--bg-soft)",
+            "color": "var(--text)",
+        },
+        ".route-guard-notice-dismiss": {
+            "border": "1px solid var(--line)",
+            "border_radius": "0.35rem",
+            "background_color": "var(--bg-panel)",
+            "color": "var(--brand-text)",
+            "cursor": "pointer",
         },
         ".admin-view-reset": {
             "min_height": "2.75rem",

@@ -60,7 +60,7 @@ _PAGE_DIAGNOSTICS: contextvars.ContextVar["_PageDiagnostics | None"] = (
 _LAST_RESPONSE: contextvars.ContextVar[httpx.Response | None] = contextvars.ContextVar(
     "xano_last_response", default=None
 )
-_EVENT_CONTEXT: contextvars.ContextVar[tuple[str, str] | None] = contextvars.ContextVar(
+_EVENT_CONTEXT: contextvars.ContextVar[tuple[str, str, str] | None] = contextvars.ContextVar(
     "xano_event_context", default=None
 )
 _DEFER_FAILURE_LOG: contextvars.ContextVar[bool] = contextvars.ContextVar(
@@ -413,8 +413,12 @@ class XanoResponseError(XanoRequestError):
 
 
 @contextmanager
-def contexto_evento_xano(action: str, profile: str) -> Generator[None, None, None]:
-    token = _EVENT_CONTEXT.set((action, profile))
+def contexto_evento_xano(
+    action: str,
+    profile: str,
+    view: str | None = None,
+) -> Generator[None, None, None]:
+    token = _EVENT_CONTEXT.set((action, profile, view or profile))
     try:
         yield
     finally:
@@ -460,23 +464,35 @@ def _request_action_profile(
     method: str,
     path: str,
     request: httpx.Request | None = None,
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     context = _EVENT_CONTEXT.get()
     if context is not None:
         return context
 
     sent = _request_json(request)
     if method == "POST" and path == "/solicitacoes-emprestimo":
-        return "reservar_livro", "estudante"
+        return "reservar_livro", "estudante", "estudante"
     if method == "PATCH" and re.fullmatch(r"/catalogo/titulos/\d+", path):
         if sent.get("ativo") is False:
-            return "desativar_titulo", "bibliotecario"
-        return "atualizar_titulo", "bibliotecario"
+            return "desativar_titulo", "bibliotecario", "bibliotecario"
+        return "atualizar_titulo", "bibliotecario", "bibliotecario"
     if path.startswith("/minhas/") or path == "/solicitacoes-emprestimo":
-        return f"ler_{path.rsplit('/', 1)[-1]}", "estudante"
+        return (
+            f"ler_{path.rsplit('/', 1)[-1]}",
+            "estudante",
+            "estudante",
+        )
     if path.startswith("/admin/"):
-        return f"{method.lower()}_{path.strip('/').replace('/', '_')}", "bibliotecario/admin"
-    return f"{method.lower()}_{path.strip('/').replace('/', '_') or 'xano'}", "não identificado"
+        return (
+            f"{method.lower()}_{path.strip('/').replace('/', '_')}",
+            "bibliotecario/admin",
+            "bibliotecario/admin",
+        )
+    return (
+        f"{method.lower()}_{path.strip('/').replace('/', '_') or 'xano'}",
+        "não identificado",
+        "não identificada",
+    )
 
 
 def _request_json(request: httpx.Request | None) -> dict[str, object]:
@@ -550,13 +566,17 @@ def _emit_failure(
     if os.environ.get("BIBLIOTECA_LOG_ERROS") == "0":
         return reference
 
-    action, profile = _request_action_profile(method, path, request)
+    action, profile, view = _request_action_profile(method, path, request)
     content_type = _content_type(response) if response is not None else "-"
     response_size = len(response.content) if response is not None else 0
     snippet, top, keys, xano_message = _response_details(response)
     block = [
         f"[ERRO xano] ref={reference} {datetime.now().astimezone():%Y-%m-%d %H:%M:%S}",
-        f"  ação: {_sanitize_diagnostic(action)} | perfil: {_sanitize_diagnostic(profile)}",
+        (
+            f"  ação: {_sanitize_diagnostic(action)} | "
+            f"perfil real: {_sanitize_diagnostic(profile)} | "
+            f"visão: {_sanitize_diagnostic(view)}"
+        ),
         (
             f"  chamada: {method} {path} -> {status} em {duration_ms} ms | "
             f"content-type: {content_type or '-'} | tamanho: {response_size}"

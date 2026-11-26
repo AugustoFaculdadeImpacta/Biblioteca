@@ -90,11 +90,11 @@ A interface MUST oferecer entradas concisas para operações existentes e açõe
 O sistema MUST restringir páginas administrativas conforme a visão efetiva do usuário e o perfil real da sessão.
 
 #### Scenario: Visão Estudante abre rota da equipe
-- **WHEN** admin está na visão Estudante e tenta abrir `/acervo`, `/contas` ou uma rota de reservas da equipe
+- **WHEN** admin está na visão Estudante e tenta abrir `/admin/acervo`, `/admin/bibliotecarios` ou uma rota de reservas da equipe
 - **THEN** é redirecionado à home com um aviso
 
 #### Scenario: Visão Bibliotecário abre rota exclusiva de admin
-- **WHEN** admin está na visão Bibliotecário e tenta abrir `/contas`
+- **WHEN** admin está na visão Bibliotecário e tenta abrir `/admin/bibliotecarios`
 - **THEN** é redirecionado à home com um aviso
 
 #### Scenario: Regras disponíveis em qualquer visão de admin

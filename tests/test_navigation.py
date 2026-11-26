@@ -364,8 +364,8 @@ def test_admin_view_mode_changes_navigation_without_changing_session():
 
             assert state.admin_view_mode == "estudante"
             assert state._session_profile == "admin"
-            assert state.is_librarian is True
-            assert state.is_student is False
+            assert state.is_librarian is False
+            assert state.is_student is True
             assert state.can_manage_librarians is True
             serialized = json.dumps(
                 await root._get_resolved_delta(),
@@ -399,6 +399,8 @@ def test_admin_view_mode_controls_are_visible_and_accessible():
     assert "Administrador" in header
     assert "Bibliotecário" in menu
     assert "Estudante" in header
+    assert "Você está agindo como Estudante com a sua conta de admin." in header
+    assert "Regras" in menu
     assert 'role:"radio"' in header
     assert "aria-checked" in header
     assert "Modo escuro" in accessibility
@@ -449,8 +451,8 @@ def test_admin_view_mode_can_reset_and_is_hidden_for_non_admin():
 
             state.set_admin_view_mode("estudante")
             assert state.admin_view_mode == "estudante"
-            assert state.is_librarian is True
-            assert state.is_student is False
+            assert state.is_librarian is False
+            assert state.is_student is True
 
             state.reset_admin_view_mode()
             assert state.admin_view_mode == ""
@@ -460,6 +462,36 @@ def test_admin_view_mode_can_reset_and_is_hidden_for_non_admin():
             assert state.admin_view_mode == ""
             assert state.is_librarian is False
             assert state.is_student is True
+
+    asyncio.run(verify())
+
+
+def test_effective_view_guards_routes_without_changing_real_admin_profile():
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"effective-view-guards-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-real-admin", "admin", "Ana")
+            state.set_admin_view_mode("estudante")
+
+            redirect = state._redirect_non_librarian()
+            assert redirect is not None
+            assert "redirect" in repr(redirect).lower()
+            assert state.route_guard_notice
+            assert state._session_profile == "admin"
+            assert state._read_session_token() == "token-real-admin"
+
+            state.route_guard_notice = ""
+            admin_only_redirect = state._redirect_non_admin()
+            assert admin_only_redirect is not None
+            assert "Administrador" in state.route_guard_notice
+            assert state._session_profile == "admin"
+
+            state.set_admin_view_mode("bibliotecaria")
+            assert state.is_librarian is True
+            assert state.is_student is False
+            assert state._session_profile == "admin"
 
     asyncio.run(verify())
 

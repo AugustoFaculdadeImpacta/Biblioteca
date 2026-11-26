@@ -553,7 +553,7 @@ def test_invalid_records_log_one_field_specific_block_with_real_duration(
     elapsed = re.search(r"-> 200 em (\d+) ms", log)
     assert elapsed is not None
     assert int(elapsed.group(1)) >= 10
-    assert "perfil: estudante" in log
+    assert "perfil real: estudante | visão: estudante" in log
 
     response = httpx.Response(
         200,
@@ -592,7 +592,10 @@ def test_invalid_records_log_one_field_specific_block_with_real_duration(
     asyncio.run(send_invalid_post())
     post_log = capsys.readouterr().err
     assert post_log.count("[ERRO xano]") == 1
-    assert "ação: reservar_livro | perfil: estudante" in post_log
+    assert (
+        "ação: reservar_livro | perfil real: estudante | visão: estudante"
+        in post_log
+    )
     assert (
         "registro 0, campo titulo_id: não corresponde ao título solicitado"
         in post_log
@@ -767,11 +770,53 @@ def test_admin_student_preview_uses_own_token_and_does_not_invent_records(
             assert calls == ["token-proprio-admin"]
             assert state._session_token == "token-proprio-admin"
             assert state._session_profile == "admin"
-            assert state.is_student is False
+            assert state.is_student is True
             assert state.student_library_has_error is True
             assert state.student_library_loans == []
             assert state.student_library_requests == []
             assert state.student_library_reservations == []
+
+    asyncio.run(verify())
+
+
+def test_admin_student_view_can_submit_request_with_real_admin_session(
+    monkeypatch,
+):
+    calls = []
+
+    async def create_request(title_id, token):
+        calls.append((title_id, token))
+        return {
+            "id": 91,
+            "titulo_id": title_id,
+            "estado": "pendente",
+            "solicitada_em": None,
+        }
+
+    monkeypatch.setattr(frontend, "request_title_loan", create_request)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(
+                ident=f"admin-student-request-{uuid4()}",
+                cls=rx.State,
+            )
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-real-admin", "admin", "Ana")
+            state.set_admin_view_mode("estudante")
+            state.public_catalog_detail = {
+                "id": 44,
+                "titulo": "Livro de teste",
+            }
+
+            await state.request_catalog_title(44)
+
+            assert calls == [(44, "token-real-admin")]
+            assert state._session_profile == "admin"
+            assert state._session_token == "token-real-admin"
+            assert state.is_student is True
+            assert state.student_request_message.startswith("Pedido enviado.")
 
     asyncio.run(verify())
 
