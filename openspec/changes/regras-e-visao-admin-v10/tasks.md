@@ -2,7 +2,7 @@
 
 ## 1. Visão efetiva do admin
 
-- [ ] 1.1 Separar perfil real e visão efetiva, atualizar seletor/faixa/menu Perfil e proteger rotas conforme as specs, mantendo `/regras` acessível ao admin em qualquer visão; verificar com testes de navegação e sessão que as chamadas preservam a identidade admin.
+- [x] 1.1 Separar perfil real e visão efetiva, atualizar seletor/faixa/menu Perfil e proteger rotas conforme as specs, mantendo `/regras` acessível ao admin em qualquer visão; verificado por `pytest tests/test_navigation.py tests/test_student_area.py tests/test_catalog.py tests/test_xano_client.py -q` (191 passed), commit `247387c`.
 
 ## 2. Contrato de regras e cliente Xano
 
