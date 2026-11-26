@@ -6,7 +6,7 @@
 
 ## 2. Contrato de regras e cliente Xano
 
-- [ ] 2.1 Implementar GET/PUT de configuração e validações/regras configuráveis na API de demonstração; verificar padrões, permissões, limites e rejeições com testes da API.
+- [x] 2.1 Implementar GET/PUT de configuração e validações/regras configuráveis na API de demonstração; verificar padrões, permissões, limites e rejeições com testes da API (`25 passed`, commit `e4bd46f`).
 - [ ] 2.2 Adicionar leitura/gravação no cliente Xano, cache de 60 s e invalidação após PUT; verificar chamadas, corpo exato, cache e erros 403/404 com cliente simulado.
 
 ## 3. Páginas e apresentação das regras
