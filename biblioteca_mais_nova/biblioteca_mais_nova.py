@@ -254,6 +254,8 @@ class State(rx.State):
     public_catalog_detail_has_error: bool = False
     public_catalog_detail_not_found: bool = False
     public_catalog_detail_pending: bool = False
+    public_catalog_open_request_limit: int = 0
+    public_catalog_rules_message: str = ""
     student_library_pending: bool = True
     student_library_message: str = ""
     student_library_has_error: bool = False
@@ -1265,6 +1267,8 @@ class State(rx.State):
         self.public_catalog_detail_has_error = False
         self.public_catalog_detail_not_found = False
         self.public_catalog_detail_pending = True
+        self.public_catalog_open_request_limit = 0
+        self.public_catalog_rules_message = ""
         self.student_request_message = ""
         self.student_request_has_error = False
 
@@ -1353,6 +1357,25 @@ class State(rx.State):
             "exemplares_disponiveis": entry["exemplares_disponiveis"],
         }
         self.public_catalog_detail_pending = False
+        if self._is_student_view():
+            try:
+                with contexto_evento_xano(
+                    "consultar_regras_biblioteca",
+                    self._session_profile,
+                    self._effective_view_profile(),
+                ):
+                    rules = await get_library_rules(self._session_token)
+                self.public_catalog_open_request_limit = rules[
+                    "limite_pedidos_em_aberto"
+                ]
+            except (
+                LibraryRulesValidationError,
+                XanoConfigurationError,
+                XanoRequestError,
+            ):
+                self.public_catalog_rules_message = (
+                    "Não foi possível carregar o limite de pedidos agora."
+                )
         return State.resolve_public_catalog_covers
 
     @rx.event
@@ -5363,6 +5386,23 @@ def public_catalog_detail() -> rx.Component:
                         rx.text(
                             State.public_catalog_detail["descricao"],
                             class_name="catalog-description",
+                        ),
+                        rx.cond(
+                            State.public_catalog_open_request_limit > 0,
+                            rx.text(
+                                "Você pode ter até ",
+                                State.public_catalog_open_request_limit,
+                                " pedidos em aberto.",
+                                role="status",
+                            ),
+                            rx.cond(
+                                State.public_catalog_rules_message != "",
+                                rx.text(
+                                    State.public_catalog_rules_message,
+                                    role="status",
+                                ),
+                                rx.fragment(),
+                            ),
                         ),
                         class_name="catalog-detail-card",
                     ),

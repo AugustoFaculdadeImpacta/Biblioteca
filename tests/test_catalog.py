@@ -21,6 +21,7 @@ from biblioteca_mais_nova.catalog import (
     list_categories,
     list_public_titles,
 )
+from biblioteca_mais_nova.library_rules import DEFAULT_LIBRARY_RULES
 from biblioteca_mais_nova.xano_client import (
     XanoRequestError,
     XanoResponseError,
@@ -76,6 +77,28 @@ def _components(component: rx.Component):
     for child in component.children:
         if isinstance(child, rx.Component):
             yield from _components(child)
+
+
+def _component_text(component: rx.Component) -> str:
+    serialized = json.loads(repr(component))
+    values = []
+
+    def collect(value):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if key == "contents" and isinstance(child, str):
+                    try:
+                        values.append(json.loads(child))
+                    except json.JSONDecodeError:
+                        values.append(child)
+                else:
+                    collect(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect(child)
+
+    collect(serialized)
+    return " ".join(map(str, values))
 
 
 def test_catalog_form_has_only_defined_fields_and_category_selection():
@@ -884,8 +907,12 @@ def test_public_catalog_detail_loads_route_and_handles_invalid_ids(monkeypatch):
     async def mocked_categories():
         return [{"id": 7, "nome": "Literatura"}]
 
+    async def fail_if_rules_requested(_token):
+        raise AssertionError("Visitante não deve carregar regras autenticadas.")
+
     monkeypatch.setattr(frontend, "get_public_title", mocked_title)
     monkeypatch.setattr(frontend, "list_categories", mocked_categories)
+    monkeypatch.setattr(frontend, "get_library_rules", fail_if_rules_requested)
 
     async def verify_detail():
         async with frontend.app.modify_state(
@@ -903,6 +930,106 @@ def test_public_catalog_detail_loads_route_and_handles_invalid_ids(monkeypatch):
             await state.load_public_catalog_detail()
             assert state.public_catalog_detail_not_found is True
             assert state.has_public_catalog_detail is False
+
+    asyncio.run(verify_detail())
+
+
+@pytest.mark.parametrize(
+    ("profile", "view"),
+    [("estudante", None), ("admin", "estudante")],
+)
+def test_student_book_detail_shows_open_request_limit(monkeypatch, profile, view):
+    async def mocked_title(_title_id):
+        return {
+            "titulo": {
+                "id": 81,
+                "titulo": "Ação e memória",
+                "autores": "Ana",
+            },
+            "categorias": [],
+            "exemplares_disponiveis": 1,
+        }
+
+    async def mocked_categories():
+        return []
+
+    rules_tokens = []
+
+    async def mocked_rules(token):
+        rules_tokens.append(token)
+        return {
+            **DEFAULT_LIBRARY_RULES,
+            "limite_pedidos_em_aberto": 7,
+        }
+
+    monkeypatch.setattr(frontend, "get_public_title", mocked_title)
+    monkeypatch.setattr(frontend, "list_categories", mocked_categories)
+    monkeypatch.setattr(frontend, "get_library_rules", mocked_rules)
+
+    async def verify_detail():
+        async with frontend.app.modify_state(
+            BaseStateToken(
+                ident=f"student-detail-rules-{profile}-{uuid4()}",
+                cls=rx.State,
+            )
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-proprio", profile)
+            if view:
+                state.set_admin_view_mode(view)
+            state.rx_router_page = PageData(params={"titulo_id": "81"})
+            await state.load_public_catalog_detail()
+
+            assert state.public_catalog_detail["titulo"] == "Ação e memória"
+            assert state.public_catalog_open_request_limit == 7
+            assert state.public_catalog_rules_message == ""
+            assert rules_tokens == ["token-proprio"]
+
+    asyncio.run(verify_detail())
+    text = _component_text(frontend.public_catalog_detail())
+    assert "Você pode ter até " in text
+    assert "pedidos em aberto." in text
+
+
+def test_student_detail_keeps_book_visible_when_rules_are_unavailable(monkeypatch):
+    async def mocked_title(_title_id):
+        return {
+            "titulo": {
+                "id": 81,
+                "titulo": "Ação e memória",
+                "autores": "Ana",
+            },
+            "categorias": [],
+            "exemplares_disponiveis": 1,
+        }
+
+    async def mocked_categories():
+        return []
+
+    async def unavailable_rules(_token):
+        raise XanoResponseError(404)
+
+    monkeypatch.setattr(frontend, "get_public_title", mocked_title)
+    monkeypatch.setattr(frontend, "list_categories", mocked_categories)
+    monkeypatch.setattr(frontend, "get_library_rules", unavailable_rules)
+
+    async def verify_detail():
+        async with frontend.app.modify_state(
+            BaseStateToken(
+                ident=f"student-detail-rules-missing-{uuid4()}",
+                cls=rx.State,
+            )
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-proprio", "estudante")
+            state.rx_router_page = PageData(params={"titulo_id": "81"})
+            await state.load_public_catalog_detail()
+
+            assert state.public_catalog_detail["titulo"] == "Ação e memória"
+            assert state.public_catalog_open_request_limit == 0
+            assert state.public_catalog_rules_message == (
+                "Não foi possível carregar o limite de pedidos agora."
+            )
 
     asyncio.run(verify_detail())
 
