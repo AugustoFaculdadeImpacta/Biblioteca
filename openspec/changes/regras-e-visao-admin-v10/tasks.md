@@ -11,7 +11,7 @@
 
 ## 3. Páginas e apresentação das regras
 
-- [ ] 3.1 Implementar `/regras` com os sete campos, rótulos/ajudas, validação, descarte, estado de leitura somente com padrões e metadados; verificar acesso somente para admin real e comportamento com testes de estado/interface.
+- [x] 3.1 Implementar `/regras` com os sete campos, rótulos/ajudas, validação, descarte, estado de leitura somente com padrões e metadados; verificar acesso somente para admin real e comportamento com testes de estado/interface (`pytest tests/test_library_rules_state.py tests/test_library_rules.py tests/test_navigation.py -q`: 65 passed, commit `6b652bf`).
 - [ ] 3.2 Exibir no detalhe do livro a frase curta com o limite vigente de pedidos; verificar carregamento da configuração em cache e ausência de autorização baseada somente na interface.
 
 ## 4. Ações simuladas e mensagens de regra
