@@ -20,6 +20,27 @@ HOST = "127.0.0.1"
 PORT = 8765
 PASSWORD = "demo123"
 
+DEFAULT_LIBRARY_RULES: dict[str, object] = {
+    "limite_emprestimos_ativos": 3,
+    "limite_pedidos_em_aberto": 3,
+    "permitir_pedido_com_reserva_ativa": True,
+    "bloquear_com_atraso": True,
+    "exigir_autorizacao_bibliotecaria": True,
+    "prazo_emprestimo_dias": 14,
+    "prazo_retirada_horas": 48,
+}
+NUMERIC_LIBRARY_RULES = {
+    "limite_emprestimos_ativos": (1, 20),
+    "limite_pedidos_em_aberto": (1, 20),
+    "prazo_emprestimo_dias": (1, 60),
+    "prazo_retirada_horas": (1, 168),
+}
+BOOLEAN_LIBRARY_RULES = {
+    "permitir_pedido_com_reserva_ativa",
+    "bloquear_com_atraso",
+    "exigir_autorizacao_bibliotecaria",
+}
+
 
 class ApiError(Exception):
     def __init__(self, status: int, message: str):
@@ -77,6 +98,9 @@ class DemoData:
         self.reservations: list[dict[str, object]] = []
         self.loan_requests: list[dict[str, object]] = []
         self.loans: list[dict[str, object]] = []
+        self.library_rules = dict(DEFAULT_LIBRARY_RULES)
+        self.library_rules_updated_at: str | None = None
+        self.library_rules_updated_by: str | None = None
         self.next_title_id = 1
         self.next_copy_id = 1
         self.next_category_link_id = 1
@@ -317,9 +341,47 @@ class DemoHandler(BaseHTTPRequestHandler):
             "admin",
         }:
             raise ApiError(403, "Perfil insuficiente.")
-        if required == "estudante" and user["perfil"] != "estudante":
+        if required == "admin" and user["perfil"] != "admin":
+            raise ApiError(403, "Somente admins podem acessar este recurso.")
+        if required == "estudante" and user["perfil"] not in {
+            "estudante",
+            "admin",
+        }:
             raise ApiError(403, "Somente estudantes podem acessar este recurso.")
         return user
+
+    def _library_rules_response(self) -> dict[str, object]:
+        return {
+            **DATA.library_rules,
+            "atualizado_em": DATA.library_rules_updated_at,
+            "atualizado_por": DATA.library_rules_updated_by,
+        }
+
+    def _validate_library_rules(
+        self,
+        body: dict[str, object],
+    ) -> dict[str, object]:
+        expected = set(DEFAULT_LIBRARY_RULES)
+        if set(body) != expected:
+            raise ApiError(
+                400,
+                "Envie somente os sete campos obrigatórios das regras.",
+            )
+        result: dict[str, object] = {}
+        for field, (minimum, maximum) in NUMERIC_LIBRARY_RULES.items():
+            value = body[field]
+            if type(value) is not int or not minimum <= value <= maximum:
+                raise ApiError(
+                    400,
+                    f"{field} deve ser um número inteiro entre {minimum} e {maximum}.",
+                )
+            result[field] = value
+        for field in BOOLEAN_LIBRARY_RULES:
+            value = body[field]
+            if type(value) is not bool:
+                raise ApiError(400, f"{field} deve ser verdadeiro ou falso.")
+            result[field] = value
+        return result
 
     def _active_loans(self, user_id: int) -> list[dict[str, object]]:
         return [
@@ -329,19 +391,62 @@ class DemoHandler(BaseHTTPRequestHandler):
             and loan["devolvido_em"] in (None, 0)
         ]
 
-    def _student_eligibility_error(self, user_id: int, title_id: int) -> str | None:
+    def _student_eligibility_error(
+        self,
+        user_id: int,
+        title_id: int,
+        *,
+        check_open_request_limit: bool = False,
+    ) -> str | None:
         now = datetime.now(timezone.utc)
         active = self._active_loans(user_id)
-        if any(_datetime(loan["vence_em"]) < now for loan in active):
+        if DATA.library_rules["bloquear_com_atraso"] and any(
+            _datetime(loan["vence_em"]) < now for loan in active
+        ):
             return "Estudante possui empréstimo atrasado."
         if any(loan["titulo_id"] == title_id for loan in active):
             return "Estudante já possui empréstimo ativo deste título."
-        if len(active) >= 3:
-            return "Limite de três empréstimos ativos atingido."
+        if len(active) >= int(DATA.library_rules["limite_emprestimos_ativos"]):
+            limit = int(DATA.library_rules["limite_emprestimos_ativos"])
+            limit_label = "três" if limit == 3 else str(limit)
+            loan_label = "empréstimo" if limit == 1 else "empréstimos"
+            active_label = "ativo" if limit == 1 else "ativos"
+            return f"Limite de {limit_label} {loan_label} {active_label} atingido."
+        if check_open_request_limit:
+            open_requests = sum(
+                request["usuario_id"] == user_id
+                and request["estado"] in {"pendente", "aprovada", "em_reserva"}
+                for request in DATA.loan_requests
+            )
+            linked_reservation_ids = {
+                request["reserva_id"]
+                for request in DATA.loan_requests
+                if request["usuario_id"] == user_id
+                and request["estado"] in {"pendente", "aprovada", "em_reserva"}
+                and request.get("reserva_id") is not None
+            }
+            open_requests += sum(
+                reservation["usuario_id"] == user_id
+                and reservation["estado"] in {"aguardando", "ofertada"}
+                and reservation["id"] not in linked_reservation_ids
+                for reservation in DATA.reservations
+            )
+            if open_requests >= int(DATA.library_rules["limite_pedidos_em_aberto"]):
+                return "Limite de pedidos em aberto atingido."
         return None
 
-    def _check_student_eligibility(self, user_id: int, title_id: int) -> None:
-        message = self._student_eligibility_error(user_id, title_id)
+    def _check_student_eligibility(
+        self,
+        user_id: int,
+        title_id: int,
+        *,
+        check_open_request_limit: bool = False,
+    ) -> None:
+        message = self._student_eligibility_error(
+            user_id,
+            title_id,
+            check_open_request_limit=check_open_request_limit,
+        )
         if message is not None:
             raise ApiError(403, message)
 
@@ -360,7 +465,9 @@ class DemoHandler(BaseHTTPRequestHandler):
             "exemplar_id": copy["id"],
             "solicitacao_id": request_id,
             "retirado_em": now.isoformat(timespec="seconds").replace("+00:00", "Z"),
-            "vence_em": (now + timedelta(days=14))
+            "vence_em": (
+                now + timedelta(days=int(DATA.library_rules["prazo_emprestimo_dias"]))
+            )
             .isoformat(timespec="seconds")
             .replace("+00:00", "Z"),
             "devolvido_em": None,
@@ -384,13 +491,20 @@ class DemoHandler(BaseHTTPRequestHandler):
             None,
         )
 
+    def _user_entry(self, user_id: int) -> dict[str, object]:
+        user = next(
+            (item for item in DATA.users.values() if item["id"] == user_id),
+            None,
+        )
+        if user is not None:
+            return user
+        return next(item for item in DATA.students if item["id"] == user_id)
+
     def _admin_reservation_entry(
         self,
         reservation: dict[str, object],
     ) -> dict[str, object]:
-        student = next(
-            item for item in DATA.students if item["id"] == reservation["usuario_id"]
-        )
+        student = self._user_entry(int(reservation["usuario_id"]))
         title = next(
             item for item in DATA.titles if item["id"] == reservation["titulo_id"]
         )
@@ -410,9 +524,7 @@ class DemoHandler(BaseHTTPRequestHandler):
         }
 
     def _admin_loan_entry(self, loan: dict[str, object]) -> dict[str, object]:
-        student = next(
-            item for item in DATA.students if item["id"] == loan["usuario_id"]
-        )
+        student = self._user_entry(int(loan["usuario_id"]))
         copy = next(item for item in DATA.copies if item["id"] == loan["exemplar_id"])
         title = next(
             item for item in DATA.titles if item["id"] == copy["titulo_id"]
@@ -454,7 +566,9 @@ class DemoHandler(BaseHTTPRequestHandler):
             ):
                 continue
             offer_time = datetime.now(timezone.utc)
-            expires_at = offer_time + timedelta(hours=48)
+            expires_at = offer_time + timedelta(
+                hours=int(DATA.library_rules["prazo_retirada_horas"])
+            )
             reservation.update(
                 {
                     "estado": "ofertada",
@@ -554,6 +668,20 @@ class DemoHandler(BaseHTTPRequestHandler):
                     },
                 }
 
+        if method == "GET" and path == "/configuracoes":
+            self._profile()
+            with DATA.lock:
+                return 200, self._library_rules_response()
+
+        if method == "PUT" and path == "/admin/configuracoes":
+            user = self._profile(required="admin")
+            rules = self._validate_library_rules(self._read_json())
+            with DATA.lock:
+                DATA.library_rules = rules
+                DATA.library_rules_updated_at = _now()
+                DATA.library_rules_updated_by = str(user["nome"])
+                return 200, self._library_rules_response()
+
         if method == "GET" and path == "/catalogo/categorias":
             return 200, [dict(item) for item in DATA.categories]
 
@@ -635,17 +763,31 @@ class DemoHandler(BaseHTTPRequestHandler):
                 if any(
                     request["usuario_id"] == user["id"]
                     and request["titulo_id"] == title_id
-                    and request["estado"] in {"pendente", "em_reserva"}
+                    and request["estado"]
+                    in {"pendente", "aprovada", "em_reserva"}
                     for request in DATA.loan_requests
                 ):
                     raise ApiError(409, "Já existe solicitação ativa para este título.")
-                if any(
-                    reservation["usuario_id"] == user["id"]
-                    and reservation["titulo_id"] == title_id
-                    and reservation["estado"] in {"aguardando", "ofertada"}
-                    for reservation in DATA.reservations
+                existing_reservation = next(
+                    (
+                        reservation
+                        for reservation in DATA.reservations
+                        if reservation["usuario_id"] == user["id"]
+                        and reservation["titulo_id"] == title_id
+                        and reservation["estado"] in {"aguardando", "ofertada"}
+                    ),
+                    None,
+                )
+                if (
+                    existing_reservation is not None
+                    and not DATA.library_rules["permitir_pedido_com_reserva_ativa"]
                 ):
                     raise ApiError(409, "Já existe reserva ativa para este título.")
+                self._check_student_eligibility(
+                    int(user["id"]),
+                    title_id,
+                    check_open_request_limit=True,
+                )
 
                 waiting = any(
                     reservation["titulo_id"] == title_id
@@ -657,12 +799,21 @@ class DemoHandler(BaseHTTPRequestHandler):
                     "usuario_id": user["id"],
                     "titulo_id": title_id,
                     "solicitada_em": _now(),
-                    "estado": "pendente",
+                    "estado": (
+                        "aprovada"
+                        if not DATA.library_rules[
+                            "exigir_autorizacao_bibliotecaria"
+                        ]
+                        else "pendente"
+                    ),
                     "reserva_id": None,
                     "atendida_em": None,
                 }
                 DATA.next_request_id += 1
-                if DATA.available_count(title_id) == 0 or waiting:
+                if existing_reservation is not None:
+                    request["estado"] = "em_reserva"
+                    request["reserva_id"] = existing_reservation["id"]
+                elif DATA.available_count(title_id) == 0 or waiting:
                     reservation = {
                         "id": DATA.next_reservation_id,
                         "usuario_id": user["id"],
@@ -716,7 +867,7 @@ class DemoHandler(BaseHTTPRequestHandler):
                             request["id"],
                         ),
                     )
-                    if item["estado"] == "pendente"
+                    if item["estado"] in {"pendente", "aprovada"}
                 ]
 
         if method == "GET" and path == "/admin/reservas":
@@ -916,27 +1067,6 @@ class DemoHandler(BaseHTTPRequestHandler):
                     raise ApiError(404, "Título não encontrado.")
                 if title.get("ativo") is False:
                     raise ApiError(403, "Título inativo não aceita novas reservas.")
-                now = datetime.now(timezone.utc)
-                if any(
-                    loan["usuario_id"] == student_id
-                    and loan["devolvido_em"] in (None, 0)
-                    and datetime.fromisoformat(
-                        str(loan["vence_em"]).replace("Z", "+00:00")
-                    )
-                    < now
-                    for loan in DATA.loans
-                ):
-                    raise ApiError(403, "Estudante possui empréstimo atrasado.")
-                if any(
-                    loan["usuario_id"] == student_id
-                    and loan["titulo_id"] == title_id
-                    and loan["devolvido_em"] in (None, 0)
-                    for loan in DATA.loans
-                ):
-                    raise ApiError(
-                        403,
-                        "Estudante já possui o título emprestado.",
-                    )
                 if any(
                     reservation["usuario_id"] == student_id
                     and reservation["titulo_id"] == title_id
@@ -947,6 +1077,21 @@ class DemoHandler(BaseHTTPRequestHandler):
                         403,
                         "Estudante já possui reserva ativa para este título.",
                     )
+                if any(
+                    request["usuario_id"] == student_id
+                    and request["titulo_id"] == title_id
+                    and request["estado"] in {"pendente", "aprovada", "em_reserva"}
+                    for request in DATA.loan_requests
+                ):
+                    raise ApiError(
+                        409,
+                        "Estudante já possui solicitação ativa para este título.",
+                    )
+                self._check_student_eligibility(
+                    student_id,
+                    title_id,
+                    check_open_request_limit=True,
+                )
                 reservation = {
                     "id": DATA.next_reservation_id,
                     "usuario_id": student_id,
@@ -1011,14 +1156,17 @@ class DemoHandler(BaseHTTPRequestHandler):
                     request["estado"] = "recusada"
                     return 200, dict(request)
 
-                if request is None or request["estado"] != "pendente":
+                if request is None or request["estado"] not in {
+                    "pendente",
+                    "aprovada",
+                }:
                     raise ApiError(409, "Solicitação pendente não encontrada.")
                 queue = sorted(
                     (
                         item
                         for item in DATA.loan_requests
                         if item["titulo_id"] == request["titulo_id"]
-                        and item["estado"] == "pendente"
+                        and item["estado"] in {"pendente", "aprovada"}
                     ),
                     key=lambda item: (
                         _datetime(item["solicitada_em"]),
@@ -1157,6 +1305,7 @@ class DemoHandler(BaseHTTPRequestHandler):
 
     do_GET = _dispatch
     do_POST = _dispatch
+    do_PUT = _dispatch
     do_PATCH = _dispatch
 
 
