@@ -50,6 +50,10 @@ A página inicial MUST apresentar estatísticas calculadas exclusivamente dos da
 - **WHEN** o catálogo público e as categorias são carregados com sucesso
 - **THEN** a home apresenta total de títulos ativos, total de exemplares disponíveis e total de categorias a partir desses resultados
 
+#### Scenario: Carregamento independente dos indicadores
+- **WHEN** a home inicia o carregamento do resumo
+- **THEN** cada indicador é carregado e atualizado independentemente, sem aguardar o sucesso dos demais
+
 #### Scenario: Falha isolada de indicador
 - **WHEN** a leitura de um indicador falha
 - **THEN** somente aquele indicador apresenta “—” e um link “Tentar de novo”, enquanto os demais resultados válidos permanecem visíveis
@@ -131,3 +135,10 @@ O sistema MUST adaptar home, catálogo, detalhe, reservas, login e cadastro ao p
 #### Scenario: Login e cadastro sem navegação extra
 - **WHEN** visitante abre login ou cadastro
 - **THEN** vê um cartão central estreito com abas Entrar/Criar conta e somente campos e mensagens do fluxo
+
+### Requirement: Controles do cabeçalho mantêm contraste acessível
+O texto dos controles “Perfil” e “Acessibilidade” MUST manter contraste mínimo de 4,5:1 contra o fundo nos temas claro e escuro, em repouso, hover e foco, usando tokens de tema sem alterar a geometria aprovada.
+
+#### Scenario: Contraste do cabeçalho
+- **WHEN** o cabeçalho é renderizado em tema claro ou escuro
+- **THEN** os rótulos dos dois controles atingem pelo menos 4,5:1 em repouso, hover e foco
