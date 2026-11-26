@@ -35,12 +35,14 @@ _RETRY_DELAYS = (0.5, 1.5, 3.0)
 _RETRYABLE_STATUSES = {429, 502, 503, 504}
 _AUTHENTICATED_LIST_PATHS = frozenset(
     {
+        "/configuracoes",
         "/minhas/emprestimos",
         "/minhas/solicitacoes",
         "/minhas/reservas",
     }
 )
 _AUTHENTICATED_GET_CACHE_TTL_SECONDS = 20.0
+_LIBRARY_RULES_GET_CACHE_TTL_SECONDS = 60.0
 _AUTHENTICATED_CACHE_SECRET = os.urandom(32)
 _AUTHENTICATED_CACHE_LOCK = threading.RLock()
 _AUTHENTICATED_GET_CACHE: dict[
@@ -217,6 +219,7 @@ async def _adquirir_slot_xano(
 async def _cached_authenticated_get(
     scope: tuple[str, str],
     path: str,
+    ttl_seconds: float,
     transport_id: int,
     transport: httpx.AsyncBaseTransport | None,
     request: Callable[[], Awaitable[httpx.Response]],
@@ -260,7 +263,7 @@ async def _cached_authenticated_get(
             and response.is_success
         ):
             _AUTHENTICATED_GET_CACHE[key] = (
-                _cache_clock() + _AUTHENTICATED_GET_CACHE_TTL_SECONDS,
+                _cache_clock() + ttl_seconds,
                 response,
                 transport,
             )
@@ -1090,9 +1093,15 @@ class XanoClient:
                 and endpoint.path in _AUTHENTICATED_LIST_PATHS
                 and not endpoint.query
             ):
+                ttl_seconds = (
+                    _LIBRARY_RULES_GET_CACHE_TTL_SECONDS
+                    if endpoint.path == "/configuracoes"
+                    else _AUTHENTICATED_GET_CACHE_TTL_SECONDS
+                )
                 response = await _cached_authenticated_get(
                     scope,
                     endpoint.path,
+                    ttl_seconds,
                     id(self._transport) if self._transport is not None else 0,
                     self._transport,
                     lambda: self._request_uncached(
@@ -1106,12 +1115,15 @@ class XanoClient:
                 return response
             if request_method != "GET":
                 _invalidate_authenticated_get_cache(scope)
-        return await self._request_uncached(
+        response = await self._request_uncached(
             method,
             path,
             token=token,
             json=json,
         )
+        if token is not None and request_method != "GET" and response.is_success:
+            _invalidate_authenticated_get_cache(scope)
+        return response
 
     async def _request_uncached(
         self,
