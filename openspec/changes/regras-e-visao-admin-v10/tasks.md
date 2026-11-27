@@ -20,7 +20,7 @@
 
 ## 5. Contraste do cabeçalho
 
-- [ ] 5.1 Inspecionar árvore do cabeçalho e cascata CSS gerada, igualar Acessibilidade ao estilo de Perfil sem alterar geometria e testar contraste calculado dos dois controles nos dois temas e estados; registrar “aguarda conferência do usuário” se Edge headless não responder em 60 s.
+- [x] 5.1 Árvore serializada: `details > summary.accessibility-menu-trigger > span.emoji-acao + span.rotulo-acao`; a regra vencedora anterior usava `--button-subtle-text`, enquanto Perfil usa `--brand-text`. Os spans herdavam a cor; `.emoji-acao`/`.rotulo-acao` só definem fundo/margem, e as regras `.subtle-action`, `.a11y-controls button` e Radix `.rt-Button` não selecionam o `summary`. A folha global gerada não contém seletores próprios do cabeçalho. Corrigi cor, fundo e borda por tokens em seletores finais de alta especificidade, preservando geometria e estados; `pytest tests/test_layout_v5.py::test_header_profile_and_accessibility_actions_meet_wcag_aa_in_every_state tests/test_navigation.py::test_header_highlight_covers_outer_control_without_clipping_or_shrinking -q` (2 passed), `reflex compile --dry` (sucesso), commit `bd2a115`; contraste ≥4,5:1 calculado para Perfil e Acessibilidade em repouso, hover e foco nos dois temas. Visual feito, aguarda conferência do usuário.
 
 ## 6. Documentação e integração
 
