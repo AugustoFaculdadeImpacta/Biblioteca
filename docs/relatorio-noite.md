@@ -1136,3 +1136,37 @@ O critério foi ajustado para detectar o placeholder; não houve quinta rodada.
   Os deltas já estavam sincronizados, portanto o arquivo não alterou specs.
 - Commits das evidências finais: `a9075dd` (relatório, matriz, capturas e
   sync) e `baef058` (hash e evidências da tarefa 5.1).
+
+## Continuação — Change regras-e-visao-admin-v10 (2026-11-26)
+
+### Implementação e evidências
+
+| Tarefa | Alteração | Evidência local |
+|---|---|---|
+| 1.1 | Visão efetiva do admin, guards, menu e identidade real | 191 testes; `247387c` |
+| 2.1 | Regras e validações da API de demonstração | 25 testes; `e4bd46f` |
+| 2.2 | Cliente Xano, cache de 60 s e invalidação | 50 testes; `2a04cc7` |
+| 3.1 | Página `/regras`, validação, descarte e leitura somente para consulta | 65 testes; `6b652bf` |
+| 3.2 | Limite de pedidos no detalhe do livro | 48 testes; `0a6e701` |
+| 4.1 | Ações simuladas, mensagens de regra e releitura após estado obsoleto | 149 testes; `0a8d1ae` |
+| 5.1 | Contraste do cabeçalho, sem alterar geometria | 2 testes de estilo/contraste; `bd2a115` |
+| Correção integrada | Ações de fechar aviso e botões de regras usam helpers comuns; os rótulos existentes foram preservados | `tests/test_icons.py tests/test_library_rules_state.py`: 15 testes; `c24a219` |
+
+A inspeção da árvore Reflex confirmou o `summary` nativo de Acessibilidade e
+seus spans de emoji/rótulo. A regra vencedora anterior usava
+`--button-subtle-text`, diferente de Perfil (`--brand-text`). Os spans herdavam
+a cor; as regras Radix `.rt-Button`, `.subtle-action` e `.a11y-controls button`
+não selecionam esse `summary`. A stylesheet global não contém seletores do
+cabeçalho; os estilos do app terminam com os overrides específicos verificados
+pelos testes. A verificação visual no navegador não foi realizada; o controle
+aguarda conferência do usuário.
+
+### Verificação final local
+
+- `.\.venv\Scripts\python.exe -m reflex compile --dry`: sucesso após a última
+  alteração de código.
+- `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`: 472 passaram.
+  Uma execução anterior sofreu uma falha de transporte local (`WinError 10053`);
+  o teste isolado passou e a repetição completa terminou sem falhas.
+- Nenhuma chamada ou escrita foi realizada no Xano. A publicação das regras e
+  permissões continua manual, conforme [publicacao-xano-regras.md](./publicacao-xano-regras.md).
