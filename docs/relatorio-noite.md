@@ -1239,3 +1239,14 @@ aguarda conferência do usuário.
 2. Conferir visualmente a home no tema escuro e o cabeçalho de Acessibilidade.
 3. Decidir se a releitura agrupada de 1,5 s ainda deve ser concluída em uma
    Change posterior.
+
+## Inventário de branches antes da limpeza (2026-11-27)
+
+- `main` — `8d901eb`
+- `trabalho-autopilot` — `888f94b`
+- `trabalho-autopilot-layout-livraria-v6` — `accd3ef`
+- `origin/feat/frontend-cadastros` — `7b88761`
+- `origin/main` — `8d901eb`
+- `origin/trabalho-autopilot` — `888f94b`
+- `origin/trabalho-autopilot-layout-livraria-v6` — `accd3ef`
+- `origin/trabalho-noturno` — `798e9b0`
