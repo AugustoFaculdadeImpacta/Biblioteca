@@ -26,6 +26,7 @@ ACOES: dict[str, Icone] = {
     "regras": Icone("⚙️", "Regras", "navegar"),
     "perfil": Icone("👤", "Perfil", "navegar"),
     "acessibilidade": Icone("♿", "Acessibilidade", "navegar"),
+    "fechar_aviso": Icone("", "Fechar aviso", "navegar"),
     "entrar": Icone("🔑", "Entrar", "navegar"),
     "cadastrar": Icone("✍️", "Cadastrar-se", "confirmar"),
     "sair": Icone("🚪", "Sair", "navegar"),

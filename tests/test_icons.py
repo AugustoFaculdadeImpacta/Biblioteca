@@ -57,6 +57,15 @@ def test_action_helpers_include_accessible_icon_and_button_metadata():
     assert label.class_name == "rotulo-acao"
 
 
+def test_route_notice_close_keeps_its_plain_label_and_shared_action_metadata():
+    source = APP_PATH.read_text(encoding="utf-8")
+
+    assert 'conteudo_acao("fechar_aviso")' in source
+    assert 'atributos_acao("fechar_aviso")' in source
+    assert ACOES["fechar_aviso"].rotulo == "Fechar aviso"
+    assert ACOES["fechar_aviso"].emoji == ""
+
+
 def test_theme_action_marks_its_dynamic_emoji_and_label():
     component = conteudo_acao("tema")
     icon = component.children[0]

@@ -3967,10 +3967,11 @@ def route_guard_notice() -> rx.Component:
         rx.el.div(
             rx.el.span(State.route_guard_notice),
             rx.button(
-                "Fechar aviso",
+                conteudo_acao("fechar_aviso"),
                 type="button",
                 on_click=State.dismiss_route_guard_notice,
                 class_name="route-guard-notice-dismiss",
+                **atributos_acao("fechar_aviso"),
             ),
             role="status",
             aria_live="polite",
@@ -7513,10 +7514,17 @@ def library_rules_page() -> rx.Component:
                         State.library_rules_has_error
                         & ~State.library_rules_pending,
                         rx.button(
-                            "Tentar novamente",
+                            conteudo_acao(
+                                "atualizar_lista",
+                                "Tentar novamente",
+                            ),
                             type="button",
                             on_click=State.load_library_rules,
                             class_name="nav-logout",
+                            **atributos_acao(
+                                "atualizar_lista",
+                                "Tentar novamente",
+                            ),
                         ),
                         rx.fragment(),
                     ),
@@ -7672,17 +7680,19 @@ def library_rules_page() -> rx.Component:
                             "disponível para retirada."
                         ),
                         rx.button(
-                            "Salvar regras",
+                            conteudo_acao("salvar", "Salvar regras"),
                             type="submit",
                             disabled=rules_disabled,
                             class_name="focus-demo-button",
+                            **atributos_acao("salvar", "Salvar regras"),
                         ),
                         rx.button(
-                            "Descartar mudanças",
+                            conteudo_acao("voltar", "Descartar mudanças"),
                             type="button",
                             on_click=State.discard_library_rules_changes,
                             disabled=rules_disabled,
                             class_name="nav-logout",
+                            **atributos_acao("voltar", "Descartar mudanças"),
                         ),
                         id="form-regras-biblioteca",
                         on_submit=State.save_library_rules,
@@ -8897,6 +8907,9 @@ app = rx.App(
             "border_radius": "0.35rem",
             "background_color": "var(--bg-panel)",
             "color": "var(--brand-text)",
+        },
+        ".route-guard-notice-dismiss .emoji-acao": {
+            "display": "none",
             "cursor": "pointer",
         },
         ".admin-view-reset": {
