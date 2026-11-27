@@ -24,7 +24,7 @@
 
 ## 6. Documentação e integração
 
-- [ ] 6.1 Documentar contrato e publicação manual em `docs/publicacao-xano-regras.md`, atualizar `docs/relatorio-noite.md` e validar todos os comportamentos, specs e tarefas com `reflex compile --dry`, seguido de pytest (nunca simultaneamente), `openspec validate --strict` e verificação de `git diff --check`.
+- [x] 6.1 Documentar contrato e publicação manual em `docs/publicacao-xano-regras.md`, atualizar `docs/relatorio-noite.md`; `.\.venv\Scripts\python.exe -m reflex compile --dry` aprovado, seguido por `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q` (472 passed); `openspec.cmd validate "regras-e-visao-admin-v10" --strict` válido, `openspec.cmd validate --specs --strict` (10 passed), `git diff --check` sem erros; commit de documentação `b20577e`.
 
 ## Workflow follow-up
 
