@@ -16,7 +16,7 @@
 
 ## 4. Ações simuladas e mensagens de regra
 
-- [ ] 4.1 Habilitar operações de estudante e equipe nas respectivas visões do admin usando a sessão real, traduzir erros especificados e atualizar listas uma única vez após 403 de estado obsoleto; verificar POST/ações e chamadas de releitura em testes.
+- [x] 4.1 Habilitar operações de estudante e equipe nas respectivas visões do admin usando a sessão real, traduzir erros especificados e atualizar listas uma única vez após 403 de estado obsoleto; verificar `pytest tests/test_circulation.py tests/test_student_area.py tests/test_xano_client.py tests/test_staff_reservations.py -q` (149 passed), commit `0a8d1ae`.
 
 ## 5. Contraste do cabeçalho
 
