@@ -1250,3 +1250,7 @@ aguarda conferência do usuário.
 - `origin/trabalho-autopilot` — `888f94b`
 - `origin/trabalho-autopilot-layout-livraria-v6` — `accd3ef`
 - `origin/trabalho-noturno` — `798e9b0`
+
+Branches removidas: remotas `feat/frontend-cadastros`, `trabalho-autopilot`, `trabalho-autopilot-layout-livraria-v6`, `trabalho-noturno`; local `trabalho-autopilot-layout-livraria-v6`.
+Backup verificado: `C:\Users\User\Desktop\biblioteca-backup-antes-da-limpeza.bundle`.
+Branches restantes: `main` é a única branch local e remota; `origin/HEAD` aponta para `origin/main`.
