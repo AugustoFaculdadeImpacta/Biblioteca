@@ -13,14 +13,20 @@ def test_smoke_checks_each_configured_profile_without_exposing_credentials(
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test/grupo")
     requests: list[httpx.Request] = []
     output: list[str] = []
+    tokens_by_email = {
+        "aluno@exemplo.invalid": "token-estudante",
+        "bib@exemplo.invalid": "token-bibliotecario",
+        "admin@exemplo.invalid": "token-admin",
+    }
 
     def handle_request(request: httpx.Request) -> httpx.Response:
         requests.append(request)
         if request.url.path.endswith("/auth/login"):
+            credentials = json.loads(request.content)
             return httpx.Response(
                 200,
                 json={
-                    "authToken": "token-de-teste",
+                    "authToken": tokens_by_email[credentials["email"]],
                     "usuario": {"perfil": request.url.params.get("perfil", "")},
                 },
             )
@@ -62,7 +68,12 @@ def test_smoke_checks_each_configured_profile_without_exposing_credentials(
     assert actual_gets == expected_gets
     assert len(results) == 3 + len(expected_gets)
     assert all(
-        request.headers.get("Authorization") == "Bearer token-de-teste"
+        request.headers.get("Authorization")
+        in {
+            "Bearer token-estudante",
+            "Bearer token-bibliotecario",
+            "Bearer token-admin",
+        }
         for request in requests
         if request.method == "GET"
     )
