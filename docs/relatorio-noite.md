@@ -1216,6 +1216,10 @@ aguarda conferência do usuário.
 - `validacao-remota-xano` foi arquivada como
   `openspec/changes/archive/2026-11-27-validacao-remota-xano/`, sem sync porque
   é somente operacional. `execucao-reflex-windows` já está em `archive/`.
+- `velocidade-e-readme-v11` foi arquivada em
+  `openspec/changes/archive/2026-11-27-velocidade-e-readme-v11/`; o CLI
+  registrou 7/9 tarefas completas. A releitura agrupada de 1,5 s permanece
+  explicitamente pendente; o archive não tratou esse item como concluído.
 - Não houve chamada, pull, escrita ou publicação no Xano nesta continuação.
 
 ### Pendências e conferências
