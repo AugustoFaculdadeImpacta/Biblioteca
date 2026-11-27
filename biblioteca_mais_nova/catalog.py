@@ -15,6 +15,10 @@ from biblioteca_mais_nova.response_parsing import (
     parse_xano_records,
     parse_xano_timestamp,
 )
+from biblioteca_mais_nova.public_data_cache import (
+    load_public_snapshot,
+    save_public_snapshot,
+)
 from biblioteca_mais_nova.xano_client import (
     XanoClient,
     XanoConfigurationError,
@@ -236,6 +240,7 @@ async def list_categories(
     )
     if transport is None:
         _cache_write("categorias", categories)
+        save_public_snapshot("categorias", categories)
     return categories
 
 
@@ -343,7 +348,26 @@ async def list_public_titles(
         public_titles.append(_parse_public_catalog_entry(title))
     if transport is None:
         _cache_write("titulos_publicos", public_titles)
+        save_public_snapshot("titulos_publicos", public_titles)
     return public_titles
+
+
+def load_saved_public_catalog() -> tuple[list[PublicCatalogEntry] | None, list[Category] | None]:
+    """Retorna cópias públicas recentes sem consultar a rede."""
+    titles_snapshot = load_public_snapshot("titulos_publicos")
+    categories_snapshot = load_public_snapshot("categorias")
+    titles = (
+        titles_snapshot.data
+        if titles_snapshot is not None and isinstance(titles_snapshot.data, list)
+        else None
+    )
+    categories = (
+        categories_snapshot.data
+        if categories_snapshot is not None
+        and isinstance(categories_snapshot.data, list)
+        else None
+    )
+    return titles, categories
 
 
 async def get_public_title(

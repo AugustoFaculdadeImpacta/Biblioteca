@@ -6,6 +6,10 @@ from typing import TypedDict
 
 import httpx
 
+from biblioteca_mais_nova.public_data_cache import (
+    load_public_snapshot,
+    save_public_snapshot,
+)
 from biblioteca_mais_nova.xano_client import (
     XanoClient,
     XanoInvalidResponseError,
@@ -186,7 +190,7 @@ def _parse_library_rules(value: object) -> LibraryRules:
 
 
 async def get_library_rules(
-    token: str,
+    token: str = "",
     *,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> LibraryRules:
@@ -196,7 +200,20 @@ async def get_library_rules(
         "/configuracoes",
         token=token,
     )
-    return _parse_library_rules(parse_xano_response_json(response))
+    rules = _parse_library_rules(parse_xano_response_json(response))
+    if transport is None:
+        save_public_snapshot("regras_biblioteca", rules)
+    return rules
+
+
+def load_saved_library_rules() -> LibraryRules | None:
+    snapshot = load_public_snapshot("regras_biblioteca")
+    if snapshot is None:
+        return None
+    try:
+        return _parse_library_rules(snapshot.data)
+    except (XanoInvalidResponseError, LibraryRulesValidationError):
+        return None
 
 
 async def update_library_rules(
@@ -213,4 +230,7 @@ async def update_library_rules(
         token=token,
         json=payload,
     )
-    return parse_xano_write_response(response, _parse_library_rules)
+    rules = parse_xano_write_response(response, _parse_library_rules)
+    if transport is None:
+        save_public_snapshot("regras_biblioteca", rules)
+    return rules

@@ -1,8 +1,11 @@
 """Estrutura inicial da interface da Biblioteca."""
 
 import asyncio
-import unicodedata
+import concurrent.futures
+import logging
 import os
+import threading
+import unicodedata
 from urllib.parse import quote
 from datetime import datetime, timezone
 from functools import wraps
@@ -45,6 +48,7 @@ from biblioteca_mais_nova.catalog import (
     create_copy,
     create_title,
     get_public_title,
+    load_saved_public_catalog,
     invalidar_cache_categorias_publicas,
     list_admin_catalog,
     list_categories,
@@ -89,6 +93,7 @@ from biblioteca_mais_nova.library_rules import (
     LibraryRulesPayload,
     LibraryRulesValidationError,
     get_library_rules,
+    load_saved_library_rules,
     update_library_rules,
     validate_library_rules,
 )
@@ -173,6 +178,62 @@ def _diagnostico_desativacao(
     )
 
 
+_PREFETCH_LOCK = threading.Lock()
+_PREFETCH_FUTURE: concurrent.futures.Future[
+    dict[str, object]
+] | None = None
+
+
+async def _fetch_public_data_once() -> dict[str, object]:
+    results = await asyncio.gather(
+        list_public_titles(),
+        list_categories(),
+        get_library_rules(),
+        return_exceptions=True,
+    )
+    return {
+        "titulos": results[0],
+        "categorias": results[1],
+        "regras": results[2],
+    }
+
+
+async def _run_public_prefetch(
+    future: concurrent.futures.Future[dict[str, object]],
+) -> None:
+    try:
+        result = await _fetch_public_data_once()
+    except Exception as error:
+        logging.getLogger("biblioteca.prefetch").exception(
+            "Falha inesperada na pré-carga pública."
+        )
+        if not future.done():
+            future.set_exception(error)
+    else:
+        if not future.done():
+            future.set_result(result)
+
+
+def _schedule_public_prefetch() -> concurrent.futures.Future[dict[str, object]]:
+    global _PREFETCH_FUTURE
+    loop = asyncio.get_running_loop()
+    with _PREFETCH_LOCK:
+        if _PREFETCH_FUTURE is None:
+            _PREFETCH_FUTURE = concurrent.futures.Future()
+            loop.create_task(_run_public_prefetch(_PREFETCH_FUTURE))
+        return _PREFETCH_FUTURE
+
+
+def _reset_public_prefetch_for_tests() -> None:
+    global _PREFETCH_FUTURE
+    with _PREFETCH_LOCK:
+        _PREFETCH_FUTURE = None
+
+
+async def _start_public_prefetch_on_startup() -> None:
+    _schedule_public_prefetch()
+
+
 class State(rx.State):
     is_authenticated: bool = False
     mobile_navigation_open: bool = False
@@ -243,6 +304,9 @@ class State(rx.State):
     public_catalog_message: str = ""
     public_catalog_has_error: bool = False
     public_catalog_pending: bool = True
+    public_catalog_using_saved_copy: bool = False
+    _public_titles_cached: bool = False
+    _public_categories_cached: bool = False
     home_titles_pending: bool = True
     home_categories_pending: bool = True
     home_titles_has_error: bool = False
@@ -1048,6 +1112,119 @@ class State(rx.State):
         if value in {"aguardando", "aprovadas", "emprestados", "atrasos"}:
             self.student_reservation_tab = value
 
+    def _apply_saved_public_catalog(self) -> bool:
+        titles, categories = load_saved_public_catalog()
+        self._public_titles_cached = titles is not None
+        self._public_categories_cached = categories is not None
+        if titles is not None:
+            self.public_catalog_entries = titles
+            self.home_titles_has_error = False
+            self.home_titles_pending = False
+        if categories is not None:
+            self.public_catalog_categories = categories
+            self.public_catalog_categories_skipped = getattr(
+                categories,
+                "skipped_count",
+                0,
+            )
+            self.home_categories_has_error = False
+            self.home_categories_pending = False
+        has_snapshot = titles is not None or categories is not None
+        self.public_catalog_using_saved_copy = has_snapshot
+        self.public_catalog_pending = not has_snapshot
+        self.public_catalog_message = "Atualizando…" if has_snapshot else ""
+        self.public_catalog_has_error = False
+        return has_snapshot
+
+    @rx.event
+    def load_home_cached(self):
+        self._apply_saved_public_catalog()
+        _schedule_public_prefetch()
+        return State.refresh_public_catalog
+
+    @rx.event
+    def load_public_catalog_cached(self):
+        self._apply_saved_public_catalog()
+        _schedule_public_prefetch()
+        return State.refresh_public_catalog
+
+    async def _refresh_public_catalog_data(self):
+        async with self:
+            had_saved_copy = (
+                self._public_titles_cached or self._public_categories_cached
+            )
+            self.public_catalog_pending = not had_saved_copy
+            self.home_titles_pending = not self._public_titles_cached
+            self.home_categories_pending = not self._public_categories_cached
+
+        future = _schedule_public_prefetch()
+        try:
+            results = await asyncio.wrap_future(future)
+        except Exception as error:
+            results = {"titulos": error, "categorias": error}
+        title_result = results.get(
+            "titulos",
+            RuntimeError("A pré-carga não retornou os títulos públicos."),
+        )
+        category_result = results.get(
+            "categorias",
+            RuntimeError("A pré-carga não retornou as categorias públicas."),
+        )
+
+        async with self:
+            if isinstance(title_result, Exception):
+                if not self._public_titles_cached:
+                    self.home_titles_has_error = True
+                    self.home_titles_error_message = catalog_error_message(
+                        title_result
+                    )
+            else:
+                self.public_catalog_entries = title_result
+                self._public_titles_cached = True
+                self.home_titles_has_error = False
+                self.home_titles_error_message = ""
+
+            if isinstance(category_result, Exception):
+                if not self._public_categories_cached:
+                    self.home_categories_has_error = True
+                    self.home_categories_error_message = catalog_error_message(
+                        category_result
+                    )
+            else:
+                self.public_catalog_categories = category_result
+                self.public_catalog_categories_skipped = getattr(
+                    category_result,
+                    "skipped_count",
+                    0,
+                )
+                self._public_categories_cached = True
+                self.home_categories_has_error = False
+                self.home_categories_error_message = ""
+
+            failed_with_copy = (
+                isinstance(title_result, Exception) and self._public_titles_cached
+            ) or (
+                isinstance(category_result, Exception)
+                and self._public_categories_cached
+            )
+            self.public_catalog_using_saved_copy = failed_with_copy
+            self.public_catalog_pending = False
+            self.home_titles_pending = False
+            self.home_categories_pending = False
+            if failed_with_copy:
+                self.public_catalog_has_error = False
+                self.public_catalog_message = "Mostrando a última lista salva"
+            else:
+                self._sync_public_catalog_errors()
+
+        if not isinstance(title_result, Exception):
+            return State.resolve_public_catalog_covers
+
+    @rx.event(background=True)
+    @diagnosticar_pagina_xano("catalogo")
+    async def refresh_public_catalog(self):
+        return await self._refresh_public_catalog_data()
+
     @rx.event
     @diagnosticar_pagina_xano("home")
     async def load_home(self):
@@ -1297,42 +1474,11 @@ class State(rx.State):
                             isbn=detail.get("isbn"),
                         )
 
-    @rx.event
-    @diagnosticar_pagina_xano("detalhe")
-    async def load_public_catalog_detail(self):
-        self.public_catalog_detail = {}
-        self.public_catalog_detail_message = ""
-        self.public_catalog_detail_has_error = False
-        self.public_catalog_detail_not_found = False
-        self.public_catalog_detail_pending = True
-        self.public_catalog_open_request_limit = 0
-        self.public_catalog_rules_message = ""
-        self.student_request_message = ""
-        self.student_request_has_error = False
-
-        raw_title_id = self.router.page.params.get("titulo_id", "")
-        if not raw_title_id.isdecimal() or int(raw_title_id) < 1:
-            self.public_catalog_detail_not_found = True
-            self.public_catalog_detail_pending = False
-            return
-
-        try:
-            entry = await get_public_title(int(raw_title_id))
-            categories = await list_categories()
-        except XanoResponseError as error:
-            self.public_catalog_detail_pending = False
-            if error.status_code == 404:
-                self.public_catalog_detail_not_found = True
-                return
-            self.public_catalog_detail_message = catalog_error_message(error)
-            self.public_catalog_detail_has_error = True
-            return
-        except (XanoConfigurationError, XanoRequestError) as error:
-            self.public_catalog_detail_message = catalog_error_message(error)
-            self.public_catalog_detail_has_error = True
-            self.public_catalog_detail_pending = False
-            return
-
+    def _apply_public_catalog_detail_entry(
+        self,
+        entry: dict[str, Any],
+        categories: list[dict[str, Any]],
+    ) -> None:
         self.public_catalog_categories = categories
         self.public_catalog_categories_skipped = getattr(
             categories,
@@ -1394,6 +1540,44 @@ class State(rx.State):
             ],
             "exemplares_disponiveis": entry["exemplares_disponiveis"],
         }
+
+    @rx.event
+    @diagnosticar_pagina_xano("detalhe")
+    async def load_public_catalog_detail(self):
+        self.public_catalog_detail = {}
+        self.public_catalog_detail_message = ""
+        self.public_catalog_detail_has_error = False
+        self.public_catalog_detail_not_found = False
+        self.public_catalog_detail_pending = True
+        self.public_catalog_open_request_limit = 0
+        self.public_catalog_rules_message = ""
+        self.student_request_message = ""
+        self.student_request_has_error = False
+
+        raw_title_id = self.router.page.params.get("titulo_id", "")
+        if not raw_title_id.isdecimal() or int(raw_title_id) < 1:
+            self.public_catalog_detail_not_found = True
+            self.public_catalog_detail_pending = False
+            return
+
+        try:
+            entry = await get_public_title(int(raw_title_id))
+            categories = await list_categories()
+        except XanoResponseError as error:
+            self.public_catalog_detail_pending = False
+            if error.status_code == 404:
+                self.public_catalog_detail_not_found = True
+                return
+            self.public_catalog_detail_message = catalog_error_message(error)
+            self.public_catalog_detail_has_error = True
+            return
+        except (XanoConfigurationError, XanoRequestError) as error:
+            self.public_catalog_detail_message = catalog_error_message(error)
+            self.public_catalog_detail_has_error = True
+            self.public_catalog_detail_pending = False
+            return
+
+        self._apply_public_catalog_detail_entry(entry, categories)
         self.public_catalog_detail_pending = False
         if self._is_student_view():
             try:
@@ -1415,6 +1599,152 @@ class State(rx.State):
                     "Não foi possível carregar o limite de pedidos agora."
                 )
         return State.resolve_public_catalog_covers
+
+    @rx.event
+    def load_public_catalog_detail_cached(self):
+        self.public_catalog_detail = {}
+        self.public_catalog_detail_message = ""
+        self.public_catalog_detail_has_error = False
+        self.public_catalog_detail_not_found = False
+        self.public_catalog_open_request_limit = 0
+        self.public_catalog_rules_message = ""
+        self.student_request_message = ""
+        self.student_request_has_error = False
+        raw_title_id = self.router.page.params.get("titulo_id", "")
+        if not raw_title_id.isdecimal() or int(raw_title_id) < 1:
+            self.public_catalog_detail_not_found = True
+            self.public_catalog_detail_pending = False
+            return
+
+        titles, categories = load_saved_public_catalog()
+        title_id = int(raw_title_id)
+        cached_entry = next(
+            (
+                entry
+                for entry in titles or []
+                if entry["titulo"]["id"] == title_id
+            ),
+            None,
+        )
+        if cached_entry is not None and categories is not None:
+            self._apply_public_catalog_detail_entry(cached_entry, categories)
+            self.public_catalog_detail_pending = False
+            self.public_catalog_detail_message = "Atualizando…"
+            self.public_catalog_using_saved_copy = True
+        else:
+            self.public_catalog_detail_pending = True
+
+        if self._is_student_view():
+            saved_rules = load_saved_library_rules()
+            if saved_rules is not None:
+                self.public_catalog_open_request_limit = saved_rules[
+                    "limite_pedidos_em_aberto"
+                ]
+        _schedule_public_prefetch()
+        return State.refresh_public_catalog_detail
+
+    async def _refresh_public_catalog_detail_data(self):
+        async with self:
+            raw_title_id = self.router.page.params.get("titulo_id", "")
+            if not raw_title_id.isdecimal() or int(raw_title_id) < 1:
+                self.public_catalog_detail_not_found = True
+                self.public_catalog_detail_pending = False
+                return
+            title_id = int(raw_title_id)
+            had_saved_detail = bool(self.public_catalog_detail)
+            token = self._session_token
+            student_view = self._is_student_view()
+
+        async def fetch_title() -> dict[str, Any] | Exception:
+            try:
+                return await get_public_title(title_id)
+            except (XanoConfigurationError, XanoRequestError, XanoResponseError) as error:
+                return error
+
+        future = _schedule_public_prefetch()
+        async def wait_for_prefetch() -> dict[str, object]:
+            try:
+                return await asyncio.wrap_future(future)
+            except Exception as error:
+                return {"categorias": error, "regras": error}
+
+        prefetched, entry_result = await asyncio.gather(
+            wait_for_prefetch(),
+            fetch_title(),
+        )
+        categories_result = prefetched.get(
+            "categorias",
+            RuntimeError("A pré-carga não retornou as categorias públicas."),
+        )
+        rules_result = (
+            prefetched.get(
+                "regras",
+                RuntimeError("A pré-carga não retornou as regras da biblioteca."),
+            )
+            if student_view
+            else None
+        )
+
+        async with self:
+            if isinstance(entry_result, XanoResponseError) and entry_result.status_code == 404:
+                self.public_catalog_detail = {}
+                self.public_catalog_detail_not_found = True
+                self.public_catalog_detail_pending = False
+                return
+            failed = isinstance(entry_result, Exception) or isinstance(
+                categories_result,
+                Exception,
+            )
+            if failed and had_saved_detail:
+                self.public_catalog_detail_message = (
+                    "Mostrando a última lista salva"
+                )
+                self.public_catalog_detail_has_error = False
+                self.public_catalog_using_saved_copy = True
+            elif isinstance(entry_result, Exception):
+                self.public_catalog_detail_message = catalog_error_message(
+                    entry_result
+                )
+                self.public_catalog_detail_has_error = True
+            elif isinstance(categories_result, Exception):
+                self.public_catalog_detail_message = catalog_error_message(
+                    categories_result
+                )
+                self.public_catalog_detail_has_error = True
+            else:
+                self._apply_public_catalog_detail_entry(
+                    entry_result,
+                    categories_result,
+                )
+                self.public_catalog_detail_message = ""
+                self.public_catalog_detail_has_error = False
+                self.public_catalog_detail_not_found = False
+                self.public_catalog_using_saved_copy = False
+            self.public_catalog_detail_pending = False
+
+            if student_view:
+                if not isinstance(rules_result, Exception):
+                    self.public_catalog_open_request_limit = rules_result[
+                        "limite_pedidos_em_aberto"
+                    ]
+                    self.public_catalog_rules_message = ""
+                elif self.public_catalog_open_request_limit == 0:
+                    saved_rules = load_saved_library_rules()
+                    if saved_rules is not None:
+                        self.public_catalog_open_request_limit = saved_rules[
+                            "limite_pedidos_em_aberto"
+                        ]
+                    else:
+                        self.public_catalog_rules_message = (
+                            "Não foi possível carregar o limite de pedidos agora."
+                        )
+        if not isinstance(entry_result, Exception):
+            return State.resolve_public_catalog_covers
+
+    @rx.event(background=True)
+    @diagnosticar_pagina_xano("detalhe")
+    async def refresh_public_catalog_detail(self):
+        return await self._refresh_public_catalog_detail_data()
 
     @rx.event
     async def request_catalog_title(self, title_id: int):
@@ -4836,6 +5166,20 @@ def home_book_section(
     books: rx.Var[list[dict[str, Any]]],
     section_id: str,
 ) -> rx.Component:
+    cache_status = (
+        rx.cond(
+            (State.public_catalog_message != "")
+            & (~State.public_catalog_has_error),
+            rx.text(
+                State.public_catalog_message,
+                role="status",
+                class_name="home-section-subtitle",
+            ),
+            rx.fragment(),
+        )
+        if section_id == "estante-home"
+        else rx.fragment()
+    )
     return rx.el.section(
         rx.el.div(
             rx.el.div(
@@ -4853,6 +5197,7 @@ def home_book_section(
                 ),
                 class_name="home-section-heading",
             ),
+            cache_status,
             rx.cond(
                 State.public_catalog_has_error,
                 rx.fragment(),
@@ -4883,7 +5228,11 @@ def home_book_section(
                     State.public_catalog_message,
                     role="alert",
                     aria_live="polite",
-                    class_name="signup-feedback signup-feedback-error",
+                    class_name=rx.cond(
+                        State.public_catalog_has_error,
+                        "signup-feedback signup-feedback-error",
+                        "home-section-subtitle",
+                    ),
                 ),
                 rx.fragment(),
             ),
@@ -10393,10 +10742,11 @@ app = rx.App(
     },
     head_components=[rx.script(_APPEARANCE_SCRIPT)],
 )
+app.register_lifespan_task(_start_public_prefetch_on_startup)
 app.add_page(
     accessible_page(index),
     title="Biblioteca escolar",
-    on_load=State.load_home,
+    on_load=State.load_home_cached,
 )
 app.add_page(
     accessible_page(student_signup),
@@ -10425,13 +10775,13 @@ app.add_page(
     accessible_page(public_catalog),
     route="/catalogo",
     title="Catálogo",
-    on_load=State.load_public_catalog,
+    on_load=State.load_public_catalog_cached,
 )
 app.add_page(
     accessible_page(public_catalog_detail),
     route="/catalogo/[titulo_id]",
     title="Detalhes do título",
-    on_load=State.load_public_catalog_detail,
+    on_load=State.load_public_catalog_detail_cached,
 )
 app.add_page(
     accessible_page(student_reservations),
