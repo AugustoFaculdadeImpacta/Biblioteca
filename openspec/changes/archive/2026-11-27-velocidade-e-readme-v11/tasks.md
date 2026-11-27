@@ -31,4 +31,4 @@
 
 ## 7. Fechamento v11
 
-- [ ] 7.1 Executar compile --dry e pytest em sequência, validar specs estritamente, sincronizar e arquivar esta Change, atualizar o relatório, commitar e fazer push sem force.
+- [x] 7.1 `reflex compile --dry` e pytest executados em sequência; 501 testes pytest e 17 testes unittest passaram; 11 specs passaram em `--strict`, os três deltas foram sincronizados e verificados nas specs principais, relatório atualizado e archive concluído. Commit e push sem force: `580e7bc`. A tarefa 4.1 permanece aberta e não foi marcada como concluída.

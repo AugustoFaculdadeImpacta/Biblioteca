@@ -1217,9 +1217,10 @@ aguarda conferência do usuário.
   `openspec/changes/archive/2026-11-27-validacao-remota-xano/`, sem sync porque
   é somente operacional. `execucao-reflex-windows` já está em `archive/`.
 - `velocidade-e-readme-v11` foi arquivada em
-  `openspec/changes/archive/2026-11-27-velocidade-e-readme-v11/`; o CLI
-  registrou 7/9 tarefas completas. A releitura agrupada de 1,5 s permanece
-  explicitamente pendente; o archive não tratou esse item como concluído.
+  `openspec/changes/archive/2026-11-27-velocidade-e-readme-v11/`; após a
+  evidência final de 7.1, ficou com 8/9 tarefas concluídas. A releitura
+  agrupada de 1,5 s permanece explicitamente pendente, sem ser tratada como
+  concluída. Commit e push sem force: `580e7bc`.
 - Não houve chamada, pull, escrita ou publicação no Xano nesta continuação.
 
 ### Pendências e conferências
