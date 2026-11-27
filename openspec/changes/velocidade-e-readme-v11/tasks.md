@@ -15,7 +15,7 @@
 
 ## 3. Listas autenticadas
 
-- [ ] 3.1 Servir cópia autenticada de até 20 segundos antes da releitura em segundo plano, sem ocultar escritas próprias; cobrir as rotas pessoais e de acervo com relógio falso.
+- [x] 3.1 Aplicar cópia autenticada de até 20 segundos às listas pessoais e da equipe, com single-flight e invalidação após escrita; `pytest tests/test_xano_client.py -q` — 46 passed; commit `dd640e3`.
 
 ## 4. Escritas otimistas
 
