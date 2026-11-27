@@ -1,5 +1,20 @@
 # Relatório de execução noturna
 
+## Fechamento — regras-e-visao-admin-v10, 2026-11-26
+
+- A implementação local da v10 foi validada anteriormente nesta execução:
+  `reflex compile --dry` passou e `pytest --ignore=evaluation -q` aprovou
+  472 testes. Nenhuma escrita ou consulta nova ao Xano foi feita.
+- A validação estrita da Change passou; a validação estrita das specs
+  consolidadas aprovou 11 specs. As tarefas estão completas (8/8).
+- Os seis deltas foram sincronizados nas specs principais e commitados em
+  `39e3bc6` (`Sincronizar specs das regras de biblioteca`).
+- A Change foi arquivada em
+  `openspec/changes/archive/2026-11-26-regras-e-visao-admin-v10/`.
+- A conferência visual renderizada do cabeçalho continua **aguardando
+  conferência do usuário**; os testes de contraste calculado passaram, mas não
+  foi executada verificação visual em navegador.
+
 ## Atualização — fechamento da retomada H–N, 2026-11-26
 
 - Branch: `trabalho-autopilot`. Nenhuma chamada remota, pull, sincronização,
