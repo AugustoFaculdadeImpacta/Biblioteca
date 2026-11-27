@@ -1185,3 +1185,52 @@ aguarda conferência do usuário.
   o teste isolado passou e a repetição completa terminou sem falhas.
 - Nenhuma chamada ou escrita foi realizada no Xano. A publicação das regras e
   permissões continua manual, conforme [publicacao-xano-regras.md](./publicacao-xano-regras.md).
+
+## Continuação — velocidade-e-readme-v11 (2026-11-27)
+
+### Implementação e evidências
+
+- README conciso: commit `7314ab7`.
+- Parser de regras com os metadados reais informados e cache público em arquivo
+  temporário: commits `93b586b`, `98cb56d`, `1454e01`, `fcfca63` e `248db27`.
+- Cache HTTP autenticado e fila sequencial de escritas: commits `dd640e3`,
+  `103e948` e `24b626a`.
+- Cópias autenticadas de até 20 s agora aparecem imediatamente nas telas
+  pessoais, circulação e acervo, com atualização em segundo plano; 132 testes
+  focados passaram, commit `b4bec42`.
+- Latência configurável da API demo e medição local simulada: commit `4e0fcff`.
+  A 1000 ms, a home mostrou livros em 1451,3 ms sem cópia e em 3,5 ms com cópia;
+  a atualização em segundo plano levou 1264,4 ms. Foram 3 chamadas por abertura.
+  Essa medição foi local, não contra o Xano real.
+- O mock do smoke test passou a fornecer um token distinto para cada perfil,
+  evitando que o cache correto de mesmo token reutilizasse respostas entre
+  logins simulados: commit `d8f4bf3`.
+
+### Verificação final local
+
+- `.\.venv\Scripts\python.exe -m reflex compile --dry`: sucesso.
+- `.\.venv\Scripts\python.exe -m pytest --ignore=evaluation -q`: 501 passaram.
+- `.\.venv\Scripts\python.exe -m unittest discover -s xano\tests`: 17 passaram.
+- `openspec.cmd validate --specs --strict`: 11 specs passaram; a v11 passou na
+  validação estrita.
+- `validacao-remota-xano` foi arquivada como
+  `openspec/changes/archive/2026-11-27-validacao-remota-xano/`, sem sync porque
+  é somente operacional. `execucao-reflex-windows` já está em `archive/`.
+- Não houve chamada, pull, escrita ou publicação no Xano nesta continuação.
+
+### Pendências e conferências
+
+- A releitura agrupada/debounce em 1,5 s após escritas da tarefa 4.1 permanece
+  incompleta; não foi marcada como concluída. A sequência atual ainda não prova
+  que várias escritas concorrentes gerem uma única releitura.
+- A aparência visual continua aguardando conferência do usuário; os achados de
+  hidratação escura da home registrados acima permanecem sem nova inspeção.
+
+### O que o usuário precisa conferir ou fazer
+
+1. Publicar manualmente as mudanças de regras e permissões no workspace correto
+   do Xano, conforme [publicacao-xano-regras.md](./publicacao-xano-regras.md), e
+   validar os endpoints no painel antes de testar as ações no site.
+2. Conferir visualmente a home no tema escuro e o cabeçalho de Acessibilidade.
+3. Decidir se a releitura agrupada de 1,5 s ainda deve ser concluída em uma
+   Change posterior.

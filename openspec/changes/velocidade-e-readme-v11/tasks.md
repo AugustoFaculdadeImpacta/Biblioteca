@@ -15,19 +15,19 @@
 
 ## 3. Listas autenticadas
 
-- [x] 3.1 Aplicar cópia autenticada de até 20 segundos às listas pessoais e da equipe, com single-flight e invalidação após escrita; `pytest tests/test_xano_client.py -q` — 46 passed; commit `dd640e3`.
+- [x] 3.1 Mostrar a cópia autenticada de até 20 segundos imediatamente e reler em segundo plano nas listas pessoais e da equipe, sem ocultar escritas próprias; `pytest tests\test_authenticated_snapshot_ui.py tests\test_student_area.py tests\test_circulation.py tests\test_admin_catalog.py -q` — 132 passaram; commit `b4bec42`.
 
 ## 4. Escritas otimistas
 
-- [ ] 4.1 Implementar estados otimistas reversíveis para pedido, ações da equipe e desativação, fila sequencial sem retry e releitura agrupada em 1,5 segundo; testar confirmação, falha, ordem e lote.
+- [ ] 4.1 Implementar estados otimistas reversíveis para pedido, ações da equipe e desativação, fila sequencial sem retry e releitura agrupada em 1,5 segundo; os estados de pedido/equipe, rollback de desativação e fila sequencial estão implementados em `24b626a` e cobertos por 176 testes e 10 casos focados; a releitura agrupada/debounce ainda está pendente.
 
 ## 5. Demonstração e desempenho
 
-- [ ] 5.1 Adicionar latência configurável à API demo e registrar medições reais com 1000 ms, com e sem cópia, além de chamadas por página em docs/desempenho.md.
+- [x] 5.1 Adicionar latência configurável à API demo e registrar medições locais simuladas com 1000 ms; `pytest tests/test_demo_api_library_rules.py tests/test_xano_client.py -q` — 63 passed; medição e 3 chamadas por página em `docs/desempenho.md`; commit `4e0fcff`.
 
 ## 6. Changes preexistentes e relatório
 
-- [ ] 6.1 Resolver tarefas locais das Changes ativas preexistentes, transferir bloqueios Xano/visuais com evidência, arquivar as concluídas ou obsoletas segundo suas regras e registrar o que falta ao usuário em docs/relatorio-noite.md.
+- [x] 6.1 Arquivar `execucao-reflex-windows` e `validacao-remota-xano` sem alterar o Xano; tarefas remotas/visuais ficaram transferidas ou aguardando conferência, e o relatório registra ações do usuário. Evidências finais: 501 testes pytest, 17 testes unittest, 11 specs em validação estrita; commits `b4bec42` e `d8f4bf3`.
 
 ## 7. Fechamento v11
 
