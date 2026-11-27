@@ -1090,6 +1090,8 @@ def test_student_request_http_and_timeout_failures_keep_reference_without_retry(
             assert state.student_request_has_error is True
             assert f"(ref. {error.reference})" in state.student_request_message
             assert state.student_request_pending is False
+            assert state.student_library_requests == []
+            assert 14 not in state._student_pending_title_ids
 
     asyncio.run(verify())
 
@@ -1309,6 +1311,11 @@ def test_student_request_cannot_be_submitted_again_while_pending(monkeypatch):
                 await asyncio.wait_for(reread_started.wait(), timeout=5)
                 assert state.student_request_pending is True
                 assert request_reads == 2
+                assert [
+                    request["estado"]
+                    for request in state.student_library_requests
+                    if request["estado"] == "Enviando…"
+                ] == ["Enviando…"]
 
                 await state.request_catalog_title(14)
 

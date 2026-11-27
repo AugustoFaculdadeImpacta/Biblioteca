@@ -637,6 +637,45 @@ def test_authenticated_write_invalidates_admin_catalog_cache(monkeypatch):
     assert [request.method for request in requests] == ["GET", "POST", "GET"]
 
 
+def test_authenticated_writes_are_serialized_per_host(monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+
+    class ConcurrentWriteTransport(httpx.AsyncBaseTransport):
+        def __init__(self):
+            self.active = 0
+            self.maximum_active = 0
+
+        async def handle_async_request(self, request):
+            self.active += 1
+            self.maximum_active = max(self.maximum_active, self.active)
+            await asyncio.sleep(0.01)
+            self.active -= 1
+            return httpx.Response(204)
+
+        async def aclose(self):
+            return None
+
+    transport = ConcurrentWriteTransport()
+    client = XanoClient.from_environment(transport=transport)
+
+    async def write_many():
+        await asyncio.gather(
+            *(
+                client.request(
+                    "POST",
+                    "/solicitacoes-emprestimo",
+                    token="sessao-escrita-serial",
+                    json={"titulo_id": title_id},
+                )
+                for title_id in range(10, 16)
+            )
+        )
+
+    asyncio.run(write_many())
+
+    assert transport.maximum_active == 1
+
+
 def test_global_limit_sliding_window_fake_clock(monkeypatch):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
     monkeypatch.setenv("BIBLIOTECA_XANO_LIMITE_REQ", "8")

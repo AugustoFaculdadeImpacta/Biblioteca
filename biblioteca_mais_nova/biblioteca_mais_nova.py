@@ -335,6 +335,7 @@ class State(rx.State):
     student_reservation_tab: str = "aguardando"
     student_request_pending: bool = False
     student_request_uncertain_title_id: int | None = None
+    _student_request_optimistic_id: int | None = None
     _student_request_uncertain_reference: str = ""
     _student_pending_title_ids: list[int] = []
     _student_library_manual_retry: bool = False
@@ -1771,6 +1772,28 @@ class State(rx.State):
         self.student_request_pending = True
         self.student_request_message = ""
         self.student_request_has_error = False
+        optimistic_id = -title_id
+        self._student_request_optimistic_id = optimistic_id
+        self._student_pending_title_ids = sorted(
+            {*self._student_pending_title_ids, title_id}
+        )
+        self.student_library_requests = [
+            request
+            for request in self.student_library_requests
+            if request["id"] != optimistic_id
+        ]
+        self.student_library_requests.append(
+            {
+                "id": optimistic_id,
+                "titulo": self.public_catalog_detail.get(
+                    "titulo",
+                    "Título indisponível",
+                ),
+                "href": f"/catalogo/{title_id}",
+                "estado": "Enviando…",
+                "solicitada_em": "",
+            }
+        )
         write_succeeded = False
         refresh_after_write = False
         try:
@@ -1808,12 +1831,12 @@ class State(rx.State):
                         "A equipe da biblioteca "
                         "confirmará a retirada."
                     )
+                self.student_library_requests = [
+                    request
+                    for request in self.student_library_requests
+                    if request["id"] != optimistic_id
+                ]
                 if estado in {"pendente", "em_reserva"}:
-                    self.student_library_requests = [
-                        request
-                        for request in self.student_library_requests
-                        if request["id"] != result["id"]
-                    ]
                     self.student_library_requests.append(
                         {
                             "id": result["id"],
@@ -1844,6 +1867,7 @@ class State(rx.State):
                         }
                     )
                 self.student_request_uncertain_title_id = None
+                self._student_request_optimistic_id = None
                 self._student_request_uncertain_reference = ""
                 if title_id not in self._student_pending_title_ids:
                     self._student_pending_title_ids = [
@@ -1860,6 +1884,18 @@ class State(rx.State):
             XanoRequestError,
             XanoConfigurationError,
         ) as error:
+            if not write_succeeded:
+                self.student_library_requests = [
+                    request
+                    for request in self.student_library_requests
+                    if request["id"] != optimistic_id
+                ]
+                self._student_request_optimistic_id = None
+                self._student_pending_title_ids = [
+                    pending_id
+                    for pending_id in self._student_pending_title_ids
+                    if pending_id != title_id
+                ]
             self.student_request_has_error = True
             if (
                 isinstance(error, XanoResponseError)
@@ -2030,6 +2066,7 @@ class State(rx.State):
                 and request.get("reserva_id") in reservation_ids
             )
         ]
+        self._student_request_optimistic_id = None
         self.student_library_reservations = [
             {
                 "id": reservation["id"],
@@ -2886,7 +2923,7 @@ class State(rx.State):
             return
 
         self.circulation_pending = True
-        self.circulation_message = ""
+        self.circulation_message = "Processando…"
         self.circulation_has_error = False
         write_warning = False
         try:
@@ -3576,6 +3613,7 @@ class State(rx.State):
             return
 
         title = entry["titulo"]
+        original_active = title.get("ativo")
         form_data = {
             key: str(title.get(key) or "")
             for key in (
@@ -3596,9 +3634,12 @@ class State(rx.State):
         try:
             self.admin_catalog_pending = True
             self.admin_catalog_title_action_title_id = title_id
-            self.admin_catalog_title_action_message = "Processando..."
+            self.admin_catalog_title_action_message = (
+                "Desativando…" if not active else "Ativando…"
+            )
             self.admin_catalog_title_action_error = False
             payload = build_title_payload(form_data)
+            title["ativo"] = active
             update_result = await update_title(
                 title_id,
                 payload,
@@ -3613,6 +3654,7 @@ class State(rx.State):
             XanoRequestError,
             XanoResponseError,
         ) as error:
+            title["ativo"] = original_active
             self.admin_catalog_message = catalog_error_message(error)
             self.admin_catalog_has_error = True
             self.admin_catalog_title_action_title_id = title_id
@@ -3647,6 +3689,8 @@ class State(rx.State):
         )
 
         if write_warning:
+            if self.admin_catalog_has_error:
+                title["ativo"] = original_active
             active_reloaded = (
                 refreshed_entry["titulo"].get("ativo")
                 if refreshed_entry is not None
@@ -3676,6 +3720,7 @@ class State(rx.State):
             return
 
         if self.admin_catalog_has_error:
+            title["ativo"] = original_active
             _diagnostico_desativacao(
                 title_id=title_id,
                 status_code=200,

@@ -179,6 +179,7 @@ def test_title_deactivation_reports_http_and_connection_errors(
             assert state.admin_catalog_has_error is True
             assert expected in state.admin_catalog_title_action_message
             assert state.admin_catalog_confirm_title_id is None
+            assert state.admin_catalog_entries[0]["titulo"]["ativo"] is True
 
     asyncio.run(verify())
 

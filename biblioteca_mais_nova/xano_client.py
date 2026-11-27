@@ -77,6 +77,9 @@ _SEMAPHORES: WeakKeyDictionary[
     asyncio.AbstractEventLoop, asyncio.Semaphore
 ] = WeakKeyDictionary()
 _SEMAPHORES_LOCK = threading.Lock()
+_WRITE_LOCKS: WeakKeyDictionary[
+    asyncio.AbstractEventLoop, dict[str, asyncio.Lock]
+] = WeakKeyDictionary()
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
 
@@ -906,6 +909,15 @@ def _get_semaphore() -> asyncio.Semaphore:
         return semaphore
 
 
+def _get_write_lock(host: str) -> asyncio.Lock:
+    loop = asyncio.get_running_loop()
+    with _SEMAPHORES_LOCK:
+        locks = _WRITE_LOCKS.setdefault(loop, {})
+        if host not in locks:
+            locks[host] = asyncio.Lock()
+        return locks[host]
+
+
 def _content_type(response: httpx.Response) -> str:
     value = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
     if not value:
@@ -1156,6 +1168,29 @@ class XanoClient:
         return response
 
     async def _request_uncached(
+        self,
+        method: str,
+        path: str,
+        *,
+        token: str | None = None,
+        json: dict[str, object] | None = None,
+    ) -> httpx.Response:
+        if method.upper() == "GET":
+            return await self._request_uncached_inner(
+                method,
+                path,
+                token=token,
+                json=json,
+            )
+        async with _get_write_lock(_xano_host(self._base_url)):
+            return await self._request_uncached_inner(
+                method,
+                path,
+                token=token,
+                json=json,
+            )
+
+    async def _request_uncached_inner(
         self,
         method: str,
         path: str,

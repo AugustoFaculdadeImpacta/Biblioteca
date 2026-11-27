@@ -624,6 +624,46 @@ def test_circulation_load_rejects_non_staff_profiles(monkeypatch, profile):
     asyncio.run(verify())
 
 
+def test_circulation_action_shows_pending_status_while_write_runs(monkeypatch):
+    async def refreshed(self):
+        return True
+
+    monkeypatch.setattr(
+        frontend.State,
+        "_refresh_circulation_data",
+        refreshed,
+    )
+
+    async def verify():
+        started = asyncio.Event()
+        continue_write = asyncio.Event()
+
+        async def write():
+            started.set()
+            await continue_write.wait()
+
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"circulation-pending-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-bibliotecario", "bibliotecario")
+            operation = asyncio.create_task(
+                state._perform_circulation_action(
+                    write,
+                    "Ação concluída.",
+                    "teste_acao",
+                )
+            )
+            await asyncio.wait_for(started.wait(), timeout=2)
+            assert state.circulation_pending is True
+            assert state.circulation_message == "Processando…"
+            continue_write.set()
+            await asyncio.wait_for(operation, timeout=2)
+            assert state.circulation_message == "Ação concluída."
+
+    asyncio.run(verify())
+
+
 def test_uncertain_circulation_action_requires_refresh_before_retry(monkeypatch):
     calls = 0
 
