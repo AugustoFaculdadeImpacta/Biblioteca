@@ -10,7 +10,10 @@ from biblioteca_mais_nova.library_rules import (
     get_library_rules,
     update_library_rules,
 )
-from biblioteca_mais_nova.xano_client import XanoResponseError
+from biblioteca_mais_nova.xano_client import (
+    XanoInvalidResponseError,
+    XanoResponseError,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -67,6 +70,86 @@ def test_get_library_rules_uses_authenticated_endpoint_and_parses_metadata(
     assert str(requests[0].url) == (
         "https://api.example.test/grupo/configuracoes"
     )
+
+
+def test_get_library_rules_parses_exact_xano_configuration_payload(monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    payload = {
+        "id": 1,
+        "limite_emprestimos_ativos": 3,
+        "limite_pedidos_em_aberto": 3,
+        "permitir_pedido_com_reserva_ativa": True,
+        "bloquear_com_atraso": True,
+        "exigir_autorizacao_bibliotecaria": True,
+        "prazo_emprestimo_dias": 14,
+        "prazo_retirada_horas": 48,
+        "atualizado_em": 1795758190288,
+        "atualizado_por": 70,
+    }
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(200, json=payload)
+    )
+
+    rules = asyncio.run(
+        get_library_rules("token-rules", transport=transport)
+    )
+
+    assert rules["limite_emprestimos_ativos"] == 3
+    assert rules["limite_pedidos_em_aberto"] == 3
+    assert rules["atualizado_em"] == "2026-11-27T05:43:10.288000+00:00"
+    assert rules["atualizado_por"] == "70"
+    assert "id" not in rules
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected"),
+    [
+        ("atualizado_em", 0, None),
+        ("atualizado_em", None, None),
+        ("atualizado_em", 1795758190, "2026-11-27T05:43:10+00:00"),
+        ("atualizado_em", "2026-11-27T00:23:10Z", "2026-11-27T00:23:10+00:00"),
+        ("atualizado_por", None, None),
+        ("atualizado_por", 70, "70"),
+        ("atualizado_por", "Admin", "Admin"),
+    ],
+)
+def test_library_rules_accepts_optional_metadata_formats(
+    monkeypatch,
+    field,
+    value,
+    expected,
+):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    payload = {**_payload(), field: value, "extra": "ignorar"}
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(200, json=payload)
+    )
+
+    rules = asyncio.run(
+        get_library_rules("token-metadata", transport=transport)
+    )
+
+    assert rules[field] == expected
+
+
+def test_library_rules_invalid_field_is_reported_in_diagnostic(
+    monkeypatch,
+    capsys,
+):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    monkeypatch.setenv("BIBLIOTECA_LOG_ERROS", "1")
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            json={**_payload(), "atualizado_em": "data inválida"},
+        )
+    )
+
+    with pytest.raises(XanoInvalidResponseError) as error:
+        asyncio.run(get_library_rules("token-invalid", transport=transport))
+
+    assert error.value.field == "atualizado_em"
+    assert "campo atualizado_em" in capsys.readouterr().err
 
 
 def test_update_library_rules_sends_only_contract_fields(monkeypatch):

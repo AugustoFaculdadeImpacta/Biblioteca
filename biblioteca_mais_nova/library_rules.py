@@ -1,6 +1,7 @@
 """Leitura, validação e gravação das regras da biblioteca."""
 
 from collections.abc import Mapping
+from datetime import datetime, timezone
 from typing import TypedDict
 
 import httpx
@@ -136,15 +137,51 @@ def _parse_library_rules(value: object) -> LibraryRules:
         "prazo_emprestimo_dias": payload["prazo_emprestimo_dias"],
         "prazo_retirada_horas": payload["prazo_retirada_horas"],
     }
-    for field in ("atualizado_em", "atualizado_por"):
-        metadata = value.get(field)
-        if metadata is not None and not isinstance(metadata, str):
+    updated_at = value.get("atualizado_em")
+    if updated_at is None or (type(updated_at) is int and updated_at == 0):
+        result["atualizado_em"] = None
+    elif type(updated_at) is int:
+        timestamp = (
+            updated_at / 1000
+            if abs(updated_at) >= 100_000_000_000
+            else updated_at
+        )
+        try:
+            result["atualizado_em"] = datetime.fromtimestamp(
+                timestamp,
+                tz=timezone.utc,
+            ).isoformat()
+        except (OverflowError, OSError, ValueError):
             raise XanoInvalidResponseError(
-                field=field,
-                reason="esperado texto ou null",
-            )
-        if field in value:
-            result[field] = metadata
+                field="atualizado_em",
+                reason="esperado data ISO ou inteiro em segundos/milissegundos",
+            ) from None
+    elif isinstance(updated_at, str):
+        try:
+            result["atualizado_em"] = datetime.fromisoformat(
+                updated_at.strip().replace("Z", "+00:00")
+            ).isoformat()
+        except ValueError:
+            raise XanoInvalidResponseError(
+                field="atualizado_em",
+                reason="esperado data ISO válida",
+            ) from None
+    else:
+        raise XanoInvalidResponseError(
+            field="atualizado_em",
+            reason="esperado data ISO, inteiro em segundos/milissegundos, null ou 0",
+        )
+
+    updated_by = value.get("atualizado_por")
+    if updated_by is None:
+        result["atualizado_por"] = None
+    elif isinstance(updated_by, (str, int)) and type(updated_by) is not bool:
+        result["atualizado_por"] = str(updated_by)
+    else:
+        raise XanoInvalidResponseError(
+            field="atualizado_por",
+            reason="esperado texto, inteiro ou null",
+        )
     return result
 
 
