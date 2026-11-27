@@ -10,7 +10,7 @@
 
 ## 2. Cópia pública e pré-carga
 
-- [ ] 2.1 Implementar cache em memória e JSON temporário com validade de 24 horas, gravação segura e testes de relógio falso e caminho fora do repositório.
+- [x] 2.1 Implementar cache em memória e JSON temporário com validade de 24 horas, gravação segura e testes de relógio falso e caminho fora do repositório; `pytest tests/test_public_data_cache.py -q` — 3 passed, commit `98cb56d`.
 - [ ] 2.2 Integrar cópia imediata/atualização em segundo plano às telas públicas e fazer pré-carga idempotente; testar cópia antes da resposta, atualização, 429 e chamada única.
 
 ## 3. Listas autenticadas
