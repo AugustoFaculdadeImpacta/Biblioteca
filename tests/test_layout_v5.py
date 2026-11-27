@@ -1,3 +1,4 @@
+import json
 import re
 
 import biblioteca_mais_nova.biblioteca_mais_nova as frontend
@@ -24,6 +25,28 @@ def _contrast_ratio(first: str, second: str) -> float:
     lighter = max(_luminance(first), _luminance(second))
     darker = min(_luminance(first), _luminance(second))
     return (lighter + 0.05) / (darker + 0.05)
+
+
+def _component_classes(component) -> set[str]:
+    tree = json.loads(repr(component))
+    classes = set()
+
+    def collect(value):
+        if isinstance(value, dict):
+            for prop in value.get("props", []):
+                if isinstance(prop, str) and prop.startswith("className:"):
+                    classes.update(
+                        name.strip('"')
+                        for name in prop.removeprefix("className:").split()
+                    )
+            for child in value.values():
+                collect(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect(child)
+
+    collect(tree)
+    return classes
 
 
 def test_header_contract_is_stable_without_action_classes():
@@ -107,46 +130,69 @@ def test_header_nav_and_footer_tokens_meet_text_contrast():
 
 
 def test_header_profile_and_accessibility_actions_meet_wcag_aa_in_every_state():
-    controls = {
-        "perfil": (
-            ".profile-menu-trigger",
-            ".profile-menu-trigger:hover",
-            "--brand-text",
-        ),
-        "acessibilidade": (
-            ".accessibility-menu-trigger",
-            ".accessibility-menu-trigger:hover",
-            "--button-subtle-text",
-        ),
+    style = frontend.app.style
+    accessibility = frontend.accessibility_menu()
+    accessibility_classes = _component_classes(accessibility)
+    assert {
+        "accessibility-menu-trigger",
+        "emoji-acao",
+        "rotulo-acao",
+    }.issubset(accessibility_classes)
+    assert "profile-menu-trigger" in _component_classes(frontend.site_header())
+
+    color_rule = (
+        ".site-header .accessibility-menu-trigger, "
+        ".site-header .accessibility-menu-trigger *"
+    )
+    assert style[color_rule]["color"] == "var(--brand-text) !important"
+    assert style[".site-header .accessibility-menu-trigger"] == {
+        "background_color": "transparent !important",
+        "border": "1px solid var(--line) !important",
     }
+    assert style[".site-header .accessibility-menu-trigger:hover"][
+        "background_color"
+    ] == "var(--bg-soft) !important"
+
+    selectors = list(style)
+    assert selectors[-3:] == [
+        ".site-header .accessibility-menu-trigger",
+        ".site-header .accessibility-menu-trigger:hover",
+        color_rule,
+    ]
 
     for theme_selector in (".a11y-shell", ".a11y-shell.a11y-dark"):
-        theme = frontend.app.style[theme_selector]
-        for label, (base_selector, hover_selector, text_token) in controls.items():
-            foreground = theme[text_token]
-            backgrounds = (
-                theme["--bg-panel"],
-                theme["--bg-soft"],
-                theme["--bg-panel"],
-            )
-            assert all(
-                _contrast_ratio(foreground, background) >= 4.5
-                for background in backgrounds
-            ), f"{label} não atinge WCAG AA em {theme_selector}"
-            assert frontend.app.style[base_selector]["color"] == (
-                f"var({text_token})"
-            )
-            assert frontend.app.style[hover_selector]["color"] == (
-                f"var({text_token})"
-            )
-            assert frontend.app.style[base_selector]["background_color"] == (
-                "transparent"
-            )
-            assert frontend.app.style[hover_selector]["background_color"] == (
-                "var(--bg-soft)"
-            )
+        theme = style[theme_selector]
+        foreground = theme["--brand-text"]
+        backgrounds = {
+            "repouso": theme["--bg-panel"],
+            "hover": theme["--bg-soft"],
+            "foco": theme["--bg-panel"],
+        }
+        for control in ("Perfil", "Acessibilidade"):
+            for state, background in backgrounds.items():
+                assert _contrast_ratio(foreground, background) >= 4.5, (
+                    f"{control} não atinge WCAG AA no estado {state} "
+                    f"em {theme_selector}"
+                )
 
-    assert frontend.app.style[":focus-visible"]["outline"].startswith(
+        assert style[".profile-menu-trigger"]["color"] == (
+            "var(--brand-text)"
+        )
+        assert style[".profile-menu-trigger:hover"]["color"] == (
+            "var(--brand-text)"
+        )
+        assert style[".profile-menu-trigger"]["background_color"] == (
+            "transparent"
+        )
+        assert style[".profile-menu-trigger:hover"]["background_color"] == (
+            "var(--bg-soft)"
+        )
+        assert style[".profile-menu-trigger, .accessibility-menu-trigger"][
+            "border"
+        ] == "1px solid var(--line)"
+        assert style[color_rule]["color"] == "var(--brand-text) !important"
+
+    assert style[":focus-visible"]["outline"].startswith(
         "3px solid "
     )
 

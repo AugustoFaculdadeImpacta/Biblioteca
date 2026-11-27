@@ -10367,6 +10367,16 @@ app = rx.App(
                 "padding": "0.75rem",
             },
         },
+        ".site-header .accessibility-menu-trigger": {
+            "background_color": "transparent !important",
+            "border": "1px solid var(--line) !important",
+        },
+        ".site-header .accessibility-menu-trigger:hover": {
+            "background_color": "var(--bg-soft) !important",
+        },
+        ".site-header .accessibility-menu-trigger, .site-header .accessibility-menu-trigger *": {
+            "color": "var(--brand-text) !important",
+        },
     },
     head_components=[rx.script(_APPEARANCE_SCRIPT)],
 )
