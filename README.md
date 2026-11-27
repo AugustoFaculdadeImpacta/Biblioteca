@@ -1,22 +1,21 @@
-# Biblioteca escolar
+# Biblioteca
 
 Sistema de biblioteca escolar: catálogo, pedidos e reservas, acervo e contas por perfil.
 Tecnologias: Reflex + Python no site; Xano como banco e API.
 
 ## Como rodar
 
+Dê dois cliques em `iniciar.bat` (precisa do Python instalado) ou rode os 3 comandos:
 1. `python -m venv .venv`
-2. `.venv\Scripts\activate`
-3. `pip install -r requirements.txt`
-4. `python -m reflex run`
-5. Abra http://localhost:3000
+2. `.venv\Scripts\python.exe -m pip install -r requirements.txt`
+3. `.venv\Scripts\python.exe -m reflex run`
 
-No Windows, use `python -m reflex run` quando `reflex run` for bloqueado.
+Abra http://localhost:3000.
 
 ## API do Xano
 
 URL base: `https://x8ki-letl-twmt.n7.xano.io/api:MNu77wNi`.
-O site já usa essa origem por `XANO_API_BASE_URL`; se a variável não existir, crie `.env` com `XANO_API_BASE_URL=https://x8ki-letl-twmt.n7.xano.io/api:MNu77wNi`.
+`XANO_API_BASE_URL` é opcional e serve para usar outro Xano.
 
 ## Perfis
 

@@ -30,6 +30,9 @@ from dotenv import load_dotenv
 
 
 _LOGGER = logging.getLogger("biblioteca.xano")
+DEFAULT_XANO_API_BASE_URL = (
+    "https://x8ki-letl-twmt.n7.xano.io/api:MNu77wNi"
+)
 _MAX_RETRIES = 3
 _RETRY_DELAYS = (0.5, 1.5, 3.0)
 _RETRYABLE_STATUSES = {429, 502, 503, 504}
@@ -1070,7 +1073,10 @@ class XanoClient:
         timeout: float = 10.0,
     ) -> "XanoClient":
         load_dotenv(dotenv_path=Path.cwd() / ".env", override=False)
-        raw_url = os.environ.get("XANO_API_BASE_URL", "").strip()
+        raw_url = (
+            os.environ.get("XANO_API_BASE_URL", "").strip()
+            or DEFAULT_XANO_API_BASE_URL
+        )
         if not raw_url:
             raise XanoConfigurationError(
                 "Configure XANO_API_BASE_URL no ambiente do backend."

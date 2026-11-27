@@ -54,12 +54,28 @@ def test_client_reads_base_url_from_environment_file(tmp_path, monkeypatch):
 )
 def test_client_rejects_missing_or_invalid_base_url(base_url, monkeypatch):
     monkeypatch.setenv("XANO_API_BASE_URL", base_url)
+    if not base_url:
+        monkeypatch.setattr(xano_client, "DEFAULT_XANO_API_BASE_URL", "")
 
     with pytest.raises(XanoConfigurationError) as error:
         XanoClient.from_environment()
 
     if base_url:
         assert base_url not in str(error.value)
+
+
+def test_client_uses_default_base_url_when_environment_is_missing(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.delenv("XANO_API_BASE_URL", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    client = XanoClient.from_environment()
+
+    assert str(client._base_url) == (
+        f"{xano_client.DEFAULT_XANO_API_BASE_URL}/"
+    )
 
 
 def test_request_uses_mock_transport_and_backend_authorization(monkeypatch):
