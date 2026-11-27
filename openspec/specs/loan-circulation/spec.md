@@ -15,7 +15,7 @@ O sistema MUST separar o pedido do estudante da confirmação física do emprés
 - **THEN** o backend valida identidade e elegibilidade e registra o pedido sem tratá-lo como retirada concluída
 
 #### Scenario: Estudante inelegível
-- **WHEN** estudante possui empréstimo ativo vencido ou não atende a outra regra aprovada
+- **WHEN** estudante não atende a uma regra configurada de elegibilidade
 - **THEN** o backend recusa o pedido e não altera empréstimos nem disponibilidade
 
 #### Scenario: Sem exemplar disponível
@@ -24,14 +24,14 @@ O sistema MUST separar o pedido do estudante da confirmação física do emprés
 
 #### Scenario: Exemplar atribuído à reserva
 - **WHEN** um exemplar fica disponível e a reserva do estudante chega à sua vez na fila FIFO
-- **THEN** o backend associa o exemplar à reserva e registra oferta de retirada válida por 48 horas corridas, com timestamps armazenados em UTC e apresentados no fuso `America/Sao_Paulo`; essa regra não altera o prazo de empréstimo de 14 dias corridos
+- **THEN** o backend associa o exemplar à reserva e registra oferta de retirada válida pelo número de horas configurado, com timestamps armazenados em UTC e apresentados no fuso `America/Sao_Paulo`; essa regra não altera o prazo de empréstimo configurado
 
 #### Scenario: Empréstimos ativos de outros títulos abaixo do limite
-- **WHEN** estudante possui até dois empréstimos ativos de outros títulos e solicita um título elegível
+- **WHEN** estudante possui menos empréstimos ativos que `limite_emprestimos_ativos` em outros títulos e solicita um título elegível
 - **THEN** o backend permite a solicitação se não houver atraso nem empréstimo ativo do mesmo título
 
 #### Scenario: Limite de três empréstimos ativos
-- **WHEN** estudante já possui três empréstimos ativos
+- **WHEN** estudante possui quantidade de empréstimos ativos igual a `limite_emprestimos_ativos`
 - **THEN** o backend recusa nova solicitação ou retirada sem alterar empréstimos nem disponibilidade
 
 #### Scenario: Estudante já possui exemplar do mesmo título
@@ -41,13 +41,25 @@ O sistema MUST separar o pedido do estudante da confirmação física do emprés
 #### Scenario: Solicitação para título desativado
 - **WHEN** estudante autenticado solicita empréstimo ou reserva de título inativo
 - **THEN** o backend recusa a solicitação sem criar pedido, reserva ou empréstimo
+
+#### Scenario: Limite de pedidos em aberto atingido
+- **WHEN** estudante possui quantidade de pedidos em aberto igual a `limite_pedidos_em_aberto`
+- **THEN** o backend recusa novo pedido sem alterar pedidos, reservas ou empréstimos
+
+#### Scenario: Reserva ativa existente
+- **WHEN** estudante solicita título que já possui reserva ativa e `permitir_pedido_com_reserva_ativa` é falso
+- **THEN** o backend recusa o novo pedido e preserva a reserva existente
+
+#### Scenario: Reserva ativa permitida
+- **WHEN** estudante solicita título que já possui reserva ativa e `permitir_pedido_com_reserva_ativa` é verdadeiro
+- **THEN** o backend aplica as demais regras configuradas e não cria duplicidade de reserva ativa
 ### Requirement: Bibliotecário confirma retirada física
 
 O sistema MUST criar o empréstimo de um exemplar físico somente quando bibliotecário ou admin autenticado confirmar a retirada e o backend revalidar elegibilidade e disponibilidade.
 
 #### Scenario: Retirada confirmada
 - **WHEN** bibliotecário ou admin confirma a retirada de exemplar elegível para estudante elegível
-- **THEN** o sistema registra a retirada, define vencimento para 14 dias corridos depois e marca o empréstimo como ativo
+- **THEN** o sistema registra a retirada, define vencimento para `prazo_emprestimo_dias` depois e marca o empréstimo como ativo
 
 #### Scenario: Retirada concorrente ou inelegível
 - **WHEN** duas confirmações concorrem pelo mesmo exemplar ou a elegibilidade mudou
@@ -57,14 +69,14 @@ O sistema MUST criar o empréstimo de um exemplar físico somente quando bibliot
 - **WHEN** estudante tenta executar a confirmação física
 - **THEN** o backend recusa a operação sem criar empréstimo
 ### Requirement: Limite de empréstimos ativos por estudante e exemplar
-O sistema MUST permitir até três empréstimos ativos por estudante, impedir um quarto empréstimo ativo e impedir mais de um empréstimo ativo por exemplar, inclusive em operações concorrentes.
+O sistema MUST permitir até `limite_emprestimos_ativos` empréstimos ativos por estudante, impedir mais de um empréstimo ativo por exemplar e revalidar ambos inclusive em operações concorrentes.
 
 #### Scenario: Estudante abaixo do limite
-- **WHEN** estudante possui até dois empréstimos ativos de outros títulos e solicita outro título elegível
+- **WHEN** estudante possui quantidade de empréstimos ativos inferior ao limite configurado e solicita outro título elegível
 - **THEN** o backend permite a operação se não houver atraso nem empréstimo ativo do mesmo título
 
 #### Scenario: Limite ativo do estudante
-- **WHEN** estudante já possui três empréstimos ativos e tenta obter outro
+- **WHEN** estudante já possui `limite_emprestimos_ativos` empréstimos ativos e tenta obter outro
 - **THEN** o backend recusa a nova confirmação de retirada
 
 #### Scenario: Mesmo título já emprestado
@@ -86,11 +98,15 @@ O sistema MUST registrar a devolução física de empréstimo ativo somente por 
 - **WHEN** pedido referencia empréstimo inexistente, já encerrado ou usuário sem perfil bibliotecário ou admin
 - **THEN** o backend recusa a operação sem alterar o histórico
 ### Requirement: Atraso bloqueia novas operações do estudante
-O sistema MUST considerar atrasado empréstimo ativo cujo vencimento passou e bloquear novos pedidos de empréstimo e reservas desse estudante.
+O sistema MUST aplicar a regra `bloquear_com_atraso` aos novos pedidos de empréstimo e reservas do estudante.
 
 #### Scenario: Empréstimo vencido
-- **WHEN** estudante tem empréstimo ativo com vencimento anterior ao instante atual
+- **WHEN** estudante tem empréstimo ativo com vencimento anterior ao instante atual e `bloquear_com_atraso` é verdadeiro
 - **THEN** o backend recusa novos pedidos de empréstimo e comunica a restrição
+
+#### Scenario: Empréstimo vencido com bloqueio desativado
+- **WHEN** estudante tem empréstimo ativo vencido e `bloquear_com_atraso` é falso
+- **THEN** o atraso não bloqueia a operação, sem remover os demais limites e regras aprovados
 
 #### Scenario: Empréstimo não vencido
 - **WHEN** estudante tem empréstimo ativo ainda dentro do prazo
@@ -131,8 +147,8 @@ A interface MUST permitir que estudante autenticado consulte somente seus empré
 - **THEN** a interface não inventa o título e a necessidade de identificador/nome do título é registrada como dependência do contrato Xano
 
 #### Scenario: Admin em visão de estudante
-- **WHEN** admin em visão simulada abre `/reservas`
-- **THEN** a interface usa somente a própria sessão admin e apresenta a recusa do backend sem consultar ou simular dados pessoais de estudante
+- **WHEN** admin em visão de estudante abre `/reservas`
+- **THEN** a interface usa a sessão admin, apresenta somente os registros próprios do admin e executa as ações de estudante permitidas pelo endpoint; não consulta nem simula dados de terceiros
 
 ### Requirement: Rota antiga da área pessoal redireciona para Reservas
 A rota `/minha-biblioteca` MUST permanecer compatível e redirecionar para `/reservas` sem consultar dados pessoais antes do redirecionamento.
@@ -191,7 +207,7 @@ O sistema MUST permitir a bibliotecários e admins consultar solicitações pend
 
 #### Scenario: Confirmar retirada elegível
 - **WHEN** bibliotecário/admin confirma a retirada de solicitação elegível
-- **THEN** o backend revalida FIFO, disponibilidade, limite e atraso, cria o empréstimo por 14 dias e marca a solicitação como atendida
+- **THEN** o backend revalida FIFO, disponibilidade, `limite_emprestimos_ativos` e `bloquear_com_atraso`, cria o empréstimo pelo prazo configurado e marca a solicitação como atendida
 
 #### Scenario: Recusar solicitação pendente
 - **WHEN** bibliotecário/admin recusa solicitação em estado `pendente`

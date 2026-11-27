@@ -7,33 +7,40 @@ Definir reservas de títulos em fila FIFO e a oportunidade limitada de retirada 
 ## Requirements
 
 ### Requirement: Reserva pertence a título e entra em fila FIFO
-O sistema MUST registrar reservas por título em ordem de solicitação e permitir no máximo uma reserva ativa por estudante e título.
+O sistema MUST registrar reservas por título em ordem de solicitação e respeitar `permitir_pedido_com_reserva_ativa` ao receber nova solicitação do mesmo estudante e título.
 
 #### Scenario: Nova reserva
 - **WHEN** estudante autenticado reserva um título elegível
 - **THEN** a reserva é registrada na fila do título com posição relativa determinada pela ordem de solicitação
 
 #### Scenario: Reserva ativa duplicada
-- **WHEN** estudante tenta criar outra reserva ativa para o mesmo título
+- **WHEN** estudante tenta criar outra reserva ativa para o mesmo título e `permitir_pedido_com_reserva_ativa` é falso
 - **THEN** o backend recusa duplicidade e preserva a reserva existente
+
+#### Scenario: Novo pedido permitido apesar de reserva ativa
+- **WHEN** estudante solicita título com reserva ativa e `permitir_pedido_com_reserva_ativa` é verdadeiro
+- **THEN** o backend permite o pedido se elegível sem criar uma segunda reserva ativa duplicada
 
 #### Scenario: Título já emprestado ao estudante
 - **WHEN** estudante tem empréstimo ativo não atrasado de exemplar daquele título
 - **THEN** o backend recusa a reserva
 ### Requirement: Elegibilidade da reserva é revalidada no backend
-
-O sistema MUST verificar autenticação, perfil estudante, situação ativa do título, atraso, o limite de três empréstimos ativos e empréstimo ativo do mesmo título antes de criar ou atender uma reserva.
+O sistema MUST verificar autenticação, perfil ou visão efetiva de estudante, situação ativa do título, regras configuradas de atraso e limites de empréstimos e pedidos, e empréstimo ativo do mesmo título antes de criar ou atender uma reserva.
 
 #### Scenario: Estudante com empréstimo atrasado
-- **WHEN** estudante com empréstimo vencido e não devolvido solicita reserva de título ativo
+- **WHEN** estudante com empréstimo vencido e não devolvido solicita reserva de título ativo enquanto `bloquear_com_atraso` é verdadeiro
 - **THEN** o backend recusa a solicitação sem alterar a fila
 
 #### Scenario: Empréstimo ativo de outro título
-- **WHEN** estudante possui menos de três empréstimos ativos de outros títulos e solicita reserva elegível
+- **WHEN** estudante possui quantidade de empréstimos ativos inferior a `limite_emprestimos_ativos` e solicita uma reserva elegível
 - **THEN** o backend não bloqueia a reserva por causa desses empréstimos
 
 #### Scenario: Limite de empréstimos atingido
-- **WHEN** estudante possui três empréstimos ativos e solicita reserva
+- **WHEN** estudante possui quantidade de empréstimos ativos igual a `limite_emprestimos_ativos` e solicita reserva
+- **THEN** o backend recusa a solicitação sem alterar a fila
+
+#### Scenario: Limite de pedidos em aberto atingido
+- **WHEN** estudante possui quantidade de pedidos em aberto igual a `limite_pedidos_em_aberto`
 - **THEN** o backend recusa a solicitação sem alterar a fila
 
 #### Scenario: Título já emprestado ao estudante
@@ -41,8 +48,12 @@ O sistema MUST verificar autenticação, perfil estudante, situação ativa do t
 - **THEN** o backend recusa a reserva sem alterar a fila
 
 #### Scenario: Visitante ou bibliotecário sem contexto de estudante tenta reservar
-- **WHEN** perfil não estudante envia uma solicitação de reserva
+- **WHEN** visitante ou bibliotecário sem visão de estudante envia solicitação de reserva
 - **THEN** o backend recusa a operação
+
+#### Scenario: Admin atua como estudante
+- **WHEN** admin seleciona a visão Estudante e solicita reserva
+- **THEN** o endpoint autoriza a sessão admin conforme o contrato publicado e registra o pedido no nome do admin
 
 #### Scenario: Título desativado
 - **WHEN** estudante tenta criar reserva para título inativo
@@ -58,18 +69,18 @@ O sistema MUST oferecer exemplar disponível à próxima reserva elegível na or
 - **WHEN** operações concorrentes tentam alocar o mesmo exemplar
 - **THEN** no máximo uma alocação é confirmada e as demais não alteram a reserva ou empréstimo existente
 ### Requirement: Oportunidade de retirada dura dois dias
-O sistema MUST associar o exemplar disponível à próxima reserva elegível na fila FIFO e registrar uma oportunidade de retirada válida por 48 horas corridas a partir do instante em que o sistema associa o exemplar e registra a oferta. Os timestamps MUST ser armazenados em UTC e apresentados no fuso `America/Sao_Paulo`.
+O sistema MUST associar o exemplar disponível à próxima reserva elegível na fila FIFO e registrar uma oportunidade de retirada pelo valor `prazo_retirada_horas` a partir do instante da oferta, armazenando timestamps em UTC e apresentando-os no fuso `America/Sao_Paulo`.
 
 #### Scenario: Exemplar associado à reserva atendida
 - **WHEN** um exemplar fica disponível e a reserva chega à vez do estudante na fila
-- **THEN** o backend associa o exemplar à reserva, registra a oferta no instante dessa associação e define a expiração para 48 horas corridas depois, armazenando os timestamps em UTC
+- **THEN** o backend associa o exemplar à reserva e define a expiração para `prazo_retirada_horas` depois, armazenando os timestamps em UTC
 
 #### Scenario: Janela expirada
 - **WHEN** o timestamp de expiração da oportunidade passou sem retirada
 - **THEN** a reserva é marcada como expirada, o exemplar é liberado e ofertado à próxima reserva elegível na ordem FIFO; a oportunidade expirada deixa de permitir retirada
 
 #### Scenario: Próxima reserva inelegível
-- **WHEN** a reserva mais antiga na fila não é mais elegível, por exemplo porque o estudante tem empréstimo atrasado
+- **WHEN** a reserva mais antiga na fila não é mais elegível, por exemplo porque o estudante tem empréstimo atrasado enquanto `bloquear_com_atraso` está ativo
 - **THEN** o backend não oferece exemplar a essa reserva e continua pela ordem FIFO até encontrar a próxima reserva elegível
 
 #### Scenario: Prazo apresentado ao estudante

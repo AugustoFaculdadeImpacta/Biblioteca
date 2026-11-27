@@ -50,7 +50,7 @@ O sistema MUST aceitar nome, e-mail único e senha sem confirmação de e-mail e
 - **THEN** a interface confirma o cadastro e permite acesso imediato como estudante, mantendo o token inacessível ao navegador e aos logs
 ### Requirement: Login e perfil usam identidade confiável
 
-O sistema MUST autenticar por e-mail e senha e obter o perfil armazenado (`estudante`, `bibliotecario` ou `admin`), sem aceitar papel do cliente. Admin MUST ter as permissões administrativas de bibliotecário. O login MUST recusar contas com `ativo=false` usando mensagem genérica em português e normalizar o e-mail como no cadastro (remover espaços externos, converter para minúsculas e rejeitar espaços internos), sem alterar a senha.
+O sistema MUST autenticar por e-mail e senha usando o perfil armazenado (`estudante`, `bibliotecario` ou `admin`), nunca um papel enviado pelo cliente. Admin MUST ter permissões de bibliotecário e poder acionar operações de estudante ou equipe na visão efetiva correspondente, com a sessão admin original e autorização do backend. Login MUST recusar contas `ativo=false` com mensagem genérica em português e normalizar e-mail como no cadastro, sem alterar a senha.
 
 #### Scenario: Login válido
 - **WHEN** uma conta existente apresenta a senha correta
@@ -74,7 +74,15 @@ O sistema MUST autenticar por e-mail e senha e obter o perfil armazenado (`estud
 
 #### Scenario: Permissões administrativas de admin
 - **WHEN** uma conta autenticada possui perfil `admin`
-- **THEN** ela pode executar as operações autorizadas ao bibliotecário, sem obter permissões de estudante que dependam de perfil estudante
+- **THEN** ela pode executar operações autorizadas ao bibliotecário e, na visão Estudante, operações de estudante permitidas ao admin pelo backend, mantendo sua identidade, token e titularidade reais de admin
+
+#### Scenario: Perfil real não é substituído pela visão
+- **WHEN** admin seleciona a visão Estudante ou Bibliotecário
+- **THEN** o cliente mantém `admin` como perfil real, envia a sessão original e não emite token nem identidade falsificados
+
+#### Scenario: Xano ainda não publicou permissão para admin
+- **WHEN** endpoint recusa com HTTP 403 por perfil uma ação de admin na visão simulada
+- **THEN** a interface informa que a permissão precisa ser publicada no Xano e não apresenta a ação como concluída
 ### Requirement: Login pela interface mantém sessão privada
 A interface MUST permitir autenticação por e-mail e senha conforme o contrato, informar falhas sem expor detalhes técnicos e manter token e perfil inacessíveis ao navegador.
 

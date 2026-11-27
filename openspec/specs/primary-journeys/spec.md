@@ -84,14 +84,14 @@ A página inicial MUST apresentar estatísticas calculadas exclusivamente dos da
 
 #### Scenario: Atalhos de visão simulada
 - **WHEN** admin abre a home em visão Bibliotecário ou Estudante
-- **THEN** vê os atalhos da visão ativa sem receber permissões ou consultas de dados do perfil simulado
+- **THEN** vê os atalhos e ações da visão ativa; as chamadas usam a própria sessão admin e os registros resultantes permanecem associados ao admin
 
 #### Scenario: Popularidade sem contagem disponível
 - **WHEN** a API ou os dados já carregados não fornecem contagens de empréstimos por título
 - **THEN** a home não exibe uma seção “Livros que mais saem” nem infere popularidade a partir de disponibilidade
 
 ### Requirement: Jornadas operacionais agrupam ações já disponíveis
-A interface MUST oferecer entradas concisas para as operações existentes de bibliotecário e admin, sem ampliar autorização nem simular operações não suportadas pelo cliente ou backend.
+A interface MUST oferecer entradas concisas para operações existentes e ações de admin na visão efetiva, sem falsificar a identidade autenticada nem simular operações não suportadas pelo cliente ou backend.
 
 #### Scenario: Bibliotecário abre Reservas
 - **WHEN** bibliotecário autenticado abre Reservas
@@ -116,6 +116,14 @@ A interface MUST oferecer entradas concisas para as operações existentes de bi
 #### Scenario: Ferramentas administrativas adiadas
 - **WHEN** pessoa usa as áreas de bibliotecário ou admin nesta Change
 - **THEN** indicadores avançados, regras de empréstimo, auditoria, exportação CSV e aviso geral não aparecem como funcionalidades implementadas
+
+#### Scenario: Admin atua como estudante
+- **WHEN** admin seleciona a visão Estudante e solicita um livro
+- **THEN** a ação usa o token do admin, exige autorização do endpoint Xano para admin e o pedido fica no nome do admin
+
+#### Scenario: Admin atua como bibliotecário
+- **WHEN** admin seleciona a visão Bibliotecário e executa uma operação de equipe
+- **THEN** a ação usa o token do admin e segue o mesmo fluxo da equipe, sujeito à autorização do endpoint Xano para admin
 
 ### Requirement: Jornada principal usa navegação estável
 O sistema MUST adaptar home, catálogo, detalhe, reservas, login e cadastro ao padrão visual consistente de app de delivery.
@@ -142,3 +150,30 @@ O texto dos controles “Perfil” e “Acessibilidade” MUST manter contraste 
 #### Scenario: Contraste do cabeçalho
 - **WHEN** o cabeçalho é renderizado em tema claro ou escuro
 - **THEN** os rótulos dos dois controles atingem pelo menos 4,5:1 em repouso, hover e foco
+
+### Requirement: Rotas respeitam a visão efetiva
+O sistema MUST restringir páginas administrativas conforme a visão efetiva do usuário e o perfil real da sessão.
+
+#### Scenario: Visão Estudante abre rota da equipe
+- **WHEN** admin está na visão Estudante e tenta abrir `/admin/acervo`, `/admin/bibliotecarios` ou uma rota de reservas da equipe
+- **THEN** é redirecionado à home com um aviso
+
+#### Scenario: Visão Bibliotecário abre rota exclusiva de admin
+- **WHEN** admin está na visão Bibliotecário e tenta abrir `/admin/bibliotecarios`
+- **THEN** é redirecionado à home com um aviso
+
+#### Scenario: Regras disponíveis em qualquer visão de admin
+- **WHEN** admin real abre `/regras` em qualquer visão
+- **THEN** acessa a página de regras sem alterar sua visão ativa
+
+#### Scenario: Perfil e menu do admin
+- **WHEN** admin real abre o menu Perfil em qualquer visão
+- **THEN** vê o seletor de visão e o acesso a Regras
+
+#### Scenario: Faixa da visão simulada
+- **WHEN** admin real age na visão Estudante ou Bibliotecário
+- **THEN** vê uma faixa fina de uma linha: “Você está agindo como <perfil> com a sua conta de admin. Os pedidos feitos aqui ficam no nome do admin.”
+
+#### Scenario: Xano ainda não autoriza ação simulada
+- **WHEN** Xano responde 403 por perfil a uma ação de admin em visão simulada
+- **THEN** a interface informa “O Xano ainda não permite que o admin faça esta ação como <perfil>. Veja docs/publicacao-xano-regras.md.”
