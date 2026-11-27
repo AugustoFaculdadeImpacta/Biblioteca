@@ -5,6 +5,7 @@ import concurrent.futures
 import logging
 import os
 import threading
+import time
 import unicodedata
 from urllib.parse import quote
 from datetime import datetime, timezone
@@ -332,6 +333,7 @@ class State(rx.State):
     student_library_requests: list[dict[str, Any]] = []
     student_library_reservations: list[dict[str, Any]] = []
     student_library_skipped: int = 0
+    _student_library_loaded_at: float | None = None
     student_reservation_tab: str = "aguardando"
     student_request_pending: bool = False
     student_request_uncertain_title_id: int | None = None
@@ -384,12 +386,21 @@ class State(rx.State):
     circulation_loans: list[dict[str, Any]] = []
     circulation_catalog_entries: list[AdminCatalogEntry] = []
     circulation_skipped: int = 0
+    _circulation_loaded_at: float | None = None
+    _admin_catalog_loaded_at: float | None = None
 
     def _store_session_token(self, token: str) -> None:
         if not token:
             raise ValueError("O token de sessão não pode ser vazio.")
         self._session_token = token
         self.is_authenticated = True
+
+    @staticmethod
+    def _authenticated_snapshot_is_recent(loaded_at: float | None) -> bool:
+        return (
+            loaded_at is not None
+            and time.monotonic() - loaded_at <= 20.0
+        )
 
     def _store_session(
         self,
@@ -1937,6 +1948,25 @@ class State(rx.State):
                 self.student_request_pending = False
 
     @rx.event
+    def load_student_library_cached(self):
+        if not self._session_token:
+            return rx.redirect("/login")
+        if not self._is_student_view():
+            return rx.redirect("/")
+        if self._authenticated_snapshot_is_recent(
+            self._student_library_loaded_at
+        ):
+            self.student_library_pending = False
+            self.student_library_has_error = False
+            self.student_library_message = "Atualizando…"
+            return State.refresh_student_library
+        return State.load_student_library
+
+    @rx.event(background=True)
+    async def refresh_student_library(self):
+        return State.load_student_library
+
+    @rx.event
     @diagnosticar_pagina_xano("reservas")
     async def load_student_library(self):
         if not self._session_token:
@@ -1944,7 +1974,9 @@ class State(rx.State):
         if not self._is_student_view():
             return rx.redirect("/")
 
-        self.student_library_pending = True
+        self.student_library_pending = not self._authenticated_snapshot_is_recent(
+            self._student_library_loaded_at
+        )
         self.student_library_message = ""
         self.student_library_has_error = False
         self.student_library_requires_login = False
@@ -2085,6 +2117,7 @@ class State(rx.State):
             }
             for reservation in reservations
         ]
+        self._student_library_loaded_at = time.monotonic()
         uncertain_title_id = self.student_request_uncertain_title_id
         if uncertain_title_id is not None:
             confirmed_reservation = next(
@@ -2811,7 +2844,9 @@ class State(rx.State):
         )
 
     async def _refresh_circulation_data(self) -> bool:
-        self.circulation_pending = True
+        self.circulation_pending = not self._authenticated_snapshot_is_recent(
+            self._circulation_loaded_at
+        )
         self.circulation_skipped = 0
         try:
             with contexto_evento_xano(
@@ -2860,7 +2895,52 @@ class State(rx.State):
             )
         )
         self.circulation_needs_manual_check = False
+        self._circulation_loaded_at = time.monotonic()
         return True
+
+    @rx.event
+    async def refresh_circulation_lists_now(self):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        if not await self._refresh_circulation_data():
+            return
+        self.circulation_message = ""
+        self.staff_reservation_title_options = [
+            {
+                "id": str(entry["titulo"]["id"]),
+                "label": entry["titulo"]["titulo"],
+            }
+            for entry in self.circulation_catalog_entries
+            if entry["titulo"].get("ativo") is not False
+        ]
+
+    @rx.event(background=True)
+    async def refresh_circulation_lists(self):
+        return State.refresh_circulation_lists_now
+
+    @rx.event
+    def load_staff_reservations_dashboard_cached(self):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        if self._authenticated_snapshot_is_recent(self._circulation_loaded_at):
+            self.circulation_active_tab = "pedidos"
+            self.circulation_pending = False
+            self.circulation_has_error = False
+            self.circulation_message = "Atualizando…"
+            return State.refresh_circulation_lists
+        return State.load_staff_reservations_dashboard
+
+    @rx.event
+    def load_circulation_loans_tab_cached(self):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        if self._authenticated_snapshot_is_recent(self._circulation_loaded_at):
+            self.circulation_active_tab = "emprestimos"
+            self.circulation_pending = False
+            self.circulation_has_error = False
+            self.circulation_message = "Atualizando…"
+            return State.refresh_circulation_lists
+        return State.load_circulation_loans_tab
 
     @rx.event
     async def load_circulation_page(self):
@@ -3129,6 +3209,27 @@ class State(rx.State):
         await self._load_catalog_categories()
 
     @rx.event
+    def load_catalog_page_cached(self):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        if self._authenticated_snapshot_is_recent(self._admin_catalog_loaded_at):
+            self.admin_catalog_pending = False
+            self.admin_catalog_has_error = False
+            self.admin_catalog_message = "Atualizando…"
+            return State.refresh_admin_catalog
+        return State.load_catalog_page
+
+    @rx.event(background=True)
+    async def refresh_admin_catalog(self):
+        return State.refresh_admin_catalog_now
+
+    @rx.event
+    async def refresh_admin_catalog_now(self):
+        if not self._is_librarian():
+            return self._redirect_non_librarian()
+        await self._refresh_admin_catalog()
+
+    @rx.event
     @diagnosticar_pagina_xano("acervo")
     async def load_catalog_page(self):
         if not self._is_librarian():
@@ -3139,7 +3240,9 @@ class State(rx.State):
             return State.resolve_public_catalog_covers
 
     async def _refresh_admin_catalog(self):
-        self.admin_catalog_pending = True
+        self.admin_catalog_pending = not self._authenticated_snapshot_is_recent(
+            self._admin_catalog_loaded_at
+        )
         self.admin_catalog_has_error = False
         self.admin_catalog_skipped = 0
         try:
@@ -3150,6 +3253,7 @@ class State(rx.State):
             ):
                 entries = await list_admin_catalog(self._session_token)
             self.admin_catalog_entries = entries
+            self._admin_catalog_loaded_at = time.monotonic()
             self.admin_catalog_skipped = getattr(
                 entries,
                 "skipped_count",
@@ -10832,7 +10936,7 @@ app.add_page(
     accessible_page(student_reservations),
     route="/reservas",
     title="Reservas e empréstimos",
-    on_load=State.load_student_library,
+    on_load=State.load_student_library_cached,
 )
 app.add_page(
     accessible_page(student_library_redirect),
@@ -10844,7 +10948,7 @@ app.add_page(
     accessible_page(catalog_admin),
     route="/admin/acervo",
     title="Cadastro de acervo",
-    on_load=State.load_catalog_page,
+    on_load=State.load_catalog_page_cached,
 )
 app.add_page(
     accessible_page(librarian_management),
@@ -10856,13 +10960,13 @@ app.add_page(
     accessible_page(circulation_page),
     route="/admin/reservas",
     title="Reservas e circulação",
-    on_load=State.load_staff_reservations_dashboard,
+    on_load=State.load_staff_reservations_dashboard_cached,
 )
 app.add_page(
     accessible_page(circulation_page),
     route="/admin/circulacao",
     title="Empréstimos e devoluções",
-    on_load=State.load_circulation_loans_tab,
+    on_load=State.load_circulation_loans_tab_cached,
 )
 app.add_page(
     accessible_page(library_rules_page),
