@@ -1,5 +1,7 @@
 """Operações autenticadas de circulação disponíveis ao estudante."""
 
+import re
+import unicodedata
 from datetime import datetime
 from typing import Callable, NotRequired, TypeVar, TypedDict
 
@@ -474,10 +476,69 @@ async def list_admin_loans(
     )
 
 
+def _normalized_circulation_detail(error: Exception) -> str:
+    if not isinstance(error, XanoResponseError) or not error.public_detail:
+        return ""
+    folded = unicodedata.normalize("NFKD", error.public_detail)
+    return " ".join(
+        re.findall(
+            r"[a-z]+",
+            folded.encode("ascii", errors="ignore").decode("ascii").lower(),
+        )
+    )
+
+
+def is_circulation_state_conflict(error: Exception) -> bool:
+    return _normalized_circulation_detail(error) == (
+        "somente solicitacao pendente pode ser recusada"
+    )
+
+
+def is_library_rule_error(error: Exception) -> bool:
+    words = set(_normalized_circulation_detail(error).split())
+    if "limite" in words and any(
+        word.startswith(("emprest", "pedido", "solicitacao"))
+        for word in words
+    ):
+        return True
+    if "reserva" in words and "ativa" in words:
+        return True
+    return any(
+        word.startswith(("atras", "vencid", "inativ", "duplic", "emprestad"))
+        for word in words
+    )
+
+
+def _is_new_library_rule_message(error: Exception) -> bool:
+    words = set(_normalized_circulation_detail(error).split())
+    if "limite" in words and any(
+        word.startswith(("emprest", "pedido", "solicitacao"))
+        for word in words
+    ):
+        return True
+    if "reserva" in words and "ativa" in words and "pedido" in words:
+        return True
+    return any(
+        word.startswith(("atras", "vencid"))
+        for word in words
+    )
+
+
+def circulation_response_error_message(error: Exception) -> str | None:
+    if not isinstance(error, XanoResponseError):
+        return None
+    if _is_new_library_rule_message(error) and error.public_detail:
+        return xano_message_with_reference(error.public_detail, error)
+    return None
+
+
 def reservation_request_error_message(error: Exception) -> str:
     common_message = xano_public_error_message(error)
     if common_message is not None:
         return common_message
+    circulation_message = circulation_response_error_message(error)
+    if circulation_message is not None:
+        return circulation_message
     if isinstance(error, XanoResponseError):
         if error.status_code == 401:
             message = "[RES-401] Sua sessão expirou, entre de novo"

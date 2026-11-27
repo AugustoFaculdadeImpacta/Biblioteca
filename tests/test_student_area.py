@@ -693,6 +693,37 @@ def test_student_library_formats_timezone_and_detects_only_active_overdue_loans(
             "O Xano permite só 10 chamadas a cada 20 segundos no plano atual. "
             "Aguarde cerca de 20 s e tente de novo.",
         ),
+        (
+            XanoResponseError(
+                403,
+                "Somente solicitacao pendente pode ser recusada",
+            ),
+            "Só dá para recusar pedidos que ainda estão pendentes. "
+            "A lista foi atualizada.",
+        ),
+        (
+            XanoResponseError(
+                403,
+                "Nao ha exemplar disponivel para retirada",
+            ),
+            "Não há exemplar disponível deste livro para retirada agora.",
+        ),
+        (
+            XanoResponseError(403, "Limite de pedidos em aberto atingido."),
+            "Limite de pedidos em aberto atingido.",
+        ),
+        (
+            XanoResponseError(403, "Limite de emprestimos ativos atingido."),
+            "Limite de emprestimos ativos atingido.",
+        ),
+        (
+            XanoResponseError(403, "Pedido recusado por reserva ativa."),
+            "Pedido recusado por reserva ativa.",
+        ),
+        (
+            XanoResponseError(403, "Bloqueado por atraso de emprestimo."),
+            "Bloqueado por atraso de emprestimo.",
+        ),
     ],
 )
 def test_student_library_maps_integration_errors_without_internal_details(
@@ -772,6 +803,10 @@ def test_admin_student_preview_uses_own_token_and_does_not_invent_records(
             assert state._session_profile == "admin"
             assert state.is_student is True
             assert state.student_library_has_error is True
+            assert state.student_library_message == (
+                "O Xano ainda não permite que o admin faça esta ação como "
+                "Estudante. Veja docs/publicacao-xano-regras.md."
+            )
             assert state.student_library_loans == []
             assert state.student_library_requests == []
             assert state.student_library_reservations == []
@@ -916,6 +951,42 @@ def test_student_library_loads_only_session_data_and_deduplicates_linked_reserve
             )
             delta = await root._get_resolved_delta()
             assert "token-estudante" not in json.dumps(delta, default=str)
+
+    asyncio.run(verify())
+
+
+def test_admin_student_request_profile_403_shows_publication_guidance(
+    monkeypatch,
+):
+    calls = []
+
+    async def denied_request(title_id, token):
+        calls.append((title_id, token))
+        raise XanoResponseError(403, reference="REF43")
+
+    monkeypatch.setattr(frontend, "request_title_loan", denied_request)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(
+                ident=f"admin-student-request-403-{uuid4()}",
+                cls=rx.State,
+            )
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-real-admin", "admin")
+            state.set_admin_view_mode("estudante")
+            state.public_catalog_detail = {"id": 44}
+
+            await state.request_catalog_title(44)
+
+            assert calls == [(44, "token-real-admin")]
+            assert state.student_request_message == (
+                "O Xano ainda não permite que o admin faça esta ação como "
+                "Estudante. Veja docs/publicacao-xano-regras.md. "
+                "(ref. REF43)"
+            )
+            assert state.student_request_has_error is True
 
     asyncio.run(verify())
 
@@ -1480,6 +1551,11 @@ def test_student_request_remains_locked_until_failed_refresh_recovers(monkeypatc
             "Titulo nao encontrado.",
             404,
             "[RES-404] Este recurso ainda não está disponível no servidor",
+        ),
+        (
+            "Limite de pedidos em aberto atingido.",
+            403,
+            "Limite de pedidos em aberto atingido.",
         ),
     ],
 )

@@ -818,6 +818,27 @@ def xano_message_with_reference(message: str, error: Exception) -> str:
 def xano_public_error_message(error: Exception) -> str | None:
     """Retorna mensagens públicas comuns sem substituir erros de domínio."""
     if isinstance(error, XanoResponseError):
+        if error.public_detail:
+            folded = unicodedata.normalize("NFKD", error.public_detail)
+            normalized = " ".join(
+                re.findall(
+                    r"[a-z]+",
+                    folded.encode("ascii", errors="ignore")
+                    .decode("ascii")
+                    .lower(),
+                )
+            )
+            if normalized == "somente solicitacao pendente pode ser recusada":
+                return xano_message_with_reference(
+                    "Só dá para recusar pedidos que ainda estão pendentes. "
+                    "A lista foi atualizada.",
+                    error,
+                )
+            if normalized == "nao ha exemplar disponivel para retirada":
+                return xano_message_with_reference(
+                    "Não há exemplar disponível deste livro para retirada agora.",
+                    error,
+                )
         if error.status_code == 429:
             _, window = _xano_limit_config()
             wait_seconds = max(1, round(window))
@@ -985,8 +1006,10 @@ def _error_detail(
             "dados",
             "duplicada",
             "duplicado",
+            "disponivel",
             "encontrado",
             "erro",
+            "exemplar",
             "estudante",
             "limite",
             "nao",
@@ -995,10 +1018,13 @@ def _error_detail(
             "invalido",
             "pedido",
             "pedidos",
+            "pendente",
             "perfil",
             "recurso",
+            "retirada",
             "reserva",
             "reservas",
+            "solicitacao",
             "titulo",
             "usuario",
         }

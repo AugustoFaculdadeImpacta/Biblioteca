@@ -66,6 +66,9 @@ from biblioteca_mais_nova.circulation import (
     offer_next_reservation,
     refuse_loan_request,
     refuse_reservation,
+    circulation_response_error_message,
+    is_circulation_state_conflict,
+    is_library_rule_error,
     register_loan_return,
     register_request_pickup,
     register_reservation_pickup,
@@ -111,6 +114,7 @@ from biblioteca_mais_nova.xano_client import (
     diagnosticar_pagina_xano,
     registrar_excecao_backend,
     registrar_resultado_xano,
+    xano_message_with_reference,
     xano_public_error_message,
 )
 
@@ -429,6 +433,40 @@ class State(rx.State):
 
     def _is_admin_management_view(self) -> bool:
         return self._is_admin() and self.admin_view_mode == ""
+
+    def _is_admin_simulated_view(self) -> bool:
+        return self._is_admin() and self._effective_view_profile() in {
+            "estudante",
+            "bibliotecario",
+        }
+
+    def _admin_simulated_permission_message(
+        self,
+        error: Exception | None = None,
+    ) -> str:
+        view_label = {
+            "estudante": "Estudante",
+            "bibliotecario": "Bibliotecário",
+        }.get(self._effective_view_profile(), "perfil selecionado")
+        message = (
+            "O Xano ainda não permite que o admin faça esta ação como "
+            f"{view_label}. Veja docs/publicacao-xano-regras.md."
+        )
+        return (
+            xano_message_with_reference(message, error)
+            if error is not None
+            else message
+        )
+
+    def _is_admin_simulated_permission_error(self, error: Exception) -> bool:
+        return (
+            isinstance(error, XanoResponseError)
+            and error.status_code == 403
+            and self._is_admin_simulated_view()
+            and not is_library_rule_error(error)
+            and circulation_response_error_message(error) is None
+            and xano_public_error_message(error) is None
+        )
 
     def _is_student_view(self) -> bool:
         if not self._session_token:
@@ -1493,11 +1531,35 @@ class State(rx.State):
             XanoConfigurationError,
         ) as error:
             self.student_request_has_error = True
-            self.student_request_message = (
-                reservation_request_error_message(error)
-                if not isinstance(error, XanoConfigurationError)
-                else "[RES-SERVICE] O servidor de reservas está temporariamente indisponível"
-            )
+            if (
+                isinstance(error, XanoResponseError)
+                and error.status_code == 403
+                and is_circulation_state_conflict(error)
+            ):
+                await self.load_student_library()
+                self.student_request_message = reservation_request_error_message(
+                    error
+                )
+                if self.student_library_has_error:
+                    self.student_request_message = (
+                        self.student_request_message.replace(
+                            "A lista foi atualizada.",
+                            "Não foi possível atualizar a lista. "
+                            "Recarregue Reservas.",
+                        )
+                    )
+            elif (
+                self._is_admin_simulated_permission_error(error)
+            ):
+                self.student_request_message = (
+                    self._admin_simulated_permission_message(error)
+                )
+            else:
+                self.student_request_message = (
+                    reservation_request_error_message(error)
+                    if not isinstance(error, XanoConfigurationError)
+                    else "[RES-SERVICE] O servidor de reservas está temporariamente indisponível"
+                )
             if (
                 isinstance(error, XanoResponseError)
                 and error.status_code == 401
@@ -1566,7 +1628,11 @@ class State(rx.State):
                         requests = await list_my_requests(self._session_token)
                         reservations = await list_my_reservations(self._session_token)
         except (XanoConfigurationError, XanoRequestError, XanoResponseError) as error:
-            self.student_library_message = catalog_error_message(error)
+            self.student_library_message = (
+                self._admin_simulated_permission_message(error)
+                if self._is_admin_simulated_permission_error(error)
+                else catalog_error_message(error)
+            )
             self.student_library_has_error = True
             if self.student_request_uncertain_title_id is not None:
                 self.student_request_message = (
@@ -2192,13 +2258,22 @@ class State(rx.State):
         self.staff_reservation_needs_manual_check = False
         self.staff_reservation_skipped = 0
         try:
-            entries = await list_admin_catalog(self._session_token)
+            with contexto_evento_xano(
+                "carregar_titulos_reserva_equipe",
+                self._session_profile,
+                self._effective_view_profile(),
+            ):
+                entries = await list_admin_catalog(self._session_token)
         except (
             XanoConfigurationError,
             XanoRequestError,
             XanoResponseError,
         ) as error:
-            self.staff_reservation_message = catalog_error_message(error)
+            self.staff_reservation_message = (
+                self._admin_simulated_permission_message(error)
+                if self._is_admin_simulated_permission_error(error)
+                else catalog_error_message(error)
+            )
             self.staff_reservation_has_error = True
             self.staff_reservation_title_options = []
         else:
@@ -2237,18 +2312,25 @@ class State(rx.State):
         self.staff_reservation_message = ""
         self.staff_reservation_has_error = False
         try:
-            student = await find_student_by_email(
-                self.staff_reservation_email,
-                self._session_token,
-            )
+            with contexto_evento_xano(
+                "buscar_estudante_para_reserva",
+                self._session_profile,
+                self._effective_view_profile(),
+            ):
+                student = await find_student_by_email(
+                    self.staff_reservation_email,
+                    self._session_token,
+                )
         except (
             StaffReservationValidationError,
             XanoConfigurationError,
             XanoRequestError,
             XanoResponseError,
         ) as error:
-            self.staff_reservation_message = staff_reservation_error_message(
-                error
+            self.staff_reservation_message = (
+                self._admin_simulated_permission_message(error)
+                if self._is_admin_simulated_permission_error(error)
+                else staff_reservation_error_message(error)
             )
             self.staff_reservation_has_error = True
         else:
@@ -2300,11 +2382,16 @@ class State(rx.State):
         self.staff_reservation_message = ""
         self.staff_reservation_has_error = False
         try:
-            await create_staff_reservation(
-                student_id,
-                title_id,
-                self._session_token,
-            )
+            with contexto_evento_xano(
+                "reservar_para_estudante",
+                self._session_profile,
+                self._effective_view_profile(),
+            ):
+                await create_staff_reservation(
+                    student_id,
+                    title_id,
+                    self._session_token,
+                )
         except XanoWriteSucceededWithUnreadableResponse:
             await self._refresh_circulation_data()
             self.staff_reservation_message = (
@@ -2314,7 +2401,14 @@ class State(rx.State):
             self.staff_reservation_has_error = False
             return
         except XanoResponseError as error:
-            if error.status_code >= 500:
+            circulation_message = circulation_response_error_message(error)
+            if self._is_admin_simulated_permission_error(error):
+                self.staff_reservation_message = (
+                    self._admin_simulated_permission_message(error)
+                )
+            elif circulation_message is not None:
+                self.staff_reservation_message = circulation_message
+            elif error.status_code >= 500:
                 self.staff_reservation_needs_manual_check = True
                 self.staff_reservation_message = (
                     "Não foi possível confirmar o resultado. Confira a fila "
@@ -2353,16 +2447,25 @@ class State(rx.State):
         self.circulation_pending = True
         self.circulation_skipped = 0
         try:
-            requests = await list_admin_requests(self._session_token)
-            reservations = await list_admin_reservations(self._session_token)
-            loans = await list_admin_loans(self._session_token)
-            catalog_entries = await list_admin_catalog(self._session_token)
+            with contexto_evento_xano(
+                "carregar_circulacao",
+                self._session_profile,
+                self._effective_view_profile(),
+            ):
+                requests = await list_admin_requests(self._session_token)
+                reservations = await list_admin_reservations(self._session_token)
+                loans = await list_admin_loans(self._session_token)
+                catalog_entries = await list_admin_catalog(self._session_token)
         except (
             XanoConfigurationError,
             XanoRequestError,
             XanoResponseError,
         ) as error:
-            self.circulation_message = catalog_error_message(error)
+            self.circulation_message = (
+                self._admin_simulated_permission_message(error)
+                if self._is_admin_simulated_permission_error(error)
+                else catalog_error_message(error)
+            )
             self.circulation_has_error = True
             return False
         finally:
@@ -2437,6 +2540,7 @@ class State(rx.State):
         self,
         action: Callable[[], Awaitable[object | None]],
         success_message: str,
+        action_name: str,
     ) -> None:
         if not self._is_librarian():
             return
@@ -2456,7 +2560,12 @@ class State(rx.State):
         self.circulation_has_error = False
         write_warning = False
         try:
-            await action()
+            with contexto_evento_xano(
+                action_name,
+                self._session_profile,
+                self._effective_view_profile(),
+            ):
+                await action()
         except XanoWriteSucceededWithUnreadableResponse:
             write_warning = True
             success_message = (
@@ -2464,7 +2573,31 @@ class State(rx.State):
                 "a lista foi atualizada."
             )
         except XanoResponseError as error:
-            if error.status_code >= 500:
+            circulation_message = circulation_response_error_message(error)
+            if (
+                error.status_code == 403
+                and is_circulation_state_conflict(error)
+            ):
+                refreshed = await self._refresh_circulation_data()
+                self.circulation_message = (
+                    circulation_message
+                    or catalog_error_message(error)
+                )
+                if not refreshed:
+                    self.circulation_message = (
+                        self.circulation_message.replace(
+                            "A lista foi atualizada.",
+                            "Não foi possível atualizar a lista. "
+                            "Recarregue Reservas.",
+                        )
+                    )
+            elif self._is_admin_simulated_permission_error(error):
+                self.circulation_message = (
+                    self._admin_simulated_permission_message(error)
+                )
+            elif circulation_message is not None:
+                self.circulation_message = circulation_message
+            elif error.status_code >= 500:
                 self.circulation_needs_manual_check = True
                 self.circulation_message = (
                     "Não foi possível confirmar o resultado. Atualize a "
@@ -2506,6 +2639,7 @@ class State(rx.State):
         await self._perform_circulation_action(
             lambda: register_request_pickup(request_id, self._session_token),
             "Retirada registrada; empréstimo com prazo de 14 dias.",
+            "registrar_retirada_pedido",
         )
 
     @rx.event
@@ -2515,6 +2649,7 @@ class State(rx.State):
         await self._perform_circulation_action(
             lambda: refuse_loan_request(request_id, self._session_token),
             "Solicitação recusada.",
+            "recusar_solicitacao",
         )
 
     @rx.event
@@ -2554,6 +2689,7 @@ class State(rx.State):
                 self._session_token,
             ),
             "Oferta registrada para a próxima reserva elegível da fila.",
+            "ofertar_proxima_reserva",
         )
 
     @rx.event
@@ -2566,6 +2702,7 @@ class State(rx.State):
                 self._session_token,
             ),
             "Retirada da reserva registrada; empréstimo com prazo de 14 dias.",
+            "registrar_retirada_reserva",
         )
 
     @rx.event
@@ -2575,6 +2712,7 @@ class State(rx.State):
         await self._perform_circulation_action(
             lambda: refuse_reservation(reservation_id, self._session_token),
             "Reserva aguardando recusada.",
+            "recusar_reserva",
         )
 
     @rx.event
@@ -2584,6 +2722,7 @@ class State(rx.State):
         await self._perform_circulation_action(
             lambda: register_loan_return(loan_id, self._session_token),
             "Devolução registrada.",
+            "registrar_devolucao",
         )
 
     @rx.event
@@ -2637,7 +2776,12 @@ class State(rx.State):
         self.admin_catalog_has_error = False
         self.admin_catalog_skipped = 0
         try:
-            entries = await list_admin_catalog(self._session_token)
+            with contexto_evento_xano(
+                "carregar_acervo",
+                self._session_profile,
+                self._effective_view_profile(),
+            ):
+                entries = await list_admin_catalog(self._session_token)
             self.admin_catalog_entries = entries
             self.admin_catalog_skipped = getattr(
                 entries,
@@ -2649,7 +2793,11 @@ class State(rx.State):
             XanoRequestError,
             XanoResponseError,
         ) as error:
-            message = catalog_error_message(error)
+            message = (
+                self._admin_simulated_permission_message(error)
+                if self._is_admin_simulated_permission_error(error)
+                else catalog_error_message(error)
+            )
             self.admin_catalog_message = message
             self.admin_catalog_has_error = True
         finally:

@@ -22,6 +22,7 @@ from biblioteca_mais_nova.circulation import (
 )
 from biblioteca_mais_nova.xano_client import (
     XanoRequestError,
+    XanoResponseError,
     XanoWriteSucceededWithUnreadableResponse,
 )
 
@@ -394,6 +395,128 @@ def test_circulation_unreadable_success_refreshes_lists_without_retry(monkeypatc
             assert state.circulation_pending is False
             assert state.circulation_has_error is False
             assert "Não foi possível ler a resposta" in state.circulation_message
+
+    asyncio.run(verify())
+
+
+def test_admin_librarian_view_uses_own_session_for_circulation_action(monkeypatch):
+    writes = []
+    refreshes = []
+
+    async def pickup(request_id, token):
+        writes.append((request_id, token))
+        return _loan()
+
+    async def empty_records(token):
+        refreshes.append(token)
+        return []
+
+    monkeypatch.setattr(frontend, "register_request_pickup", pickup)
+    monkeypatch.setattr(frontend, "list_admin_requests", empty_records)
+    monkeypatch.setattr(frontend, "list_admin_reservations", empty_records)
+    monkeypatch.setattr(frontend, "list_admin_loans", empty_records)
+    monkeypatch.setattr(frontend, "list_admin_catalog", empty_records)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"admin-circulation-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-admin", "admin")
+            state.set_admin_view_mode("bibliotecaria")
+
+            await state.circulation_pickup_request(7)
+
+            assert writes == [(7, "token-admin")]
+            assert refreshes == ["token-admin"] * 4
+            assert state._session_profile == "admin"
+            assert state.circulation_has_error is False
+            assert state.circulation_message.startswith("Retirada registrada")
+
+    asyncio.run(verify())
+
+
+def test_stale_circulation_403_refreshes_lists_once_without_retrying_write(
+    monkeypatch,
+):
+    writes = []
+    refreshes = []
+
+    async def stale_refusal(request_id, token):
+        writes.append((request_id, token))
+        raise XanoResponseError(
+            403,
+            "Somente solicitacao pendente pode ser recusada",
+            reference="REF44",
+        )
+
+    async def empty_records(token):
+        refreshes.append(token)
+        return []
+
+    monkeypatch.setattr(frontend, "refuse_loan_request", stale_refusal)
+    monkeypatch.setattr(frontend, "list_admin_requests", empty_records)
+    monkeypatch.setattr(frontend, "list_admin_reservations", empty_records)
+    monkeypatch.setattr(frontend, "list_admin_loans", empty_records)
+    monkeypatch.setattr(frontend, "list_admin_catalog", empty_records)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"stale-circulation-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-admin", "admin")
+            state.set_admin_view_mode("bibliotecaria")
+
+            await state.circulation_refuse_request(7)
+
+            assert writes == [(7, "token-admin")]
+            assert refreshes == ["token-admin"] * 4
+            assert state.circulation_message == (
+                "Só dá para recusar pedidos que ainda estão pendentes. "
+                "A lista foi atualizada. (ref. REF44)"
+            )
+            assert state.circulation_has_error is True
+
+    asyncio.run(verify())
+
+
+def test_admin_librarian_profile_403_shows_publication_guidance(monkeypatch):
+    writes = []
+    refreshes = []
+
+    async def denied_pickup(request_id, token):
+        writes.append((request_id, token))
+        raise XanoResponseError(
+            403,
+            "Perfil não autorizado.",
+            reference="REF42",
+        )
+
+    async def unexpected_read(_token):
+        refreshes.append(True)
+        raise AssertionError("Falha de perfil não deve reler a circulação.")
+
+    monkeypatch.setattr(frontend, "register_request_pickup", denied_pickup)
+    monkeypatch.setattr(frontend, "list_admin_requests", unexpected_read)
+
+    async def verify():
+        async with frontend.app.modify_state(
+            BaseStateToken(ident=f"admin-circulation-403-{uuid4()}", cls=rx.State)
+        ) as root:
+            state = await root.get_state(frontend.State)
+            state._store_session("token-admin", "admin")
+            state.set_admin_view_mode("bibliotecaria")
+
+            await state.circulation_pickup_request(7)
+
+            assert writes == [(7, "token-admin")]
+            assert refreshes == []
+            assert state.circulation_message == (
+                "O Xano ainda não permite que o admin faça esta ação como "
+                "Bibliotecário. Veja docs/publicacao-xano-regras.md. "
+                "(ref. REF42)"
+            )
 
     asyncio.run(verify())
 

@@ -858,6 +858,15 @@ def test_failure_logging_can_be_disabled(monkeypatch, capsys):
     ("server_message", "shown"),
     [
         ("Limite de pedidos atingido.", "Limite de pedidos atingido."),
+        (
+            "Somente solicitacao pendente pode ser recusada",
+            "Só dá para recusar pedidos que ainda estão pendentes. "
+            "A lista foi atualizada.",
+        ),
+        (
+            "Nao ha exemplar disponivel para retirada",
+            "Não há exemplar disponível deste livro para retirada agora.",
+        ),
         ("Conta 123456789 não encontrada.", None),
         ("Erro para pessoa@example.test.", None),
     ],
