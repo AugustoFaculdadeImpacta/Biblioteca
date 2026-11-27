@@ -39,6 +39,10 @@ _AUTHENTICATED_LIST_PATHS = frozenset(
         "/minhas/emprestimos",
         "/minhas/solicitacoes",
         "/minhas/reservas",
+        "/admin/acervo",
+        "/admin/solicitacoes",
+        "/admin/reservas",
+        "/admin/emprestimos",
     }
 )
 _AUTHENTICATED_GET_CACHE_TTL_SECONDS = 20.0

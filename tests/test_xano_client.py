@@ -528,6 +528,43 @@ def test_authenticated_list_cache_expires_after_twenty_seconds(monkeypatch):
     assert len(requests) == 2
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/admin/acervo",
+        "/admin/solicitacoes",
+        "/admin/reservas",
+        "/admin/emprestimos",
+    ],
+)
+def test_admin_lists_are_cached_for_twenty_seconds(path, monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    now = [100.0]
+    monkeypatch.setattr(xano_client, "_cache_clock", lambda: now[0])
+    requests = []
+
+    def handle_request(request):
+        requests.append(request)
+        return httpx.Response(200, json=[{"id": len(requests)}])
+
+    client = XanoClient.from_environment(
+        transport=httpx.MockTransport(handle_request)
+    )
+
+    async def read():
+        return await client.request(
+            "GET",
+            path,
+            token="sessao-admin-cache",
+        )
+
+    assert asyncio.run(read()).json() == [{"id": 1}]
+    assert asyncio.run(read()).json() == [{"id": 1}]
+    now[0] += 20.1
+    assert asyncio.run(read()).json() == [{"id": 2}]
+    assert len(requests) == 2
+
+
 def test_authenticated_write_invalidates_personal_list_cache(monkeypatch):
     monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
     requests = []
@@ -554,6 +591,42 @@ def test_authenticated_write_invalidates_personal_list_cache(monkeypatch):
             "POST",
             "/solicitacoes-emprestimo",
             token="sessao-cache-invalidation",
+            json={"titulo_id": 14},
+        )
+
+    assert asyncio.run(read()).json() == [{"id": 1}]
+    assert asyncio.run(read()).json() == [{"id": 1}]
+    asyncio.run(write())
+    assert asyncio.run(read()).json() == [{"id": 3}]
+    assert [request.method for request in requests] == ["GET", "POST", "GET"]
+
+
+def test_authenticated_write_invalidates_admin_catalog_cache(monkeypatch):
+    monkeypatch.setenv("XANO_API_BASE_URL", "https://api.example.test")
+    requests = []
+
+    def handle_request(request):
+        requests.append(request)
+        if request.method == "POST":
+            return httpx.Response(204)
+        return httpx.Response(200, json=[{"id": len(requests)}])
+
+    client = XanoClient.from_environment(
+        transport=httpx.MockTransport(handle_request)
+    )
+
+    async def read():
+        return await client.request(
+            "GET",
+            "/admin/acervo",
+            token="sessao-admin-cache-invalidation",
+        )
+
+    async def write():
+        return await client.request(
+            "POST",
+            "/admin/exemplares",
+            token="sessao-admin-cache-invalidation",
             json={"titulo_id": 14},
         )
 
