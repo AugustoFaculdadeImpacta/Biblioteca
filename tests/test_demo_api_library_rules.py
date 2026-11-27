@@ -25,6 +25,18 @@ def demo_server(monkeypatch):
         thread.join(timeout=5)
 
 
+def test_demo_api_applies_configured_latency(monkeypatch, demo_server):
+    delays = []
+    monkeypatch.setenv("BIBLIOTECA_DEMO_LATENCIA_MS", "37")
+    monkeypatch.setattr(demo_api, "_sleep", delays.append)
+    client, _ = demo_server
+
+    response = client.get("/catalogo/categorias")
+
+    assert response.status_code == 200
+    assert delays == [0.037]
+
+
 def _headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 

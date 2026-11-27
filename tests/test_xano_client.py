@@ -422,6 +422,7 @@ def test_invalid_response_counts_as_page_failure(monkeypatch, caplog):
         asyncio.run(load_page())
 
     assert "xano_pagina rota=catalogo chamadas=1 falhas=1" in caplog.text
+    assert "duracao_ms=" in caplog.text
 
 
 def test_xano_limits_simultaneous_requests_to_three(monkeypatch):

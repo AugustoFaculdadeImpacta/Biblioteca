@@ -735,6 +735,7 @@ class _PageDiagnostics:
     route: str
     calls: int = 0
     failures: int = 0
+    started_at: float = field(default_factory=time.perf_counter)
 
 
 @contextmanager
@@ -748,10 +749,11 @@ def _diagnostic_page(route: str) -> Generator[None, None, None]:
         _PAGE_DIAGNOSTICS.reset(token)
         if parent is None and _diagnostics_enabled():
             _LOGGER.info(
-                "xano_pagina rota=%s chamadas=%d falhas=%d",
+                "xano_pagina rota=%s chamadas=%d falhas=%d duracao_ms=%d",
                 route,
                 diagnostics.calls,
                 diagnostics.failures,
+                round((time.perf_counter() - diagnostics.started_at) * 1000),
             )
 
 

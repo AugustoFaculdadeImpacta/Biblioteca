@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import secrets
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlsplit
@@ -35,6 +37,7 @@ NUMERIC_LIBRARY_RULES = {
     "prazo_emprestimo_dias": (1, 60),
     "prazo_retirada_horas": (1, 168),
 }
+_sleep = time.sleep
 BOOLEAN_LIBRARY_RULES = {
     "permitir_pedido_com_reserva_ativa",
     "bloquear_com_atraso",
@@ -1298,6 +1301,22 @@ class DemoHandler(BaseHTTPRequestHandler):
 
     def _dispatch(self) -> None:
         try:
+            try:
+                delay_ms = int(
+                    os.environ.get("BIBLIOTECA_DEMO_LATENCIA_MS", "0")
+                )
+            except ValueError:
+                raise ApiError(
+                    500,
+                    "BIBLIOTECA_DEMO_LATENCIA_MS deve ser um inteiro não negativo.",
+                ) from None
+            if delay_ms < 0:
+                raise ApiError(
+                    500,
+                    "BIBLIOTECA_DEMO_LATENCIA_MS deve ser um inteiro não negativo.",
+                )
+            if delay_ms:
+                _sleep(delay_ms / 1000)
             status, result = self._handle()
         except ApiError as error:
             status, result = error.status, {"message": error.message}
